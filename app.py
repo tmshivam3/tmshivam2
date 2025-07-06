@@ -5,7 +5,6 @@ import io
 import random
 import os
 
-# --- Page Config ---
 st.set_page_config(page_title="✨ GOOD VIBES TOOL", layout="centered")
 
 # --- Header / Branding ---
@@ -23,6 +22,7 @@ st.markdown("""
         .main-header h1 {
             font-size: 48px;
             margin: 0;
+            font-weight: bold;
         }
         .main-header p {
             font-size: 18px;
@@ -84,7 +84,7 @@ else:
             default_font_bytes = io.BytesIO(f.read())
             available_fonts.append(default_font_bytes)
     except FileNotFoundError:
-        available_fonts.append(None)  # fallback
+        available_fonts.append(None)
 
 # --- Process Images ---
 output_images = []
@@ -107,8 +107,8 @@ if st.button("✅ Generate Edited Images"):
                 if selected_font_stream:
                     selected_font_stream.seek(0)
                     try:
-                        main_font = ImageFont.truetype(selected_font_stream, size=65)
-                        sub_font = ImageFont.truetype(selected_font_stream, size=28)
+                        main_font = ImageFont.truetype(selected_font_stream, size=80)   # Bolder main text
+                        sub_font = ImageFont.truetype(selected_font_stream, size=30)    # Smaller sub text
                     except Exception:
                         main_font = ImageFont.load_default()
                         sub_font = ImageFont.load_default()
@@ -125,25 +125,25 @@ if st.button("✅ Generate Edited Images"):
                     else:
                         sub_text = random.choice(["Sweet Dreams", "Sleep Well"])
 
-                # Random text color (vibrant)
+                # Random vibrant color for main text
                 text_color = tuple(random.randint(120, 255) for _ in range(3))
                 shadow_color = "black"
+
                 x = 30
                 y_positions = [30, img.height // 2 - 50, img.height - 200]
                 y = random.choice(y_positions)
 
-                # Shadow effect
+                # Shadow for main
                 for dx in [-2, 2]:
                     for dy in [-2, 2]:
                         draw.text((x + dx, y + dy), main_text, font=main_font, fill=shadow_color)
 
-                # Main text
                 draw.text((x, y), main_text, font=main_font, fill=text_color)
 
-                # Subtext
+                # Subtext smaller and subtle
                 if sub_text:
-                    sub_y = y + 70
-                    draw.text((x + 10, sub_y), sub_text, font=sub_font, fill=(200, 200, 200))
+                    sub_y = y + 85
+                    draw.text((x + 10, sub_y), sub_text, font=sub_font, fill=(180, 180, 180))
 
                 # Watermark logo (bottom right)
                 img_w, img_h = img.size
