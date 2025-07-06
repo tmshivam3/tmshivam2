@@ -7,57 +7,76 @@ import os
 
 st.set_page_config(page_title="✨ GOOD VIBES TOOL", layout="centered")
 
-# ---- HEADER ----
+# --- Style ---
 st.markdown("""
     <style>
+        body {
+            background-color: #f8f3e6;
+        }
         .main-header {
-            background: linear-gradient(90deg, #f9d423, #ff4e50);
+            background: linear-gradient(90deg, #f5c71a, #fa8231);
             padding: 25px;
             border-radius: 12px;
             text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             color: white;
             margin-bottom: 20px;
         }
         .main-header h1 {
-            font-size: 50px;
+            font-size: 54px;
             margin: 0;
             font-weight: bold;
-            color: #ffe600;
+            color: #fff700;
             text-shadow: 2px 2px #000;
         }
         .main-header p {
             font-size: 20px;
             margin-top: 8px;
-            color: #f1f1f1;
+            color: #ffe;
         }
         .section-title {
             color: #e67e22;
             font-weight: bold;
-            font-size: 20px;
+            font-size: 22px;
             margin-top: 20px;
         }
+        .stButton>button {
+            background-color: #fa8231;
+            color: white;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: bold;
+        }
     </style>
+""", unsafe_allow_html=True)
+
+# --- Refresh Button ---
+if st.button("🔄 Refresh / Reset"):
+    st.experimental_rerun()
+
+# --- Header ---
+st.markdown("""
     <div class='main-header'>
-        <h1>✨ GOOD VIBES TOOL ✨</h1>
-        <p>Edit Photos in ONE Click. Professional & Premium Watermark Maker</p>
+        <h1>✨ GOOD VIBES ✨</h1>
+        <p>Edit Your Photos in ONE Click – Premium & Stylish Watermark Generator</p>
     </div>
 """, unsafe_allow_html=True)
 
-# ---- UPLOAD SECTION ----
-st.markdown("<div class='section-title'>📌 Upload Your Files</div>", unsafe_allow_html=True)
-logo_file = st.file_uploader("Watermark Logo (PNG, transparent recommended)", type=["png"])
-font_files = st.file_uploader("Custom Fonts (.ttf/.otf, optional)", type=["ttf", "otf"], accept_multiple_files=True)
-uploaded_images = st.file_uploader("Images to Edit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+# --- Upload Inputs ---
+st.markdown("<div class='section-title'>📌 Upload your assets</div>", unsafe_allow_html=True)
+logo_file = st.file_uploader("Upload your watermark/logo (PNG transparent recommended)", type=["png"])
+font_files = st.file_uploader("Upload your custom fonts (.ttf/.otf)", type=["ttf", "otf"], accept_multiple_files=True)
+uploaded_images = st.file_uploader("Upload your photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-# ---- TEXT SETTINGS ----
 st.markdown("<div class='section-title'>📝 Text Settings</div>", unsafe_allow_html=True)
-mode = st.selectbox("Main Greeting", ["Good Morning", "Good Night"])
-extra_line_opt = st.checkbox("Add sub-line (Have a Nice Day / Sweet Dreams)")
-text_size = st.slider("Main Text Size", min_value=100, max_value=250, value=150, step=10)
-subtext_size = int(text_size * 0.35)
+mode = st.selectbox("Choose Greeting", ["Good Morning", "Good Night"])
+extra_line_opt = st.checkbox("Add extra phrase below main text (e.g. Have a Nice Day / Sweet Dreams)")
 
-# ---- CROP FUNCTION ----
+# 👉 Main Text Size
+text_size = st.slider("Main Text Size", min_value=80, max_value=200, value=130, step=5)
+subtext_size = int(text_size * 0.4)
+
+# --- Crop Function ---
 def crop_to_3_4(img):
     w, h = img.size
     target_ratio = 3 / 4
@@ -72,31 +91,34 @@ def crop_to_3_4(img):
         img = img.crop((0, top, w, top + new_h))
     return img
 
-# ---- LOAD FONTS ----
+# --- Load Fonts ---
 available_fonts = []
 if font_files:
     for f in font_files:
-        available_fonts.append(io.BytesIO(f.read()))
+        font_bytes = io.BytesIO(f.read())
+        available_fonts.append(font_bytes)
 else:
-    # Default fallback
     try:
         with open("default/default.ttf", "rb") as f:
-            available_fonts.append(io.BytesIO(f.read()))
+            default_font_bytes = io.BytesIO(f.read())
+            available_fonts.append(default_font_bytes)
     except FileNotFoundError:
         available_fonts.append(None)
 
-# ---- GENERATE IMAGES ----
+# --- Process Images ---
 output_images = []
 
 if st.button("✅ Generate Edited Images"):
     if uploaded_images and logo_file:
-        with st.spinner("Processing your images..."):
+        with st.spinner("Processing your photos..."):
 
-            # Prepare watermark logo
+            # Load Logo
             logo = Image.open(logo_file).convert("RGBA")
-            logo.thumbnail((60, 60))
-            # Reduce opacity
-            alpha = logo.split()[-1].point(lambda p: p * 0.25)
+            # Make logo smaller and subtler
+            logo.thumbnail((80, 80))
+            # Reduce opacity for subtle watermark
+            alpha = logo.split()[3]
+            alpha = alpha.point(lambda p: p * 0.4)
             logo.putalpha(alpha)
 
             for img_file in uploaded_images:
@@ -104,21 +126,21 @@ if st.button("✅ Generate Edited Images"):
                 img = crop_to_3_4(img)
                 draw = ImageDraw.Draw(img)
 
-                # Choose font
-                selected_font = random.choice(available_fonts)
-                if selected_font:
-                    selected_font.seek(0)
+                # Font selection
+                selected_font_stream = random.choice(available_fonts)
+                if selected_font_stream:
+                    selected_font_stream.seek(0)
                     try:
-                        main_font = ImageFont.truetype(selected_font, size=text_size)
-                        sub_font = ImageFont.truetype(selected_font, size=subtext_size)
-                    except:
+                        main_font = ImageFont.truetype(selected_font_stream, size=text_size)
+                        sub_font = ImageFont.truetype(selected_font_stream, size=subtext_size)
+                    except Exception:
                         main_font = ImageFont.load_default()
                         sub_font = ImageFont.load_default()
                 else:
                     main_font = ImageFont.load_default()
                     sub_font = ImageFont.load_default()
 
-                # Main and sub text
+                # --- Texts
                 main_text = mode
                 sub_text = None
                 if extra_line_opt:
@@ -127,36 +149,44 @@ if st.button("✅ Generate Edited Images"):
                     else:
                         sub_text = random.choice(["Sweet Dreams", "Sleep Well"])
 
-                # Random color (contrast vibrant)
-                text_color = tuple(random.randint(160, 255) for _ in range(3))
-                outline_color = "black"
+                # --- Random Colors
+                color_options = [
+                    (255, random.randint(120,200), random.randint(50,150)),
+                    (random.randint(120,255), 255, random.randint(50,150)),
+                    (random.randint(100,255), random.randint(100,255), 255),
+                    (255, 255, 255),
+                    (random.randint(200,255), random.randint(150,200), random.randint(150,200))
+                ]
+                text_color = random.choice(color_options)
+                shadow_color = "black"
 
-                # Random position
-                x_pos = 30
-                y_positions = [40, img.height//2 - text_size//2, img.height - text_size - 120]
-                y_pos = random.choice(y_positions)
+                # --- Text Placement
+                x = 30
+                y_positions = [40, img.height // 2 - text_size//2, img.height - text_size - 80]
+                y = random.choice(y_positions)
 
-                # Outline + shadow
-                for dx in [-4, -2, 0, 2, 4]:
-                    for dy in [-4, -2, 0, 2, 4]:
-                        if dx != 0 or dy != 0:
-                            draw.text((x_pos + dx, y_pos + dy), main_text, font=main_font, fill=outline_color)
+                # --- Draw Shadow
+                for dx in [-3, 3]:
+                    for dy in [-3, 3]:
+                        draw.text((x + dx, y + dy), main_text, font=main_font, fill=shadow_color)
 
-                # Main text
-                draw.text((x_pos, y_pos), main_text, font=main_font, fill=text_color)
+                # --- Draw Main Text
+                draw.text((x, y), main_text, font=main_font, fill=text_color)
 
-                # Subtext
+                # --- Subtext
                 if sub_text:
-                    draw.text((x_pos + 10, y_pos + text_size + 10), sub_text, font=sub_font, fill=(190, 190, 190))
+                    sub_y = y + text_size + 10
+                    draw.text((x + 10, sub_y), sub_text, font=sub_font, fill=(200, 200, 200))
 
-                # Paste logo bottom right
+                # --- Paste Logo
                 img_w, img_h = img.size
                 logo_w, logo_h = logo.size
-                img.paste(logo, (img_w - logo_w - 15, img_h - logo_h - 15), mask=logo)
+                pos = (img_w - logo_w - 20, img_h - logo_h - 20)
+                img.paste(logo, pos, mask=logo)
 
                 output_images.append((img_file.name, img))
 
-        # Create ZIP
+        # --- Create ZIP
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zipf:
             for name, image in output_images:
@@ -164,22 +194,27 @@ if st.button("✅ Generate Edited Images"):
                 image.save(img_bytes, format="JPEG", quality=95)
                 zipf.writestr(name, img_bytes.getvalue())
 
-        st.success("✅ All images are ready!")
+        st.success("✅ All photos ready!")
 
-        # --- PREVIEW ---
-        st.markdown("<div class='section-title'>📸 Preview Your Photos</div>", unsafe_allow_html=True)
+        # --- Previews
+        st.markdown("<div class='section-title'>📸 Preview</div>", unsafe_allow_html=True)
         for name, image in output_images:
             st.image(image.resize((300, 400)), caption=name)
 
-        # --- DOWNLOAD OPTIONS ---
+        # --- Download Options
         col1, col2 = st.columns(2)
         with col1:
-            st.download_button("📦 Download All as ZIP", data=zip_buffer.getvalue(), file_name="GoodVibes.zip", mime="application/zip")
+            st.download_button("📦 Download All (ZIP)", data=zip_buffer.getvalue(), file_name="GoodVibes_Images.zip", mime="application/zip")
         with col2:
             for name, img in output_images:
                 img_bytes = io.BytesIO()
                 img.save(img_bytes, format="JPEG")
                 st.download_button(f"⬇️ {name}", data=img_bytes.getvalue(), file_name=name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload your logo and at least one photo!")
 
+        # --- Generate Again Button
+        st.markdown("<hr>", unsafe_allow_html=True)
+        if st.button("✨ Generate Again"):
+            st.experimental_rerun()
+
+    else:
+        st.warning("⚠️ Please upload your logo and at least one image to proceed.")
