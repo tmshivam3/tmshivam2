@@ -1,65 +1,67 @@
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 import zipfile
-import os
 import random
 import io
 
 # PAGE CONFIG
 st.set_page_config(page_title="SHIVAM TOOL ™", layout="wide")
 
-# CUSTOM STYLE
+# CUSTOM CSS
 st.markdown("""
     <style>
     body {
-        background: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
+        background: linear-gradient(135deg, #141e30, #243b55);
         color: #EEE;
     }
     .block-container {
         padding: 2rem 2rem;
+        background: linear-gradient(135deg, #1e3c72, #2a5298, #6b73ff);
     }
     h1 {
         color: #FFD700;
         text-align: center;
-        padding: 15px;
-        border-radius: 12px;
-        background: rgba(0,0,0,0.7);
-        font-size: 3rem;
+        padding: 20px;
+        border-radius: 14px;
+        background: rgba(0,0,0,0.65);
+        font-size: 3.2rem;
         font-weight: 900;
+        text-shadow: 2px 2px #000;
     }
-    h4 {
+    h2 {
         text-align: center;
-        color: #DDDDDD;
-        margin-top: -10px;
+        font-style: italic;
+        color: #CCCCCC;
+        margin-top: -20px;
+        margin-bottom: 30px;
     }
-    .stButton>button {
-        background: linear-gradient(90deg, #FFD700, #FFC300);
+    .stButton>button, .stDownloadButton>button {
+        background: linear-gradient(90deg, #FFD700, #FFC107);
         color: black;
         border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
+        border-radius: 10px;
+        padding: 12px 24px;
         font-weight: bold;
-        font-size: 16px;
+        font-size: 17px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
-    .stDownloadButton>button {
-        background: linear-gradient(90deg, #FF8800, #FF6600);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: bold;
-        font-size: 16px;
-    }
-    .stRadio, .stCheckbox, .stSelectbox, .stFileUploader {
-        background: rgba(255, 255, 255, 0.08);
-        padding: 15px;
-        border-radius: 12px;
-        margin-bottom: 20px;
+    .stFileUploader, .stRadio, .stCheckbox, .stSelectbox {
+        background: rgba(255,255,255,0.1);
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 25px;
+        backdrop-filter: blur(6px);
     }
     .css-1v0mbdj, .css-1d391kg {
-        background-color: rgba(255,255,255,0.08);
-        border-radius: 12px;
-        padding: 15px;
+        background-color: rgba(255,255,255,0.07);
+        border-radius: 15px;
+        padding: 20px;
+    }
+    footer {
+        text-align: center;
+        color: #AAA;
+        font-size: 13px;
+        margin-top: 40px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -67,7 +69,7 @@ st.markdown("""
 # HEADER
 st.markdown("""
 <h1>🔆 SHIVAM TOOL ™</h1>
-<h4>✨ EDIT PHOTO IN ONE CLICK – Premium Greeting Image Designer</h4>
+<h2>by Shivam Bind</h2>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
@@ -150,7 +152,7 @@ if st.button("✨ EDIT IMAGES IN ONE CLICK"):
         with st.spinner("🧪 Generating Premium Images..."):
             logo = Image.open(logo_file).convert("RGBA")
             logo.thumbnail((300, 300))
-            logo.putalpha(60)
+            logo.putalpha(50)
 
             fonts = []
             if font_files:
@@ -195,7 +197,7 @@ if st.button("✨ EDIT IMAGES IN ONE CLICK"):
 
                 sign_font = ImageFont.truetype(font_stream, size=30)
                 sign_pos = (10, img_h - 40)
-                draw.text(sign_pos, "™ SHIVAM", font=sign_font, fill=(180, 180, 180))
+                draw.text(sign_pos, "™ Shivam Bind", font=sign_font, fill=(180, 180, 180))
 
                 output_images.append((img_file.name, img))
 
@@ -230,7 +232,7 @@ if st.button("✨ EDIT IMAGES IN ONE CLICK"):
             mime="application/zip"
         )
 
-        st.markdown("<p style='text-align: center; color: #888; font-size: 12px;'>© 2025 SHIVAM TOOL™ - All Rights Reserved</p>", unsafe_allow_html=True)
+        st.markdown("<footer>© 2025 Shivam Bind - All Rights Reserved</footer>", unsafe_allow_html=True)
 
     else:
         st.warning("⚠️ Please upload at least images and logo to start.")
