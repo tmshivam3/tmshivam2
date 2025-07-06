@@ -5,6 +5,7 @@ import io
 import random
 import os
 
+# --- Page Config ---
 st.set_page_config(page_title="✨ GOOD VIBES TOOL", layout="centered")
 
 # --- Header / Branding ---
@@ -22,7 +23,6 @@ st.markdown("""
         .main-header h1 {
             font-size: 48px;
             margin: 0;
-            font-weight: bold;
         }
         .main-header p {
             font-size: 18px;
@@ -57,10 +57,6 @@ st.markdown("<div class='section-title'>📝 Text Settings</div>", unsafe_allow_
 mode = st.selectbox("Choose Main Greeting", ["Good Morning", "Good Night"])
 extra_line_opt = st.checkbox("Add extra phrase below main text (e.g. Have a Nice Day / Sweet Dreams)")
 
-# 👉 New feature: choose text size
-text_size = st.slider("Main Text Size", min_value=50, max_value=150, value=100, step=5)
-subtext_size = int(text_size * 0.4)
-
 # --- Crop Function ---
 def crop_to_3_4(img):
     w, h = img.size
@@ -88,7 +84,7 @@ else:
             default_font_bytes = io.BytesIO(f.read())
             available_fonts.append(default_font_bytes)
     except FileNotFoundError:
-        available_fonts.append(None)
+        available_fonts.append(None)  # fallback
 
 # --- Process Images ---
 output_images = []
@@ -99,7 +95,7 @@ if st.button("✅ Generate Edited Images"):
 
             # Prepare logo
             logo = Image.open(logo_file).convert("RGBA")
-            logo.thumbnail((60, 60))  # Smaller, subtler watermark
+            logo.thumbnail((70, 70))  # Smaller, subtler watermark
 
             for img_file in uploaded_images:
                 img = Image.open(img_file).convert("RGB")
@@ -111,8 +107,8 @@ if st.button("✅ Generate Edited Images"):
                 if selected_font_stream:
                     selected_font_stream.seek(0)
                     try:
-                        main_font = ImageFont.truetype(selected_font_stream, size=text_size)
-                        sub_font = ImageFont.truetype(selected_font_stream, size=subtext_size)
+                        main_font = ImageFont.truetype(selected_font_stream, size=65)
+                        sub_font = ImageFont.truetype(selected_font_stream, size=28)
                     except Exception:
                         main_font = ImageFont.load_default()
                         sub_font = ImageFont.load_default()
@@ -129,25 +125,25 @@ if st.button("✅ Generate Edited Images"):
                     else:
                         sub_text = random.choice(["Sweet Dreams", "Sleep Well"])
 
-                # Random vibrant color for main text
+                # Random text color (vibrant)
                 text_color = tuple(random.randint(120, 255) for _ in range(3))
                 shadow_color = "black"
-
                 x = 30
                 y_positions = [30, img.height // 2 - 50, img.height - 200]
                 y = random.choice(y_positions)
 
-                # Shadow for main
+                # Shadow effect
                 for dx in [-2, 2]:
                     for dy in [-2, 2]:
                         draw.text((x + dx, y + dy), main_text, font=main_font, fill=shadow_color)
 
+                # Main text
                 draw.text((x, y), main_text, font=main_font, fill=text_color)
 
-                # Subtext smaller and subtle
+                # Subtext
                 if sub_text:
-                    sub_y = y + text_size + 10
-                    draw.text((x + 10, sub_y), sub_text, font=sub_font, fill=(180, 180, 180))
+                    sub_y = y + 70
+                    draw.text((x + 10, sub_y), sub_text, font=sub_font, fill=(200, 200, 200))
 
                 # Watermark logo (bottom right)
                 img_w, img_h = img.size
@@ -183,3 +179,4 @@ if st.button("✅ Generate Edited Images"):
                 st.download_button(f"⬇️ {name}", data=img_bytes.getvalue(), file_name=name, mime="image/jpeg")
     else:
         st.warning("⚠️ Please upload your logo and at least one image to proceed.")
+
