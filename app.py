@@ -1,110 +1,56 @@
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 import zipfile
+import os
 import random
 import io
 
-# PAGE CONFIG
-st.set_page_config(page_title="SHIVAM TOOL ™", layout="wide")
-
-# CUSTOM CSS
-st.markdown("""
-    <style>
-    body {
-        background: linear-gradient(135deg, #141e30, #243b55);
-        color: #EEE;
-    }
-    .block-container {
-        padding: 2rem 2rem;
-        background: linear-gradient(135deg, #1e3c72, #2a5298, #6b73ff);
-    }
-    h1 {
-        color: #FFD700;
-        text-align: center;
-        padding: 20px;
-        border-radius: 14px;
-        background: rgba(0,0,0,0.65);
-        font-size: 3.2rem;
-        font-weight: 900;
-        text-shadow: 2px 2px #000;
-    }
-    h2 {
-        text-align: center;
-        font-style: italic;
-        color: #CCCCCC;
-        margin-top: -20px;
-        margin-bottom: 30px;
-    }
-    .stButton>button, .stDownloadButton>button {
-        background: linear-gradient(90deg, #FFD700, #FFC107);
-        color: black;
-        border: none;
-        border-radius: 10px;
-        padding: 12px 24px;
-        font-weight: bold;
-        font-size: 17px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    .stFileUploader, .stRadio, .stCheckbox, .stSelectbox {
-        background: rgba(255,255,255,0.1);
-        padding: 20px;
-        border-radius: 15px;
-        margin-bottom: 25px;
-        backdrop-filter: blur(6px);
-    }
-    .css-1v0mbdj, .css-1d391kg {
-        background-color: rgba(255,255,255,0.07);
-        border-radius: 15px;
-        padding: 20px;
-    }
-    footer {
-        text-align: center;
-        color: #AAA;
-        font-size: 13px;
-        margin-top: 40px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# HEADER
-st.markdown("""
-<h1>🔆 SHIVAM TOOL ™</h1>
-<h2>by Shivam Bind</h2>
-""", unsafe_allow_html=True)
-
-st.markdown("---")
-
-# FILE UPLOADS
-st.subheader("📌 Upload Your Files")
-col1, col2, col3 = st.columns(3)
-with col1:
-    logo_file = st.file_uploader("🔖 Watermark / Logo (PNG)", type=["png"])
-with col2:
-    font_files = st.file_uploader("🔠 Custom Fonts (Optional)", type=["ttf", "otf"], accept_multiple_files=True)
-with col3:
-    texture_images = st.file_uploader("🌈 Texture Images (Optional)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-uploaded_images = st.file_uploader("🖼️ Photos to Edit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-st.markdown("---")
-
-# OPTIONS
-st.subheader("⚙️ Design Options")
-col4, col5 = st.columns(2)
-with col4:
-    greeting_choice = st.radio("🌅 Choose Greeting Text:", ["Good Morning", "Good Night"])
-with col5:
-    add_subtext = st.checkbox("✨ Add Subtext")
-
-selected_subtext = None
-if add_subtext:
-    if greeting_choice == "Good Morning":
-        selected_subtext = st.selectbox("Select Subtext", ["Have a Nice Day", "Have a Great Day"])
-    else:
-        selected_subtext = st.selectbox("Select Subtext", ["Sweet Dream"])
-
 DEFAULT_FONT_PATH = "default.ttf"
 
+st.set_page_config(
+    page_title="🌟 SHIVAM TOOL",
+    layout="centered",
+    page_icon="🧿"
+)
+
+st.markdown(
+    """
+    <div style='background: linear-gradient(to right, #2c3e50, #3498db); padding: 20px; border-radius: 12px; text-align: center;'>
+        <h1 style='color: yellow; font-size: 60px; margin: 0;'>SHIVAM TOOL™</h1>
+        <h4 style='color: white; margin-top: 10px;'>EDIT PHOTOS IN ONE CLICK – Premium Free Tool</h4>
+        <p style='color: #eee;'>Designed with ❤️ by Shivam Bind</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
+
+# -- Uploaders front & center
+st.subheader("📌 Upload Zone")
+logo_file = st.file_uploader("✅ Watermark/Logo (PNG recommended)", type=["png"])
+font_files = st.file_uploader("🔠 Custom Fonts (.ttf/.otf)", type=["ttf", "otf"], accept_multiple_files=True)
+uploaded_images = st.file_uploader("🖼️ Images to Edit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
+st.markdown("---")
+
+st.subheader("✏️ Text Options")
+text_choice = st.selectbox("✅ Choose greeting text:", ["Good Morning", "Good Night"])
+extra_line = st.checkbox(
+    "✅ Add optional line (e.g. Have a Nice Day / Sweet Dreams)"
+)
+if text_choice == "Good Morning":
+    extra_default = "Have a Nice Day"
+else:
+    extra_default = "Sweet Dreams"
+
+extra_text_input = ""
+if extra_line:
+    extra_text_input = st.text_input("✍️ Enter extra line text:", value=extra_default)
+
+output_images = []
+
+# -- Helper to crop 3:4
 def crop_to_3_4(img):
     w, h = img.size
     target_ratio = 3 / 4
@@ -119,105 +65,90 @@ def crop_to_3_4(img):
         img = img.crop((0, top, w, top + new_h))
     return img
 
-def get_random_color():
-    return tuple(random.randint(80, 255) for _ in range(3))
-
-def draw_text_with_effects(draw, position, text, font, base_color, use_shadow, multi_color, texture_img=None):
-    x, y = position
-    if use_shadow:
-        for dx in [-3, 3]:
-            for dy in [-3, 3]:
-                draw.text((x + dx, y + dy), text, font=font, fill="black")
-    if texture_img:
-        mask = Image.new("L", draw.im.size, 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text(position, text, font=font, fill=255)
-        texture_resized = texture_img.resize(draw.im.size)
-        draw.im.paste(texture_resized, mask=mask)
-    elif multi_color:
-        offset_x = 0
-        for letter in text:
-            color = get_random_color()
-            draw.text((x + offset_x, y), letter, font=font, fill=color)
-            offset_x += font.getlength(letter)
-    else:
-        draw.text((x, y), text, font=font, fill=base_color)
-
-st.markdown("---")
-st.subheader("✅ Ready to Make?")
-
-output_images = []
-if st.button("✨ EDIT IMAGES IN ONE CLICK"):
+# -- Main button
+if st.button("✅ Generate Edited Images"):
     if uploaded_images and logo_file:
-        with st.spinner("🧪 Generating Premium Images..."):
-            logo = Image.open(logo_file).convert("RGBA")
-            logo.thumbnail((300, 300))
-            logo.putalpha(50)
+        with st.spinner("🔄 Processing... Please wait."):
 
+            # Load logo
+            logo = Image.open(logo_file).convert("RGBA")
+            logo.thumbnail((200, 200))
+            logo.putalpha(80)  # make it subtle
+
+            # Load fonts
             fonts = []
-            if font_files:
-                for f in font_files:
-                    fonts.append(io.BytesIO(f.read()))
-            else:
+            try:
                 with open(DEFAULT_FONT_PATH, "rb") as f:
                     fonts.append(io.BytesIO(f.read()))
+            except FileNotFoundError:
+                st.warning("⚠️ Default.ttf not found – will use system font.")
 
-            textures = []
-            if texture_images:
-                for t in texture_images:
-                    textures.append(Image.open(t).convert("RGB"))
+            for f in font_files or []:
+                fonts.append(io.BytesIO(f.read()))
 
+            # -- Process all images
             for img_file in uploaded_images:
                 img = Image.open(img_file).convert("RGB")
                 img = crop_to_3_4(img)
                 draw = ImageDraw.Draw(img)
 
-                font_stream = random.choice(fonts)
-                font_stream.seek(0)
-                size = random.randint(90, 140)
-                font = ImageFont.truetype(font_stream, size=size)
+                # Random font
+                font_stream = random.choice(fonts) if fonts else None
 
-                base_color = get_random_color()
-                pos = (30, 30)
-                use_shadow = random.random() > 0.3
-                multi_color = random.random() > 0.4
-                use_texture = (random.random() > 0.6) and textures
-                texture_img = random.choice(textures) if use_texture else None
+                # Random size & style
+                font_size = random.randint(60, 90)
+                if font_stream:
+                    font_stream.seek(0)
+                    try:
+                        font = ImageFont.truetype(font_stream, size=font_size)
+                    except:
+                        font = ImageFont.load_default()
+                else:
+                    font = ImageFont.load_default()
 
-                draw_text_with_effects(draw, pos, greeting_choice, font, base_color, use_shadow, multi_color, texture_img)
+                # Random color / gradient
+                if random.random() < 0.3:
+                    # From image
+                    avg_color = tuple(map(int, img.resize((1, 1)).getpixel((0, 0))))
+                    text_color = avg_color
+                else:
+                    text_color = tuple(random.randint(50, 255) for _ in range(3))
 
-                if selected_subtext:
-                    sub_font = ImageFont.truetype(font_stream, size=40)
-                    sub_pos = (pos[0], pos[1] + size + 10)
-                    draw.text(sub_pos, selected_subtext, font=sub_font, fill=(200, 200, 200))
+                # Random shadow/outline
+                if random.random() < 0.7:
+                    shadow_color = "black"
+                    for dx in [-2, 2]:
+                        for dy in [-2, 2]:
+                            draw.text((30+dx, 50+dy), text_choice, font=font, fill=shadow_color)
 
+                draw.text((30, 50), text_choice, font=font, fill=text_color)
+
+                # Extra line
+                if extra_line and extra_text_input.strip():
+                    small_font_size = int(font_size * 0.5)
+                    if font_stream:
+                        font_stream.seek(0)
+                        try:
+                            small_font = ImageFont.truetype(font_stream, size=small_font_size)
+                        except:
+                            small_font = ImageFont.load_default()
+                    else:
+                        small_font = ImageFont.load_default()
+
+                    if random.random() < 0.7:
+                        for dx in [-1, 1]:
+                            for dy in [-1, 1]:
+                                draw.text((35+dx, 50+font_size+10+dy), extra_text_input, font=small_font, fill="black")
+                    draw.text((35, 50+font_size+10), extra_text_input, font=small_font, fill=text_color)
+
+                # Paste watermark bottom right
                 img_w, img_h = img.size
                 logo_w, logo_h = logo.size
-                img.paste(logo, (img_w - logo_w - 20, img_h - logo_h - 20), mask=logo)
-
-                sign_font = ImageFont.truetype(font_stream, size=30)
-                sign_pos = (10, img_h - 40)
-                draw.text(sign_pos, "™ Shivam Bind", font=sign_font, fill=(180, 180, 180))
+                img.paste(logo, (img_w - logo_w - 15, img_h - logo_h - 15), mask=logo)
 
                 output_images.append((img_file.name, img))
 
-        st.success("✅ All Images Processed Successfully!")
-
-        st.markdown("---")
-        st.subheader("🔎 Preview & Download")
-        for idx, (name, image) in enumerate(output_images):
-            st.image(image, caption=f"Preview: {name}", use_column_width=True)
-            img_bytes = io.BytesIO()
-            image.save(img_bytes, format="JPEG", quality=95)
-            img_bytes.seek(0)
-            st.download_button(
-                label=f"📥 Download {name}",
-                data=img_bytes,
-                file_name=name,
-                mime="image/jpeg",
-                key=f"download_{idx}"
-            )
-
+        # -- ZIP
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zipf:
             for name, image in output_images:
@@ -225,15 +156,17 @@ if st.button("✨ EDIT IMAGES IN ONE CLICK"):
                 image.save(img_bytes, format="JPEG", quality=95)
                 zipf.writestr(name, img_bytes.getvalue())
 
-        st.download_button(
-            "📦 Download All Images (ZIP)",
-            data=zip_buffer.getvalue(),
-            file_name="SHIVAM_TOOL_Images.zip",
-            mime="application/zip"
-        )
+        st.success("✅ All images processed successfully!")
+        st.download_button("📦 Download All Images as ZIP", data=zip_buffer.getvalue(), file_name="Shivam_Greetings.zip", mime="application/zip")
 
-        st.markdown("<footer>© 2025 Shivam Bind - All Rights Reserved</footer>", unsafe_allow_html=True)
+        # -- Direct individual download preview
+        st.subheader("✅ Preview & Download Individually")
+        for name, image in output_images:
+            st.image(image, caption=name, use_column_width=True)
+            img_bytes = io.BytesIO()
+            image.save(img_bytes, format="JPEG", quality=95)
+            st.download_button(f"⬇️ Download {name}", data=img_bytes.getvalue(), file_name=name, mime="image/jpeg")
 
     else:
-        st.warning("⚠️ Please upload at least images and logo to start.")
+        st.warning("⚠️ Please upload logo and images before generating!")
 
