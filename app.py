@@ -57,6 +57,10 @@ st.markdown("<div class='section-title'>📝 Text Settings</div>", unsafe_allow_
 mode = st.selectbox("Choose Main Greeting", ["Good Morning", "Good Night"])
 extra_line_opt = st.checkbox("Add extra phrase below main text (e.g. Have a Nice Day / Sweet Dreams)")
 
+# 👉 New feature: choose text size
+text_size = st.slider("Main Text Size", min_value=50, max_value=150, value=100, step=5)
+subtext_size = int(text_size * 0.4)
+
 # --- Crop Function ---
 def crop_to_3_4(img):
     w, h = img.size
@@ -95,7 +99,7 @@ if st.button("✅ Generate Edited Images"):
 
             # Prepare logo
             logo = Image.open(logo_file).convert("RGBA")
-            logo.thumbnail((70, 70))  # Smaller, subtler watermark
+            logo.thumbnail((60, 60))  # Smaller, subtler watermark
 
             for img_file in uploaded_images:
                 img = Image.open(img_file).convert("RGB")
@@ -107,8 +111,8 @@ if st.button("✅ Generate Edited Images"):
                 if selected_font_stream:
                     selected_font_stream.seek(0)
                     try:
-                        main_font = ImageFont.truetype(selected_font_stream, size=80)   # Bolder main text
-                        sub_font = ImageFont.truetype(selected_font_stream, size=30)    # Smaller sub text
+                        main_font = ImageFont.truetype(selected_font_stream, size=text_size)
+                        sub_font = ImageFont.truetype(selected_font_stream, size=subtext_size)
                     except Exception:
                         main_font = ImageFont.load_default()
                         sub_font = ImageFont.load_default()
@@ -142,7 +146,7 @@ if st.button("✅ Generate Edited Images"):
 
                 # Subtext smaller and subtle
                 if sub_text:
-                    sub_y = y + 85
+                    sub_y = y + text_size + 10
                     draw.text((x + 10, sub_y), sub_text, font=sub_font, fill=(180, 180, 180))
 
                 # Watermark logo (bottom right)
