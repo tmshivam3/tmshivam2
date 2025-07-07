@@ -184,11 +184,15 @@ if st.button("✅ Generate Edited Images"):
                 file_name = f"Picsart_{timestamp}.jpg"
                 st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
 
-        # Create a ZIP file of all images
-        zip_filename = "/tmp/generated_images.zip"
-        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for name, variants in all_results:
-                for i, img in enumerate(variants):
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format="JPEG", quality=95)
-                    img_bytes.seek(0
+        # Create a ZIP file for "Download All"
+        if st.button("⬇️ Download All Images as ZIP"):
+            zip_filename = "/tmp/generated_images.zip"
+            with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for name, variants in all_results:
+                    for i, img in enumerate(variants):
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format="JPEG", quality=95)
+                        img_bytes.seek(0)
+                        zipf.writestr(f"{name}_{i}.jpg", img_bytes.read())
+            
+            with open(zip_filename, "rb")
