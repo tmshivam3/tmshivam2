@@ -192,7 +192,3 @@ if st.button("✅ Generate Edited Images"):
                     for i, img in enumerate(variants):
                         img_bytes = io.BytesIO()
                         img.save(img_bytes, format="JPEG", quality=95)
-                        img_bytes.seek(0)
-                        zipf.writestr(f"{name}_{i}.jpg", img_bytes.read())
-            
-            with open(zip_filename, "rb")
