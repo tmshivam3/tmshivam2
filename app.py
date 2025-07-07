@@ -180,16 +180,4 @@ if st.button("✅ Generate Edited Images"):
             else:
                 st.image(variants[0], caption=name, use_column_width=True)
 
-            # Single Image Download Button
-            for i, img in enumerate(variants):
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
-                img_bytes.seek(0)
-                file_name = f"Picsart_{datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S-%f')}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes, file_name=file_name, mime="image/jpeg")
-
-        # ZIP File Download
-        if st.button("⬇️ Download All Images as ZIP"):
-            with st.spinner("Preparing ZIP..."):
-                zip_buffer = create_zip(all_results)
-                st.download_button("⬇
+            # Single Image Download
