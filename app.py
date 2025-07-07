@@ -53,13 +53,11 @@ coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
-# Watermark logo options
-st.sidebar.subheader("Watermark Logo")
-logo_choice = st.sidebar.selectbox("Predefined Logo", available_logos if available_logos else ["None"])
-logo_upload = st.sidebar.file_uploader("Or Upload Your Logo", type=["png", "jpg", "jpeg"])
-
+logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
-user_logo = Image.open(logo_upload) if logo_upload else None
+
+# New feature: Watermark Upload Option
+uploaded_watermark = st.sidebar.file_uploader("Upload Watermark Image (PNG/JPG)", type=["png", "jpg", "jpeg"])
 
 st.sidebar.subheader("Font Source")
 font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
@@ -83,11 +81,13 @@ if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
             logo = None
-            if user_logo:
-                logo = user_logo.convert("RGBA")
-                logo.thumbnail((150, 150))
-            elif logo_path:
+            if logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
+                logo.thumbnail((150, 150))
+
+            # Use uploaded watermark if present
+            if uploaded_watermark:
+                logo = Image.open(uploaded_watermark).convert("RGBA")
                 logo.thumbnail((150, 150))
 
             font_bytes = None
@@ -152,7 +152,7 @@ if st.button("✅ Generate Edited Images"):
                             draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill=shadow_color)
                     draw.text((date_x, date_y), today_str, font=date_font, fill=text_color)
 
-                # Logo
+                # Logo / Watermark
                 if logo:
                     img.paste(logo, (img_w - logo.width - 10, img_h - logo.height - 10), mask=logo)
 
@@ -167,21 +167,4 @@ if st.button("✅ Generate Edited Images"):
 
                 if generate_variations:
                     for i in range(4):
-                        variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999))
-                        variants.append(variant)
-                else:
-                    variants = [generate_single_variant(image)]
-
-                all_results.append((img_file.name, variants))
-
-        st.success("✅ All images processed successfully!")
-
-        # Create ZIP for all images
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for name, variants in all_results:
-                for i, img in enumerate(variants):
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format="JPEG", quality=95)
-                    img_bytes.seek(0)
-                    zip_file.writestr(f"{name}_variant_{i}.jpg",
+                        variant = generate_single_variant(image.copy(), seed=random
