@@ -4,7 +4,6 @@ import os
 import io
 import random
 import datetime
-import tempfile
 
 # -----------------------------
 # PAGE CONFIG
@@ -64,7 +63,7 @@ else:
 
 user_subtext = st.sidebar.text_input("Subtext (optional)", default_subtext)
 
-# 3. Coverage Slider (fixed scaling)
+# 3. Coverage Slider
 coverage_percent = st.sidebar.slider(
     "Main Text Coverage (area %)", 5, 25, 20,
     help="Adjust how big the main greeting text is."
@@ -138,7 +137,8 @@ if st.button("✅ Generate Edited Images"):
                 draw = ImageDraw.Draw(img)
 
                 # Dynamically scale text size from coverage
-                main_text_area = (coverage_percent / 100) * img_w * img_h * 0.5
+                scale_factor = 0.3   # Reduce so 5% is smaller
+                main_text_area = (coverage_percent / 100) * img_w * img_h * scale_factor
                 main_font_size = max(20, int(main_text_area ** 0.5))
                 subtext_font_size = max(12, int(main_font_size * 0.4))
                 date_font_size = max(12, int(main_font_size * 0.35))
@@ -151,11 +151,16 @@ if st.button("✅ Generate Edited Images"):
                     st.error(f"❌ Failed to load font: {e}")
                     continue
 
-                # Random text position
-                x = random.randint(30, img_w - main_font_size * len(greeting_type)//2 - 30)
-                y = random.randint(30, img_h - main_font_size - 30)
+                # Random text position with safe range
+                x_min = 30
+                x_max = max(30, img_w - main_font_size * len(greeting_type)//2 - 30)
+                x = x_min if x_max <= x_min else random.randint(x_min, x_max)
 
-                # Get contrasting color
+                y_min = 30
+                y_max = max(30, img_h - main_font_size - 30)
+                y = y_min if y_max <= y_min else random.randint(y_min, y_max)
+
+                # Random high-contrast color
                 avg_color = img.resize((1,1)).getpixel((0,0))
                 text_color = random_contrasting_color(avg_color)
                 shadow_color = "black"
@@ -182,8 +187,12 @@ if st.button("✅ Generate Edited Images"):
                 # Add Date if enabled
                 if add_date:
                     today = datetime.datetime.now().strftime("%d %B %Y")
-                    date_x = random.randint(20, img_w - date_font_size * 8)
-                    date_y = random.randint(20, img_h - date_font_size - 20)
+                    date_x_min = 20
+                    date_x_max = max(20, img_w - date_font_size * 8)
+                    date_x = date_x_min if date_x_max <= date_x_min else random.randint(date_x_min, date_x_max)
+                    date_y_min = 20
+                    date_y_max = max(20, img_h - date_font_size - 20)
+                    date_y = date_y_min if date_y_max <= date_y_min else random.randint(date_y_min, date_y_max)
                     draw.text((date_x, date_y), today, font=date_font, fill=text_color)
 
                 # Add watermark logo
