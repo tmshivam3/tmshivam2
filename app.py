@@ -1,20 +1,19 @@
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
-import datetime
-import os
 import random
+import os
 import io
+import datetime
 
-# ------------------ PAGE CONFIG ------------------ #
+# PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
-st.markdown(
-    """
-    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🔆 EDIT Photo in One Click 🔆</h1>
-    """,
-    unsafe_allow_html=True
-)
 
-# ------------------ UTILITY ------------------ #
+st.markdown("""
+    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🔆 EDIT PHOTO IN ONE CLICK 🔆</h1>
+    <h4 style='text-align: center; color: grey;'>Premium Good Morning / Good Night Watermark Generator</h4>
+""", unsafe_allow_html=True)
+
+# UTILS
 def list_files(folder, exts):
     if not os.path.exists(folder):
         return []
@@ -23,192 +22,159 @@ def list_files(folder, exts):
 def crop_to_3_4(img):
     w, h = img.size
     target_ratio = 3 / 4
-    if abs((w / h) - target_ratio) < 0.01:
-        return img
-    if w / h > target_ratio:
+    current_ratio = w / h
+    if current_ratio > target_ratio:
         new_w = int(h * target_ratio)
         left = (w - new_w) // 2
-        return img.crop((left, 0, left + new_w, h))
+        img = img.crop((left, 0, left + new_w, h))
     else:
         new_h = int(w / target_ratio)
         top = (h - new_h) // 2
-        return img.crop((0, top, w, top + new_h))
+        img = img.crop((0, top, w, top + new_h))
+    return img
 
-def get_focus_color():
-    focus_colors = [
-        (255, 255, 0),   # Yellow
-        (255, 0, 0),     # Red
-        (255, 255, 255), # White
-        (255, 105, 180), # Pink
-        (0, 255, 0)      # Green
-    ]
-    return random.choice(focus_colors)
-
-def generate_timestamp_filename():
-    timestamp = datetime.datetime.now().strftime("%d-%m-%y_%H-%M-%S-%f")
-    return f"Picsart_{timestamp}.jpg"
-
-# ------------------ ASSET FOLDERS ------------------ #
+# DATA
 available_logos = list_files("assets/logos", [".png"])
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 
-# ------------------ SIDEBAR ------------------ #
-st.sidebar.header("🛠️ Customize Your Design")
+# SIDEBAR
+st.sidebar.header("🎨 Tool Settings")
 
-# 1️⃣ Greeting Type
-greeting_type = st.sidebar.selectbox(
-    "Greeting Type",
-    ["Good Morning", "Good Night"]
-)
+greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
 
-default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else random.choice(["Have a Nice Day", "Have a Great Day"])
-user_subtext = st.sidebar.text_input("Subtext (optional)", default_subtext)
+default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
+user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 
-# 2️⃣ Coverage
-coverage_percent = st.sidebar.slider("Main Text Coverage % (smaller)", 2, 15, 8)
+coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 10)
 
-# 3️⃣ Date Option
-add_date = st.sidebar.checkbox("Include Today's Date")
+show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
+date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 60)
 
-# 4️⃣ Advanced Positioning
-advanced_positioning = st.sidebar.checkbox("Advanced Positioning", value=False)
+logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
+logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
 
-if advanced_positioning:
-    st.sidebar.markdown("**Main Text Position & Size**")
-    main_x_pos = st.sidebar.slider("Main Text X (%)", 0, 100, 50)
-    main_y_pos = st.sidebar.slider("Main Text Y (%)", 0, 100, 50)
-    main_size_adjust = st.sidebar.slider("Main Text Size Scale", 50, 150, 100)
+st.sidebar.subheader("Font Source")
+font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
 
-    st.sidebar.markdown("**Subtext Position & Size**")
-    sub_x_pos = st.sidebar.slider("Subtext X (%)", 0, 100, 50)
-    sub_y_pos = st.sidebar.slider("Subtext Y (%)", 0, 100, 60)
-    sub_size_adjust = st.sidebar.slider("Subtext Size Scale", 50, 150, 100)
-
-    if add_date:
-        st.sidebar.markdown("**Date Position & Size**")
-        date_x_pos = st.sidebar.slider("Date X (%)", 0, 100, 80)
-        date_y_pos = st.sidebar.slider("Date Y (%)", 0, 100, 90)
-        date_size_adjust = st.sidebar.slider("Date Size Scale", 50, 150, 100)
-
-# 5️⃣ Logo Selection (Compact)
-if available_logos:
-    use_logo = st.sidebar.checkbox("Use Watermark Logo")
-    if use_logo:
-        logo_choice = st.sidebar.selectbox("Choose Logo", available_logos)
-        logo_path = os.path.join("assets/logos", logo_choice)
-    else:
-        logo_path = None
+if font_source == "Available Fonts":
+    selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
+    uploaded_font = None
 else:
-    logo_path = None
+    uploaded_font = st.sidebar.file_uploader("Upload .ttf or .otf Font", type=["ttf", "otf"])
+    selected_font = None
 
-# 6️⃣ Font Section (Updated Compact)
-st.sidebar.markdown("**Font Options**")
-selected_font = None
+generate_variations = st.sidebar.checkbox("Generate 4 Variations per Photo (Slideshow)", value=False)
 
-if available_fonts:
-    selected_font = st.sidebar.selectbox("Available Fonts", available_fonts)
+# MAIN UPLOAD
+uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-uploaded_font = st.sidebar.file_uploader("Or Upload Your Own Font (.ttf or .otf)", type=["ttf", "otf"])
-
-# ------------------ MAIN UPLOAD ------------------ #
-uploaded_images = st.file_uploader("📸 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 output_images = []
 
-# ------------------ PROCESSING ------------------ #
+# BUTTON
 if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
-            # Load logo
             logo = None
             if logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
                 logo.thumbnail((150, 150))
 
-            # Load font
-            if uploaded_font is not None:
+            font_bytes = None
+            if uploaded_font:
                 font_bytes = io.BytesIO(uploaded_font.read())
-                font_bytes.seek(0)
-                selected_font_path = font_bytes
-            elif selected_font is not None:
-                selected_font_path = os.path.join("assets/fonts", selected_font)
+            elif selected_font:
+                font_bytes = os.path.join("assets/fonts", selected_font)
             else:
-                selected_font_path = "assets/fonts/roboto.ttf"
+                font_bytes = "assets/fonts/roboto.ttf"
 
-            for img_file in uploaded_images:
-                img = Image.open(img_file).convert("RGB")
+            def generate_single_variant(img, seed=None):
+                random.seed(seed)
                 img = crop_to_3_4(img)
-                draw = ImageDraw.Draw(img)
                 img_w, img_h = img.size
+                main_text_area = (coverage_percent / 100) * img_w * img_h
+                main_font_size = max(30, int((main_text_area) ** 0.5 * 0.6))
+                sub_font_size = int(main_font_size * 0.5)
+                date_font_size = int(main_font_size * date_size_factor / 100)
 
-                # Base sizes from coverage %
-                main_text_area = (coverage_percent / 1000) * img_w * img_h
-                main_font_size = max(20, int((main_text_area) ** 0.5))
-                subtext_font_size = max(16, int(main_font_size * 0.4))
-                date_font_size = subtext_font_size
+                try:
+                    if isinstance(font_bytes, str):
+                        main_font = ImageFont.truetype(font_bytes, size=main_font_size)
+                        sub_font = ImageFont.truetype(font_bytes, size=sub_font_size)
+                        date_font = ImageFont.truetype(font_bytes, size=date_font_size)
+                    else:
+                        main_font = ImageFont.truetype(font_bytes, size=main_font_size)
+                        sub_font = ImageFont.truetype(font_bytes, size=sub_font_size)
+                        date_font = ImageFont.truetype(font_bytes, size=date_font_size)
+                except:
+                    main_font = ImageFont.load_default()
+                    sub_font = ImageFont.load_default()
+                    date_font = ImageFont.load_default()
 
-                # Advanced scaling overrides
-                if advanced_positioning:
-                    main_font_size = int(main_font_size * main_size_adjust / 100)
-                    subtext_font_size = int(subtext_font_size * sub_size_adjust / 100)
-                    if add_date:
-                        date_font_size = int(date_font_size * date_size_adjust / 100)
-
-                # Load fonts
-                main_font = ImageFont.truetype(selected_font_path, size=main_font_size)
-                sub_font = ImageFont.truetype(selected_font_path, size=subtext_font_size)
-                date_font = ImageFont.truetype(selected_font_path, size=date_font_size)
+                draw = ImageDraw.Draw(img)
+                safe_margin = 30
 
                 # Colors
-                text_color = get_focus_color()
+                strong_colors = [(255, 255, 0), (255, 0, 0), (255, 255, 255), (255, 192, 203), (0, 255, 0)]
+                text_color = random.choice(strong_colors + [tuple(random.randint(100, 255) for _ in range(3))])
 
-                # Positioning
-                safe_margin = 20
-                if advanced_positioning:
-                    x = int(img_w * main_x_pos / 100)
-                    y = int(img_h * main_y_pos / 100)
-                    sub_x = int(img_w * sub_x_pos / 100)
-                    sub_y = int(img_h * sub_y_pos / 100)
-                else:
-                    x = random.randint(safe_margin, img_w - main_font_size * len(greeting_type) // 2 - safe_margin)
-                    y = random.randint(safe_margin, img_h - main_font_size - safe_margin)
-                    sub_x = x + random.randint(-20, 20)
-                    sub_y = y + main_font_size + 10
-
-                # Draw main text
+                # Main Text
+                x = random.randint(safe_margin, max(safe_margin, img_w - main_font_size * len(greeting_type)//2 - safe_margin))
+                y = random.randint(safe_margin, max(safe_margin, img_h - main_font_size - safe_margin))
+                shadow_color = "black"
                 for dx in [-2, 2]:
                     for dy in [-2, 2]:
-                        draw.text((x+dx, y+dy), greeting_type, font=main_font, fill="black")
+                        draw.text((x+dx, y+dy), greeting_type, font=main_font, fill=shadow_color)
                 draw.text((x, y), greeting_type, font=main_font, fill=text_color)
+
+                # Subtext
+                sub_x = x + random.randint(-20, 20)
+                sub_y = y + main_font_size + 10
                 draw.text((sub_x, sub_y), user_subtext, font=sub_font, fill=text_color)
 
-                # Draw date
-                if add_date:
+                # Date
+                if show_date:
                     today_str = datetime.datetime.now().strftime("%d %B %Y")
-                    if advanced_positioning:
-                        date_x = int(img_w * date_x_pos / 100)
-                        date_y = int(img_h * date_y_pos / 100)
-                    else:
-                        max_date_x = max(safe_margin, img_w - date_font_size * 12 - safe_margin)
-                        max_date_y = max(safe_margin, img_h - date_font_size - safe_margin)
-                        date_x = random.randint(safe_margin, max_date_x)
-                        date_y = random.randint(safe_margin, max_date_y)
+                    date_x = random.randint(safe_margin, max(safe_margin, img_w - date_font_size * 10 - safe_margin))
+                    date_y = random.randint(safe_margin, max(safe_margin, img_h - date_font_size - safe_margin))
                     for dx in [-2, 2]:
                         for dy in [-2, 2]:
-                            draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill="black")
+                            draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill=shadow_color)
                     draw.text((date_x, date_y), today_str, font=date_font, fill=text_color)
 
-                # Paste logo
+                # Logo
                 if logo:
                     img.paste(logo, (img_w - logo.width - 10, img_h - logo.height - 10), mask=logo)
 
-                # Append
-                output_images.append((generate_timestamp_filename(), img))
+                return img
 
-        st.success("✅ Images processed successfully!")
-        for name, img in output_images:
-            st.image(img, caption=name, use_column_width=True)
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG", quality=95)
-            st.download_button(f"⬇️ Download {name}", data=img_bytes.getvalue(), file_name=name, mime="image/jpeg")
+            all_results = []
+            for img_file in uploaded_images:
+                image = Image.open(img_file).convert("RGB")
+                variants = []
+                if generate_variations:
+                    for i in range(4):
+                        variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999))
+                        variants.append(variant)
+                else:
+                    variants = [generate_single_variant(image)]
+
+                all_results.append((img_file.name, variants))
+
+        st.success("✅ All images processed successfully!")
+
+        # Preview and Download
+        for name, variants in all_results:
+            if generate_variations:
+                st.write(f"**{name} - Variations**")
+                st.image(variants, use_column_width=True)
+            else:
+                st.image(variants[0], caption=name, use_column_width=True)
+
+            for i, img in enumerate(variants):
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"Picsart_{timestamp}.jpg"
+                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
     else:
         st.warning("⚠️ Please upload images before clicking Generate.")
