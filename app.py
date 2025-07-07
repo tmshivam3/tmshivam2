@@ -192,4 +192,4 @@ if st.button("✅ Generate Edited Images"):
                     img_bytes = io.BytesIO()
                     img.save(img_bytes, format="JPEG", quality=95)
                     img_bytes.seek(0)
-                    zipf.writestr(f"{name}_{
+                    zipf.writestr(f"{name
