@@ -58,6 +58,15 @@ def get_random_position(img_size, text_size):
     y = random.randint(margin, max(margin, h - th - margin))
     return x, y
 
+def get_text_size(draw, text, font):
+    """Safe text sizing for PIL versions"""
+    try:
+        return font.getsize(text)
+    except AttributeError:
+        # Newer PIL uses textbbox
+        bbox = draw.textbbox((0, 0), text, font=font)
+        return (bbox[2] - bbox[0], bbox[3] - bbox[1])
+
 # === Generate button ===
 if st.button("✅ Generate Edited Images"):
     if not (uploaded_images and logo_file):
@@ -81,7 +90,7 @@ if st.button("✅ Generate Edited Images"):
                 img = crop_to_3_4(img)
                 draw = ImageDraw.Draw(img)
 
-                # === Safe font selection (fix) ===
+                # === Safe font selection
                 if fonts:
                     try:
                         font_stream = random.choice(fonts)
@@ -107,7 +116,7 @@ if st.button("✅ Generate Edited Images"):
                 shadow_enabled = add_shadow and random.choice([True, False])
 
                 # Random position for main text
-                main_text_size = draw.textsize(main_text, font=main_font)
+                main_text_size = get_text_size(draw, main_text, main_font)
                 x, y = get_random_position(img.size, main_text_size)
 
                 # Draw shadow if enabled
@@ -163,4 +172,3 @@ if st.button("✅ Generate Edited Images"):
                 file_name="GoodImages.zip",
                 mime="application/zip"
             )
-
