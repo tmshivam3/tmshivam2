@@ -28,11 +28,7 @@ subtext_choice = st.selectbox("✨ Choose Subtext", default_subtexts)
 branding_options = ["None", "Traveller Bharat", "Good Vibes", "Happy happy", "Bharattak"]
 branding_choice = st.selectbox("📢 Choose Facebook Page Branding", branding_options)
 
-font_size = st.slider("🔠 Main Text Font Size", min_value=60, max_value=150, value=100, step=5)
-subtext_size = int(font_size * 0.5)
-
 add_shadow = st.checkbox("🌟 Add Shadow Effect Randomly", value=True)
-
 download_mode = st.radio("📥 Choose Download Mode", ["Individual Images", "ZIP of All Images"])
 
 # === Helper functions ===
@@ -59,13 +55,26 @@ def get_random_position(img_size, text_size):
     return x, y
 
 def get_text_size(draw, text, font):
-    """Safe text sizing for PIL versions"""
     try:
         return font.getsize(text)
     except AttributeError:
-        # Newer PIL uses textbbox
         bbox = draw.textbbox((0, 0), text, font=font)
         return (bbox[2] - bbox[0], bbox[3] - bbox[1])
+
+def find_best_font_size(draw, text, font_bytes, image_size, target_ratio=0.20):
+    W, H = image_size
+    target_area = W * H * target_ratio
+    size = 20
+    while size < 500:
+        try:
+            test_font = ImageFont.truetype(io.BytesIO(font_bytes), size=size)
+            w, h = get_text_size(draw, text, test_font)
+            if w * h > target_area:
+                return max(10, size - 5)
+        except Exception:
+            break
+        size += 5
+    return size
 
 # === Generate button ===
 if st.button("✅ Generate Edited Images"):
@@ -81,7 +90,7 @@ if st.button("✅ Generate Edited Images"):
             fonts = []
             if font_files:
                 for f in font_files:
-                    fonts.append(io.BytesIO(f.read()))
+                    fonts.append(f.read())
 
             output_images = []
 
@@ -93,10 +102,10 @@ if st.button("✅ Generate Edited Images"):
                 # === Safe font selection
                 if fonts:
                     try:
-                        font_stream = random.choice(fonts)
-                        font_stream.seek(0)
-                        main_font = ImageFont.truetype(font_stream, size=font_size)
-                        sub_font = ImageFont.truetype(font_stream, size=subtext_size)
+                        font_bytes = random.choice(fonts)
+                        best_main_size = find_best_font_size(draw, greeting_choice, font_bytes, img.size, target_ratio=0.20)
+                        main_font = ImageFont.truetype(io.BytesIO(font_bytes), size=best_main_size)
+                        sub_font = ImageFont.truetype(io.BytesIO(font_bytes), size=int(best_main_size * 0.5))
                     except Exception:
                         main_font = ImageFont.load_default()
                         sub_font = ImageFont.load_default()
@@ -112,14 +121,14 @@ if st.button("✅ Generate Edited Images"):
                 # Random color
                 text_color = tuple(random.randint(100, 255) for _ in range(3))
 
-                # Decide shadow on/off randomly if enabled
+                # Shadow option
                 shadow_enabled = add_shadow and random.choice([True, False])
 
-                # Random position for main text
+                # Position
                 main_text_size = get_text_size(draw, main_text, main_font)
                 x, y = get_random_position(img.size, main_text_size)
 
-                # Draw shadow if enabled
+                # Shadow
                 if shadow_enabled:
                     for dx in [-2, -1, 0, 1, 2]:
                         for dy in [-2, -1, 0, 1, 2]:
@@ -129,13 +138,13 @@ if st.button("✅ Generate Edited Images"):
                 # Draw main text
                 draw.text((x, y), main_text, font=main_font, fill=text_color)
 
-                # Subtext position: below main text
+                # Subtext
                 sub_x = x + 10
                 sub_y = y + main_text_size[1] + 10
                 sub_color = tuple(random.randint(100, 255) for _ in range(3))
                 draw.text((sub_x, sub_y), subtext_choice, font=sub_font, fill=sub_color)
 
-                # Paste logo at bottom-right
+                # Logo at bottom-right
                 img_w, img_h = img.size
                 logo_w, logo_h = logo.size
                 img.paste(logo, (img_w - logo_w - 10, img_h - logo_h - 10), mask=logo)
