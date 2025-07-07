@@ -95,26 +95,33 @@ if st.button("✅ Generate Edited Images"):
                 date_font_size = int(main_font_size * date_size_factor / 100)
 
                 # Font Selection Logic
-                if font_option == "Manual":
-                    if uploaded_font:
-                        font_bytes = io.BytesIO(uploaded_font.read())
-                        main_font = ImageFont.truetype(font_bytes, size=main_font_size)
-                        sub_font = ImageFont.truetype(font_bytes, size=sub_font_size)
-                        date_font = ImageFont.truetype(font_bytes, size=date_font_size)
-                    elif selected_font:
-                        main_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=main_font_size)
-                        sub_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=sub_font_size)
-                        date_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=date_font_size)
-                    else:
-                        main_font = ImageFont.load_default()
-                        sub_font = ImageFont.load_default()
-                        date_font = ImageFont.load_default()
+                try:
+                    if font_option == "Manual":
+                        if uploaded_font:
+                            font_bytes = io.BytesIO(uploaded_font.read())
+                            main_font = ImageFont.truetype(font_bytes, size=main_font_size)
+                            sub_font = ImageFont.truetype(font_bytes, size=sub_font_size)
+                            date_font = ImageFont.truetype(font_bytes, size=date_font_size)
+                        elif selected_font:
+                            main_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=main_font_size)
+                            sub_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=sub_font_size)
+                            date_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=date_font_size)
+                        else:
+                            main_font = ImageFont.load_default()
+                            sub_font = ImageFont.load_default()
+                            date_font = ImageFont.load_default()
 
-                else:  # Random Font Selection
-                    random_font_file = random.choice(available_fonts)
-                    main_font = ImageFont.truetype(random_font_file, size=main_font_size)
-                    sub_font = ImageFont.truetype(random_font_file, size=sub_font_size)
-                    date_font = ImageFont.truetype(random_font_file, size=date_font_size)
+                    else:  # Random Font Selection
+                        random_font_file = random.choice(available_fonts)
+                        main_font = ImageFont.truetype(random_font_file, size=main_font_size)
+                        sub_font = ImageFont.truetype(random_font_file, size=sub_font_size)
+                        date_font = ImageFont.truetype(random_font_file, size=date_font_size)
+                
+                except OSError as e:
+                    st.error(f"Error loading font: {e}")
+                    main_font = ImageFont.load_default()
+                    sub_font = ImageFont.load_default()
+                    date_font = ImageFont.load_default()
 
                 draw = ImageDraw.Draw(img)
                 safe_margin = 30
@@ -166,14 +173,4 @@ if st.button("✅ Generate Edited Images"):
 
         # Preview and Download
         for name, variants in all_results:
-            st.write(f"**{name}**")
-            st.image(variants[0], caption=name, use_column_width=True)
-
-            for i, img in enumerate(variants):
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+            st.write(f"**{name}
