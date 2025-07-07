@@ -4,6 +4,7 @@ import random
 import os
 import io
 import datetime
+import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -166,7 +167,7 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Preview and Download
+        # Preview and Download for Individual Images
         for name, variants in all_results:
             if generate_variations:
                 st.write(f"**{name} - Variations**")
@@ -181,5 +182,16 @@ if st.button("✅ Generate Edited Images"):
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
                 file_name = f"Picsart_{timestamp}.jpg"
                 st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+
+        # Create a ZIP file of all images
+        zip_filename = "generated_images.zip"
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for name, variants in all_results:
+                for i, img in enumerate(variants):
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format="JPEG", quality=95)
+                    img_bytes.seek(0)
+                    zipf.writestr(f"{name}_{i}.jpg", img_bytes.read())
+
+        # Provide the ZIP download link
+        with open(zip_filename,
