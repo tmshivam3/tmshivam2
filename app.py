@@ -100,9 +100,9 @@ if st.button("✅ Generate Edited Images"):
                 draw = ImageDraw.Draw(img)
                 img_w, img_h = img.size
 
-                # FONT SIZING (adjusted scale)
-                main_text_area = (coverage_percent / 300) * img_w * img_h
-                main_font_size = max(30, int(main_text_area ** 0.5))
+                # FONT SIZING (further reduced scaling)
+                main_text_area = (coverage_percent / 800) * img_w * img_h
+                main_font_size = max(20, int(main_text_area ** 0.5))
                 sub_font_size = int(main_font_size * 0.4)
                 date_font_size = sub_font_size
 
