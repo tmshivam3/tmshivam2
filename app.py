@@ -4,6 +4,7 @@ import random
 import os
 import io
 import datetime
+import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -52,8 +53,13 @@ coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
-logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
+# Watermark logo options
+st.sidebar.subheader("Watermark Logo")
+logo_choice = st.sidebar.selectbox("Predefined Logo", available_logos if available_logos else ["None"])
+logo_upload = st.sidebar.file_uploader("Or Upload Your Logo", type=["png", "jpg", "jpeg"])
+
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
+user_logo = Image.open(logo_upload) if logo_upload else None
 
 st.sidebar.subheader("Font Source")
 font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
@@ -77,7 +83,10 @@ if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
             logo = None
-            if logo_path:
+            if user_logo:
+                logo = user_logo.convert("RGBA")
+                logo.thumbnail((150, 150))
+            elif logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
                 logo.thumbnail((150, 150))
 
@@ -167,20 +176,9 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Preview and Download
-        for name, variants in all_results:
-            if generate_variations:
-                st.write(f"**{name} - Variations**")
-                for variant in variants:
-                    st.image(variant, use_column_width=True)
-            else:
-                st.image(variants[0], caption=name, use_column_width=True)
-
-            for i, img in enumerate(variants):
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+        # Create ZIP for all images
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for name, variants in all_results:
+                for i, img in enumerate(variants):
+                    img_bytes = io.BytesIO
