@@ -1,6 +1,39 @@
+import streamlit as st
+from PIL import Image, ImageDraw, ImageFont
+import random
+import os
+import io
+import datetime
 import zipfile
 
-# Function to create a ZIP file containing all the images
+# PAGE CONFIG
+st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
+
+st.markdown("""
+    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🔆 EDIT PHOTO IN ONE CLICK 🔆</h1>
+    <h4 style='text-align: center; color: grey;'>Premium Good Morning / Good Night Watermark Generator</h4>
+""", unsafe_allow_html=True)
+
+# UTILS
+def list_files(folder, exts):
+    if not os.path.exists(folder):
+        return []
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
+
+def crop_to_3_4(img):
+    w, h = img.size
+    target_ratio = 3 / 4
+    current_ratio = w / h
+    if current_ratio > target_ratio:
+        new_w = int(h * target_ratio)
+        left = (w - new_w) // 2
+        img = img.crop((left, 0, left + new_w, h))
+    else:
+        new_h = int(w / target_ratio)
+        top = (h - new_h) // 2
+        img = img.crop((0, top, w, top + new_h))
+    return img
+
 def create_zip(images, zip_filename):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
@@ -8,6 +41,45 @@ def create_zip(images, zip_filename):
             zip_file.writestr(file_name, img_bytes.getvalue())
     zip_buffer.seek(0)
     return zip_buffer
+
+# DATA
+available_logos = list_files("assets/logos", [".png"])
+available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
+
+# SIDEBAR
+st.sidebar.header("🎨 Tool Settings")
+
+greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
+
+default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
+user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
+
+# Default coverage is set to 8%
+coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
+
+# Default date size factor set to 70
+show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
+date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
+
+logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
+logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
+
+st.sidebar.subheader("Font Source")
+font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
+
+if font_source == "Available Fonts":
+    selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
+    uploaded_font = None
+else:
+    uploaded_font = st.sidebar.file_uploader("Upload .ttf or .otf Font", type=["ttf", "otf"])
+    selected_font = None
+
+generate_variations = st.sidebar.checkbox("Generate 4 Variations per Photo (Slideshow)", value=False)
+
+# MAIN UPLOAD
+uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
+output_images = []
 
 # BUTTON
 if st.button("✅ Generate Edited Images"):
@@ -125,14 +197,4 @@ if st.button("✅ Generate Edited Images"):
                 images_for_zip.append((img_bytes, file_name))
 
         # Add a "Download All" button to download all images as a ZIP file
-        if images_for_zip:
-            zip_buffer = create_zip(images_for_zip, "all_images.zip")
-            st.download_button(
-                label="⬇️ Download All Images",
-                data=zip_buffer,
-                file_name="all_images.zip",
-                mime="application/zip"
-            )
-
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+        if images_for_zip
