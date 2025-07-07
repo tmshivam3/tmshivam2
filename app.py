@@ -74,20 +74,23 @@ add_date = st.sidebar.checkbox("Include Today's Date")
 advanced_positioning = st.sidebar.checkbox("Advanced Positioning", value=False)
 
 if advanced_positioning:
-    st.sidebar.markdown("**Main Text Position**")
+    st.sidebar.markdown("**Main Text Position & Size**")
     main_x_pos = st.sidebar.slider("Main Text X (%)", 0, 100, 50)
     main_y_pos = st.sidebar.slider("Main Text Y (%)", 0, 100, 50)
+    main_size_adjust = st.sidebar.slider("Main Text Size Scale", 50, 150, 100)
 
-    st.sidebar.markdown("**Subtext Position**")
+    st.sidebar.markdown("**Subtext Position & Size**")
     sub_x_pos = st.sidebar.slider("Subtext X (%)", 0, 100, 50)
     sub_y_pos = st.sidebar.slider("Subtext Y (%)", 0, 100, 60)
+    sub_size_adjust = st.sidebar.slider("Subtext Size Scale", 50, 150, 100)
 
     if add_date:
-        st.sidebar.markdown("**Date Position**")
+        st.sidebar.markdown("**Date Position & Size**")
         date_x_pos = st.sidebar.slider("Date X (%)", 0, 100, 80)
         date_y_pos = st.sidebar.slider("Date Y (%)", 0, 100, 90)
+        date_size_adjust = st.sidebar.slider("Date Size Scale", 50, 150, 100)
 
-# 5️⃣ Logo Selection
+# 5️⃣ Logo Selection (Compact)
 if available_logos:
     use_logo = st.sidebar.checkbox("Use Watermark Logo")
     if use_logo:
@@ -98,13 +101,14 @@ if available_logos:
 else:
     logo_path = None
 
-# 6️⃣ Font Section (Compact)
+# 6️⃣ Font Section (Updated Compact)
 st.sidebar.markdown("**Font Options**")
-font_source = st.sidebar.radio("Font Source", ["Default (Roboto)", "Own Font"])
-if font_source == "Own Font":
-    uploaded_font = st.sidebar.file_uploader("Upload .ttf or .otf", type=["ttf", "otf"])
-else:
-    uploaded_font = None
+selected_font = None
+
+if available_fonts:
+    selected_font = st.sidebar.selectbox("Available Fonts", available_fonts)
+
+uploaded_font = st.sidebar.file_uploader("Or Upload Your Own Font (.ttf or .otf)", type=["ttf", "otf"])
 
 # ------------------ MAIN UPLOAD ------------------ #
 uploaded_images = st.file_uploader("📸 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
@@ -121,10 +125,12 @@ if st.button("✅ Generate Edited Images"):
                 logo.thumbnail((150, 150))
 
             # Load font
-            if font_source == "Own Font" and uploaded_font is not None:
+            if uploaded_font is not None:
                 font_bytes = io.BytesIO(uploaded_font.read())
                 font_bytes.seek(0)
                 selected_font_path = font_bytes
+            elif selected_font is not None:
+                selected_font_path = os.path.join("assets/fonts", selected_font)
             else:
                 selected_font_path = "assets/fonts/roboto.ttf"
 
@@ -134,13 +140,20 @@ if st.button("✅ Generate Edited Images"):
                 draw = ImageDraw.Draw(img)
                 img_w, img_h = img.size
 
-                # Font size calculation
+                # Base sizes from coverage %
                 main_text_area = (coverage_percent / 1000) * img_w * img_h
                 main_font_size = max(20, int((main_text_area) ** 0.5))
                 subtext_font_size = max(16, int(main_font_size * 0.4))
                 date_font_size = subtext_font_size
 
-                # Load font
+                # Advanced scaling overrides
+                if advanced_positioning:
+                    main_font_size = int(main_font_size * main_size_adjust / 100)
+                    subtext_font_size = int(subtext_font_size * sub_size_adjust / 100)
+                    if add_date:
+                        date_font_size = int(date_font_size * date_size_adjust / 100)
+
+                # Load fonts
                 main_font = ImageFont.truetype(selected_font_path, size=main_font_size)
                 sub_font = ImageFont.truetype(selected_font_path, size=subtext_font_size)
                 date_font = ImageFont.truetype(selected_font_path, size=date_font_size)
@@ -161,14 +174,14 @@ if st.button("✅ Generate Edited Images"):
                     sub_x = x + random.randint(-20, 20)
                     sub_y = y + main_font_size + 10
 
-                # Draw text
+                # Draw main text
                 for dx in [-2, 2]:
                     for dy in [-2, 2]:
                         draw.text((x+dx, y+dy), greeting_type, font=main_font, fill="black")
                 draw.text((x, y), greeting_type, font=main_font, fill=text_color)
                 draw.text((sub_x, sub_y), user_subtext, font=sub_font, fill=text_color)
 
-                # Date
+                # Draw date
                 if add_date:
                     today_str = datetime.datetime.now().strftime("%d %B %Y")
                     if advanced_positioning:
