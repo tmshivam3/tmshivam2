@@ -45,10 +45,10 @@ greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Nig
 default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
 user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 
-coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 10)
+coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
-date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 60)
+date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
 logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
@@ -134,12 +134,17 @@ if st.button("✅ Generate Edited Images"):
                 # Date
                 if show_date:
                     today_str = datetime.datetime.now().strftime("%d %B %Y")
-                    date_x = random.randint(safe_margin, max(safe_margin, img_w - date_font_size * 10 - safe_margin))
-                    date_y = random.randint(safe_margin, max(safe_margin, img_h - date_font_size - safe_margin))
+                    # Adjust the date position to avoid overlap with main text
+                    date_x = safe_margin
+                    date_y = img_h - date_font_size - safe_margin  # Fixed position at the bottom
+                    # Randomize font for date
+                    random_date_font = random.choice([ImageFont.truetype(font_bytes, size=date_font_size),
+                                                      ImageFont.truetype("assets/fonts/roboto.ttf", size=date_font_size),
+                                                      ImageFont.truetype("assets/fonts/arial.ttf", size=date_font_size)])
                     for dx in [-2, 2]:
                         for dy in [-2, 2]:
-                            draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill=shadow_color)
-                    draw.text((date_x, date_y), today_str, font=date_font, fill=text_color)
+                            draw.text((date_x + dx, date_y + dy), today_str, font=random_date_font, fill=shadow_color)
+                    draw.text((date_x, date_y), today_str, font=random_date_font, fill=text_color)
 
                 # Logo
                 if logo:
