@@ -20,7 +20,7 @@ st.markdown("""
 DEFAULT_FONT_PATH = "roboto.ttf"
 ASSETS_FONT_PATH = "assets/fonts"
 ASSETS_LOGO_PATH = "assets/logos"
-COLOR_PALETTE = [(255, 255, 0), (255, 0, 0), (255, 255, 255), (255, 192, 203), (0, 255, 0)]
+FOCUS_COLORS = [(255, 255, 0), (255, 0, 0), (255, 255, 255), (255, 192, 203), (0, 255, 0)]
 
 os.makedirs(ASSETS_FONT_PATH, exist_ok=True)
 os.makedirs(ASSETS_LOGO_PATH, exist_ok=True)
@@ -45,8 +45,10 @@ def crop_to_3_4(img):
         img = img.crop((0, top, w, top + new_h))
     return img
 
-def pick_random_color():
-    return random.choice(COLOR_PALETTE)
+def biased_random_color():
+    if random.random() < 0.8:
+        return random.choice(FOCUS_COLORS)
+    return tuple(random.randint(50, 255) for _ in range(3))
 
 def safe_randint(a, b):
     return a if a >= b else random.randint(a, b)
@@ -60,7 +62,6 @@ with st.sidebar:
     default_subtext = random.choice(["Have a Nice Day", "Have a Great Day"]) if greeting_type == "Good Morning" else "Sweet Dreams"
     user_subtext = st.text_input("Wishes Text", default_subtext)
     coverage_percent = st.slider("Main Text Coverage %", 5, 25, 20)
-
     add_date = st.checkbox("Add Today's Date", value=False)
 
     # -------------- FONT OPTIONS --------------
@@ -135,12 +136,14 @@ if st.button("✅ Generate Edited Images"):
                 img_w, img_h = img.size
                 draw = ImageDraw.Draw(img)
 
-                # Text size calculation with scale factor
-                scale_factor = 0.3
-                main_text_area = (coverage_percent / 100) * img_w * img_h * scale_factor
-                main_font_size = max(20, int(main_text_area ** 0.5))
-                sub_font_size = max(14, int(main_font_size * 0.6))
-                date_font_size = sub_font_size
+                # NEW SCALE FACTOR
+                # Make 5% much smaller, 25% much bigger
+                scale_factor = 0.08 + 0.6 * (coverage_percent - 5) / 20
+
+                main_text_area = scale_factor * img_w * img_h
+                main_font_size = max(14, int(main_text_area ** 0.5))
+                sub_font_size = max(12, int(main_font_size * 0.6))
+                date_font_size = max(12, int(main_font_size * 0.8))
 
                 # Load font
                 try:
@@ -151,13 +154,13 @@ if st.button("✅ Generate Edited Images"):
                     st.error(f"Font error: {e}")
                     continue
 
-                # Random text position
-                x_max = max(50, img_w - main_font_size * len(greeting_type)//2 - 50)
-                y_max = max(50, img_h - main_font_size - 50)
-                x = safe_randint(30, x_max)
-                y = safe_randint(30, y_max)
+                # Random positions: *anywhere* on image
+                x_max = max(20, img_w - main_font_size * len(greeting_type)//2 - 20)
+                y_max = max(20, img_h - main_font_size - 20)
+                x = safe_randint(10, x_max)
+                y = safe_randint(10, y_max)
 
-                text_color = pick_random_color()
+                text_color = biased_random_color()
                 shadow_color = "black"
 
                 # Draw greeting with shadow
@@ -166,16 +169,16 @@ if st.button("✅ Generate Edited Images"):
                         draw.text((x + dx, y + dy), greeting_type, font=main_font, fill=shadow_color)
                 draw.text((x, y), greeting_type, font=main_font, fill=text_color)
 
-                # Draw subtext
-                sub_x = x + random.randint(-20, 20)
-                sub_y = y + main_font_size + 10
+                # Draw subtext nearby but random offset
+                sub_x = x + random.randint(-40, 40)
+                sub_y = y + main_font_size + random.randint(5, 25)
                 draw.text((sub_x, sub_y), user_subtext, font=sub_font, fill=text_color)
 
                 # Add date
                 if add_date:
                     today = datetime.datetime.now().strftime("%d %B %Y")
-                    date_x = safe_randint(30, img_w - date_font_size * 10)
-                    date_y = safe_randint(sub_y + sub_font_size + 30, img_h - date_font_size - 30)
+                    date_x = safe_randint(10, img_w - date_font_size * 10)
+                    date_y = safe_randint(10, img_h - date_font_size - 10)
                     draw.text((date_x, date_y), today, font=date_font, fill=text_color)
 
                 # Add logo
@@ -185,7 +188,6 @@ if st.button("✅ Generate Edited Images"):
                 output_images.append((img_file.name, img))
 
         st.success("✅ Images processed successfully!")
-
         for name, img in output_images:
             st.image(img, caption=name, use_column_width=True)
             img_bytes = io.BytesIO()
