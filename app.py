@@ -8,10 +8,9 @@ import datetime
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
 
-st.markdown("""
-    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🔆 EDIT PHOTO IN ONE CLICK 🔆</h1>
-    <h4 style='text-align: center; color: grey;'>Premium Good Morning / Good Night Watermark Generator</h4>
-""", unsafe_allow_html=True)
+# HEADER & SUBHEADER
+st.title("🔆 EDIT PHOTO IN ONE CLICK 🔆")
+st.subheader("Premium Good Morning / Good Night Watermark Generator")
 
 # UTILS
 def list_files(folder, exts):
