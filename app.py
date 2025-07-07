@@ -81,6 +81,7 @@ if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
             logo = None
+            # Handle logo watermark (either pre-selected or uploaded)
             if logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
                 logo.thumbnail((150, 150))
@@ -167,4 +168,24 @@ if st.button("✅ Generate Edited Images"):
 
                 if generate_variations:
                     for i in range(4):
-                        variant = generate_single_variant(image.copy(), seed=random
+                        variant = generate_single_variant(image.copy(), seed=random.randint(0, 1000))
+                        variants.append(variant)
+                else:
+                    variant = generate_single_variant(image.copy(), seed=random.randint(0, 1000))
+                    variants.append(variant)
+                
+                # Save generated images as outputs
+                for idx, variant in enumerate(variants):
+                    output_path = f"output_{img_file.name}_variant_{idx+1}.png"
+                    variant.save(output_path)
+                    all_results.append(output_path)
+
+            # Provide download link for the generated images
+            zip_path = "generated_images.zip"
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for file in all_results:
+                    zipf.write(file)
+
+            st.success("Images processed successfully!")
+            st.download_button("Download All Edited Images", zip_path)
+
