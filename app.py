@@ -173,4 +173,15 @@ if st.button("✅ Generate Edited Images"):
 
         # Preview and Download
         for name, variants in all_results:
-            st.write(f"**{name}
+            st.write(f"**{name}**")  # Fixed f-string error
+            st.image(variants[0], caption=name, use_column_width=True)
+
+            for i, img in enumerate(variants):
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"Picsart_{timestamp}.jpg"
+                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
+
+    else:
+        st.warning("⚠️ Please upload images before clicking Generate.")
