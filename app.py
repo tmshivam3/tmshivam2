@@ -194,4 +194,9 @@ if st.button("✅ Generate Edited Images"):
                 )
 
         # ZIP File Download Button
-        if st.button
+        if st.button("⬇️ Download All Images as ZIP"):
+            with st.spinner("Preparing ZIP..."):
+                zip_buffer = create_zip(all_results)
+                st.download_button(
+                    "⬇️ Download All as ZIP",  # Button text
+                    zip_buffer, 
