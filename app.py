@@ -188,7 +188,4 @@ if st.button("✅ Generate Edited Images"):
                 img.save(img_bytes, format="JPEG", quality=95)
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")  # Fixed the timestamp string error
                 file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-
-    else:
-        st.warning("⚠️ Please upload images before clicking
+                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue
