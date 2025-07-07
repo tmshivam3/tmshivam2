@@ -4,7 +4,6 @@ import random
 import os
 import io
 import datetime
-import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -168,29 +167,29 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Preview and Download
+        # Preview and Download - Direct Download for each image
         cols = st.columns(len(all_results[0][1]))  # Create columns based on the number of variations
-        all_image_zip = io.BytesIO()
 
-        with zipfile.ZipFile(all_image_zip, mode='w', compression=zipfile.ZIP_DEFLATED) as zipf:
-            for name, variants in all_results:
-                # Download per-image button
-                for i, img in enumerate(variants):
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format="JPEG", quality=95)
-                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                    file_name = f"Picsart_{timestamp}_{name}.jpg"
+        # Store the images in memory for batch download
+        all_image_files = []
 
-                    # Display the image
-                    cols[i].image(img, caption=f"{name} - Variation {i+1}", use_column_width=True)
+        for name, variants in all_results:
+            for i, img in enumerate(variants):
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"Picsart_{timestamp}_{name}.jpg"
 
-                    # Add download button
-                    img_bytes.seek(0)
-                    st.download_button(f"⬇️ Download {file_name}", data=img_bytes, file_name=file_name, mime="image/jpeg")
+                # Display the image
+                cols[i].image(img, caption=f"{name} - Variation {i+1}", use_column_width=True)
 
-                    # Add to zip for batch download
-                    zipf.writestr(file_name, img_bytes.getvalue())
+                # Add individual download button
+                img_bytes.seek(0)
+                st.download_button(f"⬇️ Download {file_name}", data=img_bytes, file_name=file_name, mime="image/jpeg")
 
-        # Add 'Download All' button
-        all_image_zip.seek(0)
-        st.download_button("⬇️ Download All Images (
+                # Add the image to the batch download list
+                img_bytes.seek(0)
+                all_image_files.append((file_name, img_bytes))
+
+        # Button for downloading all images at once
+       
