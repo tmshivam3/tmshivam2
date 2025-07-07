@@ -112,10 +112,17 @@ if st.button("✅ Generate Edited Images"):
                             date_font = ImageFont.load_default()
 
                     else:  # Random Font Selection
-                        random_font_file = random.choice(available_fonts)
-                        main_font = ImageFont.truetype(random_font_file, size=main_font_size)
-                        sub_font = ImageFont.truetype(random_font_file, size=sub_font_size)
-                        date_font = ImageFont.truetype(random_font_file, size=date_font_size)
+                        if available_fonts:
+                            random_font_file = random.choice(available_fonts)
+                            random_font_path = os.path.join("assets/fonts", random_font_file)  # Ensure correct path
+                            main_font = ImageFont.truetype(random_font_path, size=main_font_size)
+                            sub_font = ImageFont.truetype(random_font_path, size=sub_font_size)
+                            date_font = ImageFont.truetype(random_font_path, size=date_font_size)
+                        else:
+                            st.error("No fonts found in assets/fonts directory.")
+                            main_font = ImageFont.load_default()
+                            sub_font = ImageFont.load_default()
+                            date_font = ImageFont.load_default()
                 
                 except OSError as e:
                     st.error(f"Error loading font: {e}")
@@ -179,9 +186,4 @@ if st.button("✅ Generate Edited Images"):
             for i, img in enumerate(variants):
                 img_bytes = io.BytesIO()
                 img.save(img_bytes, format="JPEG", quality=95)
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+                timestamp = datetime.datetime.now().strftime("%y-%
