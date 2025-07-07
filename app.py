@@ -81,12 +81,16 @@ if st.button("✅ Generate Edited Images"):
                 img = crop_to_3_4(img)
                 draw = ImageDraw.Draw(img)
 
-                # Pick a font or default
+                # === Safe font selection (fix) ===
                 if fonts:
-                    font_stream = random.choice(fonts)
-                    font_stream.seek(0)
-                    main_font = ImageFont.truetype(font_stream, size=font_size)
-                    sub_font = ImageFont.truetype(font_stream, size=subtext_size)
+                    try:
+                        font_stream = random.choice(fonts)
+                        font_stream.seek(0)
+                        main_font = ImageFont.truetype(font_stream, size=font_size)
+                        sub_font = ImageFont.truetype(font_stream, size=subtext_size)
+                    except Exception:
+                        main_font = ImageFont.load_default()
+                        sub_font = ImageFont.load_default()
                 else:
                     main_font = ImageFont.load_default()
                     sub_font = ImageFont.load_default()
@@ -159,3 +163,4 @@ if st.button("✅ Generate Edited Images"):
                 file_name="GoodImages.zip",
                 mime="application/zip"
             )
+
