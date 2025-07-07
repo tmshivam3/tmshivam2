@@ -194,4 +194,5 @@ if st.button("✅ Generate Edited Images"):
                     zipf.writestr(f"{name}_{i}.jpg", img_bytes.read())
 
         # Provide the ZIP download link
-        with open(zip_filename, "rb
+        with open(zip_filename, "rb") as zip_file:
+            st.download_button("⬇️ Download All Images as ZIP", data=zip_file, file_name="generated
