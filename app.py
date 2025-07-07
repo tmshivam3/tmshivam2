@@ -4,6 +4,7 @@ import random
 import os
 import io
 import datetime
+import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -168,19 +169,21 @@ if st.button("✅ Generate Edited Images"):
         st.success("✅ All images processed successfully!")
 
         # Preview and Download
-        for name, variants in all_results:
-            if generate_variations:
-                st.write(f"**{name} - Variations**")
-                for variant in variants:
-                    st.image(variant, use_column_width=True)
-            else:
-                st.image(variants[0], caption=name, use_column_width=True)
+        cols = st.columns(len(all_results[0][1]))  # Create columns based on the number of variations
+        all_image_zip = io.BytesIO()
 
-            for i, img in enumerate(variants):
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+        with zipfile.ZipFile(all_image_zip, mode='w', compression=zipfile.ZIP_DEFLATED) as zipf:
+            for name, variants in all_results:
+                # Download per-image button
+                for i, img in enumerate(variants):
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format="JPEG", quality=95)
+                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                    file_name = f"Picsart_{timestamp}_{name}.jpg"
+
+                    # Display the image
+                    cols[i].image(img, caption=f"{name} - Variation {i+1}", use_column_width=True)
+
+                    # Add download button
+                    img_bytes.seek(0)
+                    st.download_button(f"⬇️ Download {file_name}", data=img
