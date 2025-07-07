@@ -4,7 +4,6 @@ import random
 import os
 import io
 import datetime
-import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -183,18 +182,5 @@ if st.button("✅ Generate Edited Images"):
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
                 file_name = f"Picsart_{timestamp}.jpg"
                 st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-
-        # ZIP File Download Button
-        def create_zip(all_results):
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for name, variants in all_results:
-                    for i, img in enumerate(variants):
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format="JPEG", quality=95)
-                        img_bytes.seek(0)
-                        zipf.writestr(f"{name}_{i+1}.jpg", img_bytes.read())
-            zip_buffer.seek(0)
-            return zip_buffer
-
-        if st.button("⬇️
+    else:
+        st.warning("⚠️ Please upload images before clicking Generate.")
