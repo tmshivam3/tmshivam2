@@ -20,6 +20,7 @@ st.markdown("""
 DEFAULT_FONT_PATH = "roboto.ttf"
 ASSETS_FONT_PATH = "assets/fonts"
 ASSETS_LOGO_PATH = "assets/logos"
+COLOR_PALETTE = [(255, 255, 0), (255, 0, 0), (255, 255, 255), (255, 192, 203), (0, 255, 0)]  # Yellow, Red, White, Pink, Green
 
 os.makedirs(ASSETS_FONT_PATH, exist_ok=True)
 os.makedirs(ASSETS_LOGO_PATH, exist_ok=True)
@@ -44,66 +45,59 @@ def crop_to_3_4(img):
         img = img.crop((0, top, w, top + new_h))
     return img
 
-def random_contrasting_color(bg_color):
-    return tuple(min(255, max(100, 255 - c + random.randint(-30,30))) for c in bg_color)
+def pick_random_color():
+    return random.choice(COLOR_PALETTE)
 
 # -----------------------------
 # SIDEBAR OPTIONS
 # -----------------------------
-st.sidebar.header("🔧 Customize Your Design")
+with st.sidebar:
+    st.header("🔧 Customize Your Design")
+    greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Night"])
 
-# 1. GREETING TYPE
-greeting_type = st.sidebar.selectbox("Select Greeting Type", ["Good Morning", "Good Night"])
+    default_subtext = random.choice(["Have a Nice Day", "Have a Great Day"]) if greeting_type == "Good Morning" else "Sweet Dreams"
+    user_subtext = st.text_input("Wishes Text", default_subtext)
 
-# 2. Subtext
-if greeting_type == "Good Morning":
-    default_subtext = random.choice(["Have a Nice Day", "Have a Great Day"])
-else:
-    default_subtext = "Sweet Dreams"
+    coverage_percent = st.slider(
+        "Main Text Coverage %", 5, 25, 20,
+        help="How big the main greeting text should be."
+    )
 
-user_subtext = st.sidebar.text_input("Subtext (optional)", default_subtext)
+    add_date = st.checkbox("Add Today's Date", value=False)
 
-# 3. Coverage Slider
-coverage_percent = st.sidebar.slider(
-    "Main Text Coverage (area %)", 5, 25, 20,
-    help="Adjust how big the main greeting text is."
-)
+    st.subheader("Font Options")
+    font_mode = st.radio("Font Source", ["Default (Roboto)", "Own Font"], horizontal=True)
 
-# 4. Texture Option
-texture_mode = st.sidebar.checkbox("Apply texture (text fill from image)", value=False)
+    selected_font = None
+    if font_mode == "Own Font":
+        available_fonts = list_files(ASSETS_FONT_PATH, (".ttf", ".otf"))
+        selected_font = st.selectbox("Select Uploaded Font", available_fonts if available_fonts else ["None"])
+        uploaded_font = st.file_uploader("Upload New Font (.ttf/.otf)", type=["ttf", "otf"])
+        if uploaded_font:
+            save_path = os.path.join(ASSETS_FONT_PATH, uploaded_font.name)
+            with open(save_path, "wb") as f:
+                f.write(uploaded_font.getbuffer())
+            st.success(f"✅ Uploaded: {uploaded_font.name}")
 
-# 5. Date Watermark
-add_date = st.sidebar.checkbox("Add today's date", value=False)
+    st.subheader("Watermark Logo")
+    logo_mode = st.radio("Logo Source", ["None", "Select Existing"], horizontal=True)
 
-# 6. Font Selection
-st.sidebar.subheader("Font Options")
-available_fonts = list_files(ASSETS_FONT_PATH, (".ttf", ".otf"))
-selected_font = st.sidebar.selectbox("Select Existing Font", ["Default (Roboto)"] + available_fonts)
-
-uploaded_font = st.sidebar.file_uploader("Or Upload New Font (.ttf/.otf)", type=["ttf", "otf"])
-if uploaded_font:
-    save_path = os.path.join(ASSETS_FONT_PATH, uploaded_font.name)
-    with open(save_path, "wb") as f:
-        f.write(uploaded_font.getbuffer())
-    st.sidebar.success(f"✅ Uploaded and saved: {uploaded_font.name}")
-
-# 7. Logo Selection
-st.sidebar.subheader("Watermark Logo")
-available_logos = list_files(ASSETS_LOGO_PATH, (".png",))
-selected_logo = st.sidebar.selectbox("Select Existing Logo", ["None"] + available_logos)
-
-uploaded_logo = st.sidebar.file_uploader("Or Upload New Logo (.png)", type=["png"])
-if uploaded_logo:
-    save_path = os.path.join(ASSETS_LOGO_PATH, uploaded_logo.name)
-    with open(save_path, "wb") as f:
-        f.write(uploaded_logo.getbuffer())
-    st.sidebar.success(f"✅ Uploaded and saved: {uploaded_logo.name}")
+    selected_logo = None
+    if logo_mode == "Select Existing":
+        available_logos = list_files(ASSETS_LOGO_PATH, (".png",))
+        selected_logo = st.selectbox("Choose Logo", available_logos if available_logos else ["None"])
+        uploaded_logo = st.file_uploader("Upload New Logo (.png)", type=["png"])
+        if uploaded_logo:
+            save_path = os.path.join(ASSETS_LOGO_PATH, uploaded_logo.name)
+            with open(save_path, "wb") as f:
+                f.write(uploaded_logo.getbuffer())
+            st.success(f"✅ Uploaded: {uploaded_logo.name}")
 
 # -----------------------------
 # MAIN IMAGE UPLOAD
 # -----------------------------
 uploaded_images = st.file_uploader(
-    "🖼️ Upload images", type=["jpg", "jpeg", "png"], accept_multiple_files=True
+    "🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True
 )
 
 output_images = []
@@ -116,18 +110,19 @@ if st.button("✅ Generate Edited Images"):
         st.warning("⚠️ Please upload images before clicking Generate.")
     else:
         with st.spinner("Processing..."):
-            # Load logo if any
             logo = None
-            if selected_logo != "None":
+            if selected_logo and selected_logo != "None":
                 logo_path = os.path.join(ASSETS_LOGO_PATH, selected_logo)
                 logo = Image.open(logo_path).convert("RGBA")
                 logo.thumbnail((150, 150))
 
-            # Decide font path
-            if selected_font == "Default (Roboto)":
+            # Determine font path
+            if font_mode == "Default (Roboto)":
                 font_path = DEFAULT_FONT_PATH
-            else:
+            elif selected_font and selected_font != "None":
                 font_path = os.path.join(ASSETS_FONT_PATH, selected_font)
+            else:
+                font_path = DEFAULT_FONT_PATH
 
             for img_file in uploaded_images:
                 img = Image.open(img_file).convert("RGB")
@@ -136,66 +131,49 @@ if st.button("✅ Generate Edited Images"):
 
                 draw = ImageDraw.Draw(img)
 
-                # Dynamically scale text size from coverage
-                scale_factor = 0.3   # Reduce so 5% is smaller
+                # Coverage scaling
+                scale_factor = 0.3
                 main_text_area = (coverage_percent / 100) * img_w * img_h * scale_factor
                 main_font_size = max(20, int(main_text_area ** 0.5))
-                subtext_font_size = max(12, int(main_font_size * 0.4))
-                date_font_size = max(12, int(main_font_size * 0.35))
+                sub_font_size = max(14, int(main_font_size * 0.6))
+                date_font_size = sub_font_size  # Same as wishes
 
                 try:
                     main_font = ImageFont.truetype(font_path, size=main_font_size)
-                    sub_font = ImageFont.truetype(font_path, size=subtext_font_size)
+                    sub_font = ImageFont.truetype(font_path, size=sub_font_size)
                     date_font = ImageFont.truetype(font_path, size=date_font_size)
                 except Exception as e:
-                    st.error(f"❌ Failed to load font: {e}")
+                    st.error(f"❌ Font load error: {e}")
                     continue
 
-                # Random text position with safe range
-                x_min = 30
+                # Safe random position
                 x_max = max(30, img_w - main_font_size * len(greeting_type)//2 - 30)
-                x = x_min if x_max <= x_min else random.randint(x_min, x_max)
-
-                y_min = 30
                 y_max = max(30, img_h - main_font_size - 30)
-                y = y_min if y_max <= y_min else random.randint(y_min, y_max)
+                x = random.randint(30, x_max)
+                y = random.randint(30, y_max)
 
-                # Random high-contrast color
-                avg_color = img.resize((1,1)).getpixel((0,0))
-                text_color = random_contrasting_color(avg_color)
+                text_color = pick_random_color()
                 shadow_color = "black"
 
-                # Optional Texture
-                if texture_mode:
-                    mask = Image.new("L", img.size, 0)
-                    mask_draw = ImageDraw.Draw(mask)
-                    mask_draw.text((x,y), greeting_type, font=main_font, fill=255)
-                    textured = img.copy()
-                    img.paste(textured, mask=mask)
-                else:
-                    # Draw shadow
-                    for dx in [-2,2]:
-                        for dy in [-2,2]:
-                            draw.text((x+dx, y+dy), greeting_type, font=main_font, fill=shadow_color)
-                    draw.text((x, y), greeting_type, font=main_font, fill=text_color)
+                # Draw shadow and main text
+                for dx in [-2, 2]:
+                    for dy in [-2, 2]:
+                        draw.text((x + dx, y + dy), greeting_type, font=main_font, fill=shadow_color)
+                draw.text((x, y), greeting_type, font=main_font, fill=text_color)
 
-                # Subtext
+                # Wishes below main
                 sub_x = x + random.randint(-20, 20)
                 sub_y = y + main_font_size + 10
                 draw.text((sub_x, sub_y), user_subtext, font=sub_font, fill=text_color)
 
-                # Add Date if enabled
+                # Add Date separately (avoiding overlap)
                 if add_date:
                     today = datetime.datetime.now().strftime("%d %B %Y")
-                    date_x_min = 20
-                    date_x_max = max(20, img_w - date_font_size * 8)
-                    date_x = date_x_min if date_x_max <= date_x_min else random.randint(date_x_min, date_x_max)
-                    date_y_min = 20
-                    date_y_max = max(20, img_h - date_font_size - 20)
-                    date_y = date_y_min if date_y_max <= date_y_min else random.randint(date_y_min, date_y_max)
+                    date_x = random.randint(30, img_w - date_font_size * 8)
+                    date_y = random.randint(sub_y + sub_font_size + 30, img_h - date_font_size - 30)
                     draw.text((date_x, date_y), today, font=date_font, fill=text_color)
 
-                # Add watermark logo
+                # Add Logo
                 if logo:
                     img.paste(logo, (img_w - logo.width - 10, img_h - logo.height - 10), mask=logo)
 
@@ -203,7 +181,7 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ Images processed successfully!")
 
-        # Show and download each
+        # Show and download
         for name, img in output_images:
             st.image(img, caption=name, use_column_width=True)
             img_bytes = io.BytesIO()
