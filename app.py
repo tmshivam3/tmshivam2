@@ -45,10 +45,12 @@ greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Nig
 default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
 user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 
-coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 10)
+# Default coverage is set to 8%
+coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
+# Default date size factor set to 70
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
-date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 60)
+date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
 logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
@@ -151,6 +153,9 @@ if st.button("✅ Generate Edited Images"):
             for img_file in uploaded_images:
                 image = Image.open(img_file).convert("RGB")
                 variants = []
+                random_font = random.choice(available_fonts)  # Randomly select a font for each image
+                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read()) 
+
                 if generate_variations:
                     for i in range(4):
                         variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999))
