@@ -173,19 +173,12 @@ if st.button("✅ Generate Edited Images"):
                 else:
                     variant = generate_single_variant(image.copy(), seed=random.randint(0, 1000))
                     variants.append(variant)
-                
+
                 # Save generated images as outputs
                 for idx, variant in enumerate(variants):
                     output_path = f"output_{img_file.name}_variant_{idx+1}.png"
                     variant.save(output_path)
                     all_results.append(output_path)
 
-            # Provide download link for the generated images
-            zip_path = "generated_images.zip"
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for file in all_results:
-                    zipf.write(file)
-
-            st.success("Images processed successfully!")
-            st.download_button("Download All Edited Images", zip_path)
-
+                    # Display individual download button for each generated image
+                    st.image(variant, caption=f"Generated Image {img_file.name} Variant {idx+1
