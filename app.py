@@ -184,7 +184,7 @@ if st.button("✅ Generate Edited Images"):
                 st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
 
         # Create a ZIP file of all images
-        zip_filename = "generated_images.zip"
+        zip_filename = "/tmp/generated_images.zip"
         with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for name, variants in all_results:
                 for i, img in enumerate(variants):
@@ -194,4 +194,4 @@ if st.button("✅ Generate Edited Images"):
                     zipf.writestr(f"{name}_{i}.jpg", img_bytes.read())
 
         # Provide the ZIP download link
-        with open(zip_filename,
+        with open(zip_filename, "rb
