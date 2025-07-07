@@ -4,7 +4,6 @@ import random
 import os
 import io
 import datetime
-import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -56,9 +55,6 @@ date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
 
-# New feature: Watermark Upload Option
-uploaded_watermark = st.sidebar.file_uploader("Upload Watermark Image (PNG/JPG)", type=["png", "jpg", "jpeg"])
-
 st.sidebar.subheader("Font Source")
 font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
 
@@ -81,14 +77,8 @@ if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
             logo = None
-            # Handle logo watermark (either pre-selected or uploaded)
             if logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
-                logo.thumbnail((150, 150))
-
-            # Use uploaded watermark if present
-            if uploaded_watermark:
-                logo = Image.open(uploaded_watermark).convert("RGBA")
                 logo.thumbnail((150, 150))
 
             font_bytes = None
@@ -153,7 +143,7 @@ if st.button("✅ Generate Edited Images"):
                             draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill=shadow_color)
                     draw.text((date_x, date_y), today_str, font=date_font, fill=text_color)
 
-                # Logo / Watermark
+                # Logo
                 if logo:
                     img.paste(logo, (img_w - logo.width - 10, img_h - logo.height - 10), mask=logo)
 
@@ -168,17 +158,29 @@ if st.button("✅ Generate Edited Images"):
 
                 if generate_variations:
                     for i in range(4):
-                        variant = generate_single_variant(image.copy(), seed=random.randint(0, 1000))
+                        variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999))
                         variants.append(variant)
                 else:
-                    variant = generate_single_variant(image.copy(), seed=random.randint(0, 1000))
-                    variants.append(variant)
+                    variants = [generate_single_variant(image)]
 
-                # Save generated images as outputs
-                for idx, variant in enumerate(variants):
-                    output_path = f"output_{img_file.name}_variant_{idx+1}.png"
-                    variant.save(output_path)
-                    all_results.append(output_path)
+                all_results.append((img_file.name, variants))
 
-                    # Display individual download button for each generated image
-                    st.image(variant, caption=f"Generated Image {img_file.name} Variant {idx+1
+        st.success("✅ All images processed successfully!")
+
+        # Preview and Download
+        for name, variants in all_results:
+            if generate_variations:
+                st.write(f"**{name} - Variations**")
+                for variant in variants:
+                    st.image(variant, use_column_width=True)
+            else:
+                st.image(variants[0], caption=name, use_column_width=True)
+
+            for i, img in enumerate(variants):
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"Picsart_{timestamp}.jpg"
+                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
+    else:
+        st.warning("⚠️ Please upload images before clicking Generate.")
