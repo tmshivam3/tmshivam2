@@ -9,9 +9,10 @@ import zipfile
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
 
-# HEADER & SUBHEADER
-st.title("🔆 EDIT PHOTO IN ONE CLICK 🔆")
-st.subheader("Premium Good Morning / Good Night Watermark Generator")
+st.markdown("""
+    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🔆 EDIT PHOTO IN ONE CLICK 🔆</h1>
+    <h4 style='text-align: center; color: grey;'>Premium Good Morning / Good Night Watermark Generator</h4>
+""", unsafe_allow_html=True)
 
 # UTILS
 def list_files(folder, exts):
@@ -167,7 +168,7 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Preview and Download for Individual Images
+        # Preview and Download
         for name, variants in all_results:
             if generate_variations:
                 st.write(f"**{name} - Variations**")
@@ -191,7 +192,4 @@ if st.button("✅ Generate Edited Images"):
                     img_bytes = io.BytesIO()
                     img.save(img_bytes, format="JPEG", quality=95)
                     img_bytes.seek(0)
-                    zipf.writestr(f"{name}_{i}.jpg", img_bytes.read())
-
-        # Provide the ZIP download link
-        with open(zip_filename, "rb
+                    zipf.writestr(f"{name}_{
