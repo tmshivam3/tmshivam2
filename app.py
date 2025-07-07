@@ -53,17 +53,23 @@ date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
 
-st.sidebar.subheader("Font Source")
-font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
+# SIDEBAR - Font Selection
+font_option = st.sidebar.radio("Font Option", ["Manual", "Random"])
 
-if font_source == "Available Fonts":
-    selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
-    uploaded_font = None
+# Manual Font Selection
+if font_option == "Manual":
+    font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
+
+    if font_source == "Available Fonts":
+        selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
+        uploaded_font = None
+    else:
+        uploaded_font = st.sidebar.file_uploader("Upload .ttf or .otf Font", type=["ttf", "otf"])
+        selected_font = None
+
 else:
-    uploaded_font = st.sidebar.file_uploader("Upload .ttf or .otf Font", type=["ttf", "otf"])
+    uploaded_font = None
     selected_font = None
-
-generate_variations = st.sidebar.checkbox("Generate 4 Variations per Photo (Slideshow)", value=False)
 
 # MAIN UPLOAD
 uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
@@ -79,15 +85,7 @@ if st.button("✅ Generate Edited Images"):
                 logo = Image.open(logo_path).convert("RGBA")
                 logo.thumbnail((150, 150))
 
-            font_bytes = None
-            if uploaded_font:
-                font_bytes = io.BytesIO(uploaded_font.read())
-            elif selected_font:
-                font_bytes = os.path.join("assets/fonts", selected_font)
-            else:
-                font_bytes = "assets/fonts/roboto.ttf"
-
-            def generate_single_variant(img, seed=None):
+            def generate_single_variant(img, seed=None, selected_font=None):
                 random.seed(seed)
                 img = crop_to_3_4(img)
                 img_w, img_h = img.size
@@ -96,19 +94,27 @@ if st.button("✅ Generate Edited Images"):
                 sub_font_size = int(main_font_size * 0.5)
                 date_font_size = int(main_font_size * date_size_factor / 100)
 
-                try:
-                    if isinstance(font_bytes, str):
+                # Font Selection Logic
+                if font_option == "Manual":
+                    if uploaded_font:
+                        font_bytes = io.BytesIO(uploaded_font.read())
                         main_font = ImageFont.truetype(font_bytes, size=main_font_size)
                         sub_font = ImageFont.truetype(font_bytes, size=sub_font_size)
                         date_font = ImageFont.truetype(font_bytes, size=date_font_size)
+                    elif selected_font:
+                        main_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=main_font_size)
+                        sub_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=sub_font_size)
+                        date_font = ImageFont.truetype(os.path.join("assets/fonts", selected_font), size=date_font_size)
                     else:
-                        main_font = ImageFont.truetype(font_bytes, size=main_font_size)
-                        sub_font = ImageFont.truetype(font_bytes, size=sub_font_size)
-                        date_font = ImageFont.truetype(font_bytes, size=date_font_size)
-                except:
-                    main_font = ImageFont.load_default()
-                    sub_font = ImageFont.load_default()
-                    date_font = ImageFont.load_default()
+                        main_font = ImageFont.load_default()
+                        sub_font = ImageFont.load_default()
+                        date_font = ImageFont.load_default()
+
+                else:  # Random Font Selection
+                    random_font_file = random.choice(available_fonts)
+                    main_font = ImageFont.truetype(random_font_file, size=main_font_size)
+                    sub_font = ImageFont.truetype(random_font_file, size=sub_font_size)
+                    date_font = ImageFont.truetype(random_font_file, size=date_font_size)
 
                 draw = ImageDraw.Draw(img)
                 safe_margin = 30
@@ -117,7 +123,7 @@ if st.button("✅ Generate Edited Images"):
                 strong_colors = [(255, 255, 0), (255, 0, 0), (255, 255, 255), (255, 192, 203), (0, 255, 0)]
                 text_color = random.choice(strong_colors + [tuple(random.randint(100, 255) for _ in range(3))])
 
-                # Main Text
+                # Main Text (Good Morning / Good Night)
                 x = random.randint(safe_margin, max(safe_margin, img_w - main_font_size * len(greeting_type)//2 - safe_margin))
                 y = random.randint(safe_margin, max(safe_margin, img_h - main_font_size - safe_margin))
                 shadow_color = "black"
@@ -126,25 +132,20 @@ if st.button("✅ Generate Edited Images"):
                         draw.text((x+dx, y+dy), greeting_type, font=main_font, fill=shadow_color)
                 draw.text((x, y), greeting_type, font=main_font, fill=text_color)
 
-                # Subtext
+                # Subtext (Wishes)
                 sub_x = x + random.randint(-20, 20)
                 sub_y = y + main_font_size + 10
                 draw.text((sub_x, sub_y), user_subtext, font=sub_font, fill=text_color)
 
-                # Date
+                # Date (Today's Date)
                 if show_date:
                     today_str = datetime.datetime.now().strftime("%d %B %Y")
-                    # Adjust the date position to avoid overlap with main text
                     date_x = safe_margin
                     date_y = img_h - date_font_size - safe_margin  # Fixed position at the bottom
-                    # Randomize font for date
-                    random_date_font = random.choice([ImageFont.truetype(font_bytes, size=date_font_size),
-                                                      ImageFont.truetype("assets/fonts/roboto.ttf", size=date_font_size),
-                                                      ImageFont.truetype("assets/fonts/arial.ttf", size=date_font_size)])
                     for dx in [-2, 2]:
                         for dy in [-2, 2]:
-                            draw.text((date_x + dx, date_y + dy), today_str, font=random_date_font, fill=shadow_color)
-                    draw.text((date_x, date_y), today_str, font=random_date_font, fill=text_color)
+                            draw.text((date_x + dx, date_y + dy), today_str, font=date_font, fill=shadow_color)
+                    draw.text((date_x, date_y), today_str, font=date_font, fill=text_color)
 
                 # Logo
                 if logo:
@@ -156,12 +157,8 @@ if st.button("✅ Generate Edited Images"):
             for img_file in uploaded_images:
                 image = Image.open(img_file).convert("RGB")
                 variants = []
-                if generate_variations:
-                    for i in range(4):
-                        variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999))
-                        variants.append(variant)
-                else:
-                    variants = [generate_single_variant(image)]
+                variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999), selected_font=selected_font)
+                variants.append(variant)
 
                 all_results.append((img_file.name, variants))
 
@@ -169,11 +166,8 @@ if st.button("✅ Generate Edited Images"):
 
         # Preview and Download
         for name, variants in all_results:
-            if generate_variations:
-                st.write(f"**{name} - Variations**")
-                st.image(variants, use_column_width=True)
-            else:
-                st.image(variants[0], caption=name, use_column_width=True)
+            st.write(f"**{name}**")
+            st.image(variants[0], caption=name, use_column_width=True)
 
             for i, img in enumerate(variants):
                 img_bytes = io.BytesIO()
