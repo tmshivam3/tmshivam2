@@ -181,4 +181,7 @@ if st.button("✅ Generate Edited Images"):
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for name, variants in all_results:
                 for i, img in enumerate(variants):
-                    img_bytes = io.BytesIO
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format="JPEG", quality=95)
+                    img_bytes.seek(0)
+                    zip_file.writestr(f"{name}_variant_{i}.jpg",
