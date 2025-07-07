@@ -4,7 +4,6 @@ import random
 import os
 import io
 import datetime
-import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -33,14 +32,6 @@ def crop_to_3_4(img):
         top = (h - new_h) // 2
         img = img.crop((0, top, w, top + new_h))
     return img
-
-def create_zip(images):
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-        for img_bytes, file_name in images:
-            zip_file.writestr(file_name, img_bytes.getvalue())
-    zip_buffer.seek(0)
-    return zip_buffer
 
 # DATA
 available_logos = list_files("assets/logos", [".png"])
@@ -177,7 +168,6 @@ if st.button("✅ Generate Edited Images"):
         st.success("✅ All images processed successfully!")
 
         # Preview and Download
-        images_for_zip = []
         for name, variants in all_results:
             if generate_variations:
                 st.write(f"**{name} - Variations**")
@@ -192,6 +182,5 @@ if st.button("✅ Generate Edited Images"):
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
                 file_name = f"Picsart_{timestamp}.jpg"
                 st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-                
-                # Store images in the list for zipping
-                images_for_zip.append
+    else:
+        st.warning("⚠️ Please upload images before clicking Generate.")
