@@ -228,7 +228,7 @@ if st.button("✅ Generate Edited Images"):
                 st.download_button(
                     label="Download All Images as ZIP",
                     data=zip_buffer,
-                    file_name="generated_images.zip",
+                    file_name="Shivam_Greetings.zip",
                     mime="application/zip"
                 )
 
