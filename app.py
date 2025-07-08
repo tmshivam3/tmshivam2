@@ -107,7 +107,7 @@ def_wish = random.choice(MORNING_WISHES if greeting_type == "Good Morning" else 
 custom_wish = st.sidebar.text_input("Wishes Text (optional)", value="")
 use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Wishes Instead of Text")
 show_wish_text = st.sidebar.checkbox("Show Wishes Text", value=True)
-coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 30)
+coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 8)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
 
@@ -145,7 +145,9 @@ if st.button("✅ Generate Edited Images"):
                             continue
                         image = processed
                     else:
-                        scale_factor = 0.4 * (coverage_percent / 100)  # Adjusted scale to weaken text size power
+                        # 🔽 NEW SCALING LOGIC FOR MAIN FONT SIZE
+                        normalized = coverage_percent / 100
+                        scale_factor = (normalized ** 2.5) * 2.8
                         area = scale_factor * w * h
                         main_font_size = max(30, int(area ** 0.5))
                         sub_font_size = int(main_font_size * 0.5)
