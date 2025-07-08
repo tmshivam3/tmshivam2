@@ -4,6 +4,8 @@ import random
 import os
 import io
 import datetime
+import zipfile
+import tempfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -48,14 +50,14 @@ user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 # Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-# Date Selection (Now Dynamic - User Clicks)
+# Date Selection (Now Default Unchecked)
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
 
-# Watermark Logo Options
+# Watermark Logo Options (With Option for Own Upload)
 logo_choice = st.sidebar.selectbox("Watermark Logo", ["None"] + available_logos)
 logo_upload = st.sidebar.file_uploader("Upload Your Own Watermark PNG", type=["png"])
 
-# Logo Path Logic
+# Logic for Logo Path
 if logo_upload:
     logo_path = logo_upload
 else:
@@ -172,13 +174,12 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Global Download Button (All images)
-        download_all_button = io.BytesIO()
-        for name, variants in all_results:
-            for i, img in enumerate(variants):
-                img.save(download_all_button, format="JPEG", quality=95)
-        download_all_button.seek(0)
-        st.download_button("⬇️ Download All Generated Images", download_all_button, file_name="All_Generated_Images.zip", mime="application/zip")
-
-        # Preview and Download
-        for name, variants in all_results
+        # Global Download Button (Download All Images in a ZIP)
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_zip:
+            with zipfile.ZipFile(tmp_zip, 'w') as zipf:
+                for name, variants in all_results:
+                    for i, img in enumerate(variants):
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format="JPEG", quality=95)
+                        img_bytes.seek(0)
+                        zipf.writestr(f"{name}_{i+1
