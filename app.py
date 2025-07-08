@@ -189,4 +189,4 @@ if st.button("✅ Generate Edited Images"):
                         img_bytes = io.BytesIO()
                         variant.save(img_bytes, format="JPEG", quality=95)
                         timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                        file_name = f"Picsart_{timestamp}.
+                        file_name =
