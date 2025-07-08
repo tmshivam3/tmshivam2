@@ -174,21 +174,15 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Create ZIP for download
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_zip:
-            with zipfile.ZipFile(tmp_zip, 'w') as zipf:
-                for name, variants in all_results:
-                    for i, img in enumerate(variants):
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format="JPEG", quality=95)
-                        img_bytes.seek(0)
-                        zipf.writestr(f"{name}_{i+1}.jpg", img_bytes.read())
+        # Create ZIP for download using in-memory BytesIO
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for name, variants in all_results:
+                for i, img in enumerate(variants):
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format="JPEG", quality=95)
+                    img_bytes.seek(0)
+                    zipf.writestr(f"{name}_{i+1}.jpg", img_bytes.read())
 
-        tmp_zip.seek(0)
-        st.download_button("⬇️ Download All Images (ZIP)", tmp_zip, file_name="All_Generated_Images.zip", mime="application/zip")
-
-        # Show Preview of generated images
-        for name, variants in all_results:
-            st.write(f"**{name}**")
-            for img in variants:
-                st.image(img, use_column_width=True)
+        zip_buffer.seek(0)  # Move the pointer to the beginning of the in-memory file
+        st.download_button("
