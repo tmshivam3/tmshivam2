@@ -5,6 +5,7 @@ import io
 import random
 import datetime
 import zipfile
+import time
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="centered")
@@ -31,7 +32,7 @@ COLORS = [
     (173, 216, 230), (128, 0, 128), (255, 105, 180)
 ]
 
-# ========== UTIL FUNCTIONS ==========
+# ========== UTILS ==========
 def list_files(folder, exts):
     if not os.path.exists(folder): return []
     return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
@@ -85,9 +86,7 @@ custom_wish = st.sidebar.text_input("Wishes Text (optional)", value="")
 show_wish_text = st.sidebar.checkbox("Show Wishes Text", value=True)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 
-st.sidebar.markdown("---")
-
-# ✅ UPDATED: Compact slider, 1–100%
+# 📉 UPDATED: Compact slider, but scaled for accurate size
 coverage_percent = st.sidebar.slider("Text Coverage %", 1, 100, 25, step=1)
 date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
 
@@ -107,53 +106,60 @@ if st.button("✅ Generate Edited Images"):
         logo_path = os.path.join("assets/logos", logo_file)
         font_path = os.path.join("assets/fonts", font_file)
 
-        for image_file in uploaded_images:
-            try:
-                image = Image.open(image_file).convert("RGBA")
-                image = crop_to_3_4(image)
-                w, h = image.size
+        with st.spinner("🔄 Processing images... Please wait."):
+            status_text = st.empty()
+            for idx, image_file in enumerate(uploaded_images):
+                try:
+                    status_text.markdown(f"🔨 Processing **{image_file.name}** ({idx+1}/{len(uploaded_images)})...")
+                    time.sleep(0.3)
 
-                # ✅ NEW LOGIC: scale slider % by 0.2
-                main_text_area = ((coverage_percent * 0.2) / 100) * w * h
-                main_font_size = max(30, int(main_text_area ** 0.5 * 0.6))
-                sub_font_size = int(main_font_size * 0.5)
-                date_font_size = int(main_font_size * date_size_factor / 100)
+                    image = Image.open(image_file).convert("RGBA")
+                    image = crop_to_3_4(image)
+                    w, h = image.size
 
-                main_font = ImageFont.truetype(font_path, main_font_size)
-                sub_font = ImageFont.truetype(font_path, sub_font_size)
-                date_font = ImageFont.truetype(font_path, date_font_size)
+                    # 🔄 Adjusted text area mapping for smoother control
+                    main_text_area = ((coverage_percent / 100) * 0.2) * w * h
+                    main_font_size = max(30, int(main_text_area ** 0.5 * 0.6))
+                    sub_font_size = int(main_font_size * 0.5)
+                    date_font_size = int(main_font_size * date_size_factor / 100)
 
-                draw = ImageDraw.Draw(image)
-                text_color = random.choice(COLORS)
-                wish_text = custom_wish if custom_wish.strip() else def_wish
+                    main_font = ImageFont.truetype(font_path, main_font_size)
+                    sub_font = ImageFont.truetype(font_path, sub_font_size)
+                    date_font = ImageFont.truetype(font_path, date_font_size)
 
-                x_range = max(30, w - main_font_size * len(greeting_type) // 2 - 30)
-                y_range = max(30, h - main_font_size - 30)
-                x = safe_randint(30, x_range)
-                y = safe_randint(30, y_range)
+                    draw = ImageDraw.Draw(image)
+                    text_color = random.choice(COLORS)
+                    wish_text = custom_wish if custom_wish.strip() else def_wish
 
-                overlay_text(draw, (x, y), greeting_type, main_font, text_color, shadow=random.choice([True, False]), outline=random.choice([True, False]))
+                    x_range = max(30, w - main_font_size * len(greeting_type) // 2 - 30)
+                    y_range = max(30, h - main_font_size - 30)
+                    x = safe_randint(30, x_range)
+                    y = safe_randint(30, y_range)
 
-                if show_wish_text:
-                    wish_x = x + random.randint(-15, 15)
-                    wish_y = y + main_font_size + 10
-                    overlay_text(draw, (wish_x, wish_y), wish_text, sub_font, text_color, shadow=random.choice([True, False]))
+                    overlay_text(draw, (x, y), greeting_type, main_font, text_color, shadow=True, outline=True)
 
-                if show_date:
-                    today = datetime.datetime.now().strftime("%d %B %Y")
-                    dx = safe_randint(30, max(30, w - 200))
-                    dy = safe_randint(30, max(30, h - 50))
-                    overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS), shadow=random.choice([True, False]))
+                    if show_wish_text:
+                        wish_x = x + random.randint(-15, 15)
+                        wish_y = y + main_font_size + 10
+                        overlay_text(draw, (wish_x, wish_y), wish_text, sub_font, text_color, shadow=True)
 
-                logo = Image.open(logo_path).convert("RGBA")
-                logo.thumbnail((int(w * 0.25), int(h * 0.25)))
-                image = place_logo_random(image, logo)
+                    if show_date:
+                        today = datetime.datetime.now().strftime("%d %B %Y")
+                        dx = safe_randint(30, max(30, w - 200))
+                        dy = safe_randint(30, max(30, h - 50))
+                        overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS), shadow=True)
 
-                final_image = image.convert("RGB")
-                results.append((image_file.name, final_image))
+                    logo = Image.open(logo_path).convert("RGBA")
+                    logo.thumbnail((int(w * 0.25), int(h * 0.25)))
+                    image = place_logo_random(image, logo)
 
-            except Exception as e:
-                st.error(f"❌ Error Occurred: {str(e)}")
+                    final_image = image.convert("RGB")
+                    results.append((image_file.name, final_image))
+
+                except Exception as e:
+                    st.error(f"❌ Error Occurred: {str(e)}")
+
+        status_text.success("✅ All images processed successfully!")
 
         for name, img in results:
             st.image(img, caption=name, use_container_width=True)
@@ -180,7 +186,7 @@ if results:
     zip_buffer.seek(0)
 
     st.download_button(
-        label="📦 Download All as ZIP",
+        label="📆 Download All as ZIP",
         data=zip_buffer,
         file_name="Shivam_Images.zip",
         mime="application/zip"
