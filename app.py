@@ -176,16 +176,17 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Create a Zip File for bulk download
-        with zipfile.ZipFile("/tmp/edited_images.zip", 'w') as zipf:
-            for name, variants in all_results:
-                for i, img in enumerate(variants):
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format="JPEG", quality=95)
-                    img_bytes.seek(0)
-                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                    file_name = f"Picsart_{timestamp}.jpg"
-                    zipf.writestr(file_name, img_bytes.read())
+        # Individual Downloads with auto-renaming
+        for name, variants in all_results:
+            if generate_variations:
+                st.write(f"**{name} - Variations**")
+                for variant in variants:
+                    st.image(variant, use_column_width=True)
+            else:
+                st.image(variants[0], caption=name, use_column_width=True)
 
-        # Allow user to download the zip file
-        with open("/tmp/edited_images.zip", "rb") as f:
+            for i, img in enumerate(variants):
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG", quality=95)
+                img_bytes.seek(0)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%
