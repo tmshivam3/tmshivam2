@@ -6,37 +6,38 @@ import random
 import datetime
 import zipfile
 import numpy as np
-import time
-import base64
+import cv2
+from collections import Counter
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="✨ Premium Photo Editor Pro ™", layout="wide", page_icon="✨")
+st.set_page_config(page_title="⚡ Bulk Image Generator Pro", layout="wide", page_icon="⚡")
 
-# Custom CSS for premium look
+# Custom CSS for clean look
 st.markdown("""
     <style>
     .main {
-        background-color: #f8f9fa;
+        background-color: #ffffff;
     }
     .stButton>button {
-        background: linear-gradient(45deg, #6a11cb 0%, #2575fc 100%);
-        color: white;
-        border: none;
+        background-color: #000000;
+        color: #ffff00;
+        border: 2px solid #ffff00;
         padding: 0.5rem 1rem;
         border-radius: 8px;
-        font-weight: 600;
+        font-weight: bold;
         transition: all 0.3s ease;
     }
     .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        background-color: #ffff00 !important;
+        color: #000000 !important;
+        border: 2px solid #000000 !important;
     }
     .sidebar .sidebar-content {
-        background: linear-gradient(180deg, #2c3e50 0%, #1a1a2e 100%);
+        background-color: #000000;
         color: white;
     }
     .sidebar .sidebar-content .stSelectbox, .sidebar .sidebar-content .stTextInput {
-        background-color: rgba(255,255,255,0.1);
+        background-color: #111111;
         color: white;
     }
     .stTextInput>div>div>input {
@@ -46,43 +47,34 @@ st.markdown("""
         color: white !important;
     }
     .stSlider>div>div>div>div {
-        background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+        background-color: #ffff00;
     }
     .stCheckbox>label {
         color: white !important;
     }
     .stProgress>div>div>div>div {
-        background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+        background-color: #ffff00;
     }
     .feature-card {
-        background: white;
-        border-radius: 10px;
+        background: #f8f9fa;
+        border-radius: 8px;
         padding: 15px;
         margin-bottom: 15px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        border-left: 4px solid #6a11cb;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #ffff00;
     }
     .feature-card h4 {
-        color: #6a11cb;
+        color: #000000;
         margin-top: 0;
-    }
-    .premium-badge {
-        background: linear-gradient(45deg, #ff8a00, #e52e71);
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.7em;
-        font-weight: bold;
-        margin-left: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Main header with gradient
+# Main header
 st.markdown("""
-    <div style='background: linear-gradient(45deg, #6a11cb 0%, #2575fc 100%); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);'>
-        <h1 style='text-align: center; color: white; margin: 0;'>✨ Premium Photo Editor Pro ™</h1>
-        <p style='text-align: center; color: rgba(255,255,255,0.8); margin: 5px 0 0 0;'>Professional Batch Image Processing with AI Enhancements</p>
+    <div style='background-color: #000000; padding: 20px; border-radius: 12px; border: 2px solid #ffff00;'>
+        <h1 style='text-align: center; color: #ffff00; margin: 0;'>⚡ Bulk Image Generator Pro</h1>
+        <p style='text-align: center; color: #ffffff; margin: 5px 0 0 0;'>Process 100+ Images in One Click</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -90,18 +82,68 @@ st.markdown("""
 def list_files(folder, exts):
     if not os.path.exists(folder):
         return []
-    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts]
 
-def crop_to_3_4(img):
+def get_dominant_color(image):
+    # Resize to speed up processing
+    image = image.copy()
+    image.thumbnail((100, 100))
+    
+    # Convert to RGB if needed
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
+    # Get colors
+    colors = image.getcolors(maxcolors=10000)
+    if not colors:
+        return (255, 255, 255)
+    
+    # Get dominant color
+    colors.sort(reverse=True)
+    dominant_color = colors[0][1]
+    return dominant_color
+
+def get_text_color(bg_color):
+    # Calculate luminance
+    r, g, b = bg_color
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    
+    # Return black or white depending on luminance
+    return (0, 0, 0) if luminance > 0.5 else (255, 255, 255)
+
+def smart_crop(img, target_ratio=3/4):
+    # Convert to OpenCV format
+    if img.mode == 'RGBA':
+        img = img.convert('RGB')
+    img_np = np.array(img)
+    gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+    
+    # Detect faces or objects
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+    
+    if len(faces) > 0:
+        # If faces detected, center crop around them
+        x, y, w, h = faces[0]
+        center_x, center_y = x + w//2, y + h//2
+    else:
+        # Otherwise use saliency detection
+        saliency = cv2.saliency.StaticSaliencyFineGrained_create()
+        (success, saliencyMap) = saliency.computeSaliency(gray)
+        if success:
+            center_y, center_x = np.unravel_index(np.argmax(saliencyMap), saliencyMap.shape)
+        else:
+            center_x, center_y = img.width//2, img.height//2
+    
+    # Calculate crop based on target ratio
     w, h = img.size
-    target_ratio = 3 / 4
-    if w / h > target_ratio:
+    if w/h > target_ratio:
         new_w = int(h * target_ratio)
-        left = (w - new_w) // 2
+        left = max(0, min(center_x - new_w//2, w - new_w))
         return img.crop((left, 0, left + new_w, h))
     else:
         new_h = int(w / target_ratio)
-        top = (h - new_h) // 2
+        top = max(0, min(center_y - new_h//2, h - new_h))
         return img.crop((0, top, w, top + new_h))
 
 def safe_randint(a, b):
@@ -109,49 +151,156 @@ def safe_randint(a, b):
         a, b = b, a
     return random.randint(a, b)
 
-def overlay_theme_overlays(img, greeting_type, theme_folder):
-    iw, ih = img.size
-    overlay_nums = [1]
-    if greeting_type == "Good Morning":
-        overlay_nums += [2]
-    elif greeting_type == "Good Night":
-        overlay_nums += [3]
-    if "nice" in greeting_type.lower():
-        overlay_nums += [4]
-    if "sweet" in greeting_type.lower():
-        overlay_nums += [5]
+def get_random_font(font_folder="assets/fonts"):
+    fonts = list_files(font_folder, [".ttf", ".otf"])
+    if not fonts:
+        return None
+    font_path = os.path.join(font_folder, random.choice(fonts))
+    try:
+        return ImageFont.truetype(font_path, 60)
+    except:
+        return None
 
-    for num in overlay_nums:
-        path = os.path.join(theme_folder, f"{num}.png")
-        if os.path.exists(path):
-            try:
-                overlay = Image.open(path).convert("RGBA")
-                scale = 0.35 if num == 1 else 0.25
-                overlay = overlay.resize((int(iw * scale), int(ih * scale)))
-                px = safe_randint(30, iw - overlay.width - 30)
-                py = safe_randint(30, ih - overlay.height - 30)
-                img.paste(overlay, (px, py), overlay)
-            except:
-                pass
-    return img
+def get_random_wish(greeting_type):
+    wishes = {
+        "Good Morning": [
+            "Have a great day!", "Rise and shine!", "Make today amazing!",
+            "Good morning, sunshine!", "Start your day with smile!",
+            "Morning blessings to you!", "Seize the day!", "Enjoy your morning!",
+            "Wake up and be awesome!", "Another beautiful day begins!"
+        ],
+        "Good Night": [
+            "Sweet dreams!", "Sleep tight!", "Night night!",
+            "Dream wonderful dreams!", "Rest well!", 
+            "Good night, sleep well!", "Time to recharge!",
+            "Tomorrow is a new day!", "Peaceful sleep!", 
+            "Stars are shining for you!"
+        ],
+        "Happy Birthday": [
+            "Many happy returns!", "Best wishes!", "Enjoy your special day!",
+            "Celebrate you!", "Make a wish!", "Party time!", 
+            "Happy birthday champ!", "Another year wiser!", 
+            "Birthday blessings!", "Cake time!"
+        ],
+        "Thank You": [
+            "Much appreciated!", "Grateful for you!", "Thanks a million!",
+            "You're awesome!", "Big thanks!", "Deeply grateful!",
+            "Thanks for everything!", "Appreciate you!", 
+            "Thank you kindly!", "Forever thankful!"
+        ],
+        "Congratulations": [
+            "Well done!", "You did it!", "Amazing achievement!",
+            "Proud of you!", "Bravo!", "Fantastic work!",
+            "Celebrate success!", "You rock!", "Incredible job!",
+            "Standing ovation!"
+        ]
+    }
+    return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
-def place_logo_random(img, logo, opacity=1.0):  # Added opacity parameter with default 1.0 (100%)
+def get_random_color():
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+
+def get_random_gradient():
+    color1 = get_random_color()
+    color2 = get_random_color()
+    return [color1, color2]
+
+def add_text_with_effects(draw, position, text, font, image_width, shadow=True):
+    text_color = get_random_color()
+    shadow_color = get_random_color()
+    
+    # Random effects
+    shadow = random.choice([True, False])
+    outline = random.choice([True, False])
+    gradient = random.choice([True, False])
+    
+    if shadow:
+        shadow_offset = random.randint(2, 5)
+        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
+                 text, font=font, fill=shadow_color)
+    
+    if outline:
+        outline_thickness = random.randint(1, 3)
+        for x in range(-outline_thickness, outline_thickness+1):
+            for y in range(-outline_thickness, outline_thickness+1):
+                draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0, 0, 0))
+    
+    draw.text(position, text, font=font, fill=text_color)
+
+def place_watermark_smart(img, logo, opacity=1.0):
     w, h = img.size
     logo_w, logo_h = logo.size
-    max_x = max(0, w - logo_w - 30)
-    max_y = max(0, h - logo_h - 30)
-    x = safe_randint(20, max_x)
-    y = safe_randint(20, max_y)
-    watermark = logo.copy()
     
-    # Apply opacity directly to the watermark
+    # Detect important areas
+    img_np = np.array(img.convert('RGB'))
+    gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+    
+    # Find empty space
+    edges = cv2.Canny(gray, 100, 200)
+    kernel = np.ones((5,5), np.uint8)
+    edges = cv2.dilate(edges, kernel, iterations=1)
+    
+    # Find best position (minimum edges)
+    min_energy = float('inf')
+    best_pos = (0, 0)
+    
+    positions = [
+        (20, 20),  # Top-left
+        (w - logo_w - 20, 20),  # Top-right
+        (20, h - logo_h - 20),  # Bottom-left
+        (w - logo_w - 20, h - logo_h - 20),  # Bottom-right
+        ((w - logo_w) // 2, (h - logo_h) // 2)  # Center
+    ]
+    
+    for x, y in positions:
+        if x < 0 or y < 0 or x + logo_w > w or y + logo_h > h:
+            continue
+        
+        patch = edges[y:y+logo_h, x:x+logo_w]
+        energy = np.sum(patch)
+        
+        if energy < min_energy:
+            min_energy = energy
+            best_pos = (x, y)
+    
+    # Apply watermark with opacity
+    watermark = logo.copy()
     if opacity < 1.0:
         alpha = watermark.split()[3]
         alpha = ImageEnhance.Brightness(alpha).enhance(opacity)
         watermark.putalpha(alpha)
     
-    img.paste(watermark, (x, y), watermark)
+    img.paste(watermark, best_pos, watermark)
     return img
+
+def apply_random_effect(image):
+    effect = random.choice([
+        'vignette', 'blur', 'sharpen', 'contrast', 
+        'brightness', 'saturation', 'grayscale', 
+        'sepia', 'border', 'polaroid'
+    ])
+    
+    if effect == 'vignette':
+        return apply_vignette(image, random.uniform(0.5, 0.9))
+    elif effect == 'blur':
+        return apply_blur(image, random.uniform(0.5, 2.0))
+    elif effect == 'sharpen':
+        return apply_sharpen(image, random.uniform(1.0, 2.0))
+    elif effect == 'contrast':
+        return apply_contrast(image, random.uniform(0.8, 1.5))
+    elif effect == 'brightness':
+        return apply_brightness(image, random.uniform(0.8, 1.3))
+    elif effect == 'saturation':
+        return apply_saturation(image, random.uniform(0.5, 1.5))
+    elif effect == 'grayscale':
+        return apply_grayscale(image)
+    elif effect == 'sepia':
+        return apply_sepia(image)
+    elif effect == 'border':
+        return add_border(image, random.randint(5, 20), get_random_color())
+    elif effect == 'polaroid':
+        return apply_polaroid_effect(image, rotation=random.randint(-10, 10))
+    return image
 
 def apply_vignette(image, intensity=0.8):
     width, height = image.size
@@ -191,9 +340,6 @@ def apply_saturation(image, factor=1.3):
     enhancer = ImageEnhance.Color(image)
     return enhancer.enhance(factor)
 
-def apply_grayscale(image):
-    return image.convert('L')
-
 def apply_sepia(image):
     sepia_filter = np.array([
         [0.393, 0.769, 0.189],
@@ -205,491 +351,233 @@ def apply_sepia(image):
     sepia_img = np.clip(sepia_img, 0, 255).astype(np.uint8)
     return Image.fromarray(sepia_img)
 
-def add_border(image, border_size=10, color='white'):
-    return ImageOps.expand(image, border=border_size, fill=color)
+def apply_polaroid_effect(image, background_color='white', border_size=20, rotation=5):
+    image_with_border = add_border(image, border_size=border_size, color=background_color)
+    image_rotated = image_with_border.rotate(rotation, expand=True, fillcolor=background_color)
+    return add_shadow(image_rotated)
 
 def add_shadow(image, offset=(10, 10), shadow_color=(0, 0, 0, 100), border=30, blur_radius=15):
-    # Create a larger image to accommodate the shadow
     width, height = image.size
     new_width = width + abs(offset[0]) + 2 * border
     new_height = height + abs(offset[1]) + 2 * border
     
-    # Create a transparent background
     shadow_layer = Image.new('RGBA', (new_width, new_height), (0, 0, 0, 0))
-    
-    # Calculate position for the shadow
     shadow_left = border + max(offset[0], 0)
     shadow_top = border + max(offset[1], 0)
     
-    # Create shadow
     shadow = Image.new('RGBA', (width, height), shadow_color)
     shadow = shadow.filter(ImageFilter.GaussianBlur(blur_radius))
     shadow_layer.paste(shadow, (shadow_left, shadow_top))
     
-    # Calculate position for the original image
     img_left = border - min(offset[0], 0)
     img_top = border - min(offset[1], 0)
     
-    # Paste the original image
     shadow_layer.paste(image, (img_left, img_top), image if image.mode == 'RGBA' else None)
-    
     return shadow_layer
 
-def apply_polaroid_effect(image, background_color='white', border_size=20, rotation=5):
-    # Add border
-    image_with_border = add_border(image, border_size=border_size, color=background_color)
-    
-    # Rotate slightly
-    image_rotated = image_with_border.rotate(rotation, expand=True, fillcolor=background_color)
-    
-    # Add shadow
-    final_image = add_shadow(image_rotated)
-    
-    return final_image
-
-def apply_texture_overlay(image, texture_path, opacity=0.3):
-    texture = Image.open(texture_path).convert('RGBA')
-    texture = texture.resize(image.size)
-    
-    # Adjust opacity
-    r, g, b, a = texture.split()
-    a = a.point(lambda x: x * opacity)
-    texture.putalpha(a)
-    
-    # Composite with original image
-    return Image.alpha_composite(image.convert('RGBA'), texture)
-
-def generate_gradient(width, height, colors):
-    base = Image.new('RGB', (width, height), colors[0])
-    top = Image.new('RGB', (width, height), colors[1])
-    mask = Image.new('L', (width, height))
-    mask_data = []
-    for y in range(height):
-        mask_data.extend([int(255 * (y / height))] * width)
-    mask.putdata(mask_data)
-    base.paste(top, (0, 0), mask)
-    return base
-
-def add_gradient_overlay(image, colors, opacity=0.5):
-    gradient = generate_gradient(image.width, image.height, colors)
-    gradient.putalpha(int(255 * opacity))
-    image_with_alpha = image.convert('RGBA')
-    return Image.alpha_composite(image_with_alpha, gradient.convert('RGBA'))
-
-def apply_rounded_corners(image, radius=20):
-    circle = Image.new('L', (radius * 2, radius * 2), 0)
-    draw = ImageDraw.Draw(circle)
-    draw.ellipse((0, 0, radius * 2, radius * 2), fill=255)
-    
-    alpha = Image.new('L', image.size, 255)
-    w, h = image.size
-    
-    # Apply rounded corners to the alpha channel
-    alpha.paste(circle.crop((0, 0, radius, radius)), (0, 0))
-    alpha.paste(circle.crop((radius, 0, radius * 2, radius)), (w - radius, 0))
-    alpha.paste(circle.crop((0, radius, radius, radius * 2)), (0, h - radius))
-    alpha.paste(circle.crop((radius, radius, radius * 2, radius * 2)), (w - radius, h - radius))
-    
-    image.putalpha(alpha)
-    return image
-
-def apply_3d_effect(image, depth=3):
-    result = image.copy()
-    for i in range(depth, 0, -1):
-        shadow = image.copy()
-        shadow = ImageEnhance.Brightness(shadow).enhance(0.5)
-        shadow = shadow.transform(shadow.size, Image.AFFINE, (1, 0, i, 0, 1, i))
-        result.paste(shadow, (0, 0), shadow)
-    return result
-
-# =================== MAIN PAGE UPLOAD ===================
+# =================== MAIN PAGE ===================
 col1, col2 = st.columns([3, 1])
 
 with col1:
     uploaded_images = st.file_uploader("📁 Upload Images (JPEG, PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-# =================== SIDEBAR ===================
+# =================== SIDEBAR SETTINGS ===================
 with st.sidebar:
     st.markdown("""
-        <div style='background: linear-gradient(45deg, #6a11cb 0%, #2575fc 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
-            <h3 style='color: white; text-align: center; margin: 0;'>🛠️ Editor Settings</h3>
+        <div style='background-color: #000000; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ffff00;'>
+            <h3 style='color: #ffff00; text-align: center; margin: 0;'>⚙️ Settings</h3>
         </div>
     """, unsafe_allow_html=True)
     
     with st.expander("📝 Text Options", expanded=True):
-        greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Night", "Happy Birthday", "Congratulations", "Thank You"])
-        custom_wish = st.text_input("Custom Wish (optional)", value="")
+        greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Night", "Happy Birthday", "Thank You", "Congratulations"])
         show_text = st.checkbox("Show Main Text", value=True)
         show_wish = st.checkbox("Show Sub Wish", value=True)
         show_date = st.checkbox("Show Date", value=False)
         
         if show_text:
-            main_size = st.slider("Main Text Size", 5, 50, 12)
-            main_color = st.color_picker("Main Text Color", "#FFFFFF")
+            main_size = st.slider("Main Text Size", 10, 100, 40)
         if show_wish:
-            wish_size = st.slider("Wish Text Size", 5, 30, 10)
-            wish_color = st.color_picker("Wish Text Color", "#FFFF00")
-    
-    with st.expander("🎨 Overlay Effects", expanded=False):
-        show_overlay = st.checkbox("Enable Overlay Wishes", value=False)
-        theme_dirs = sorted([d for d in os.listdir("assets/overlays") if os.path.isdir(os.path.join("assets/overlays", d))], reverse=True)
-        theme_options = ["Auto Random"] + theme_dirs
-        selected_theme = st.selectbox("Overlay Theme", theme_options) if show_overlay else None
-        
-        # New overlay effects
-        apply_vignette_effect = st.checkbox("Add Vignette Effect", value=False)
-        if apply_vignette_effect:
-            vignette_intensity = st.slider("Vignette Intensity", 0.1, 1.0, 0.7)
-        
-        apply_gradient_overlay = st.checkbox("Add Gradient Overlay", value=False)
-        if apply_gradient_overlay:
-            gradient_color1 = st.color_picker("Gradient Color 1", "#6a11cb")
-            gradient_color2 = st.color_picker("Gradient Color 2", "#2575fc")
-            gradient_opacity = st.slider("Gradient Opacity", 0.1, 1.0, 0.5)
-    
-    with st.expander("🖼️ Image Adjustments", expanded=False):
-        enhance_quality = st.checkbox("Enhance Image Quality", value=True)
-        if enhance_quality:
-            brightness_factor = st.slider("Brightness", 0.5, 1.5, 1.0)
-            contrast_factor = st.slider("Contrast", 0.5, 1.5, 1.0)
-            saturation_factor = st.slider("Saturation", 0.0, 2.0, 1.0)
-            sharpness_factor = st.slider("Sharpness", 0.0, 2.0, 1.0)
-        
-        apply_filter = st.selectbox("Apply Filter", ["None", "Grayscale", "Sepia", "Blur", "Sharpen"])
-        
-        border_option = st.selectbox("Border Style", ["None", "Simple", "Polaroid", "Rounded Corners"])
-        if border_option == "Simple":
-            border_size = st.slider("Border Size", 1, 50, 10)
-            border_color = st.color_picker("Border Color", "#FFFFFF")
-        elif border_option == "Polaroid":
-            polaroid_rotation = st.slider("Rotation Angle", -15, 15, 5)
+            wish_size = st.slider("Wish Text Size", 10, 60, 20)
     
     with st.expander("💧 Watermark Options", expanded=False):
-        # Watermark selection
-        available_logos = list_files("assets/logos", [".png"])
-        use_own_logo = st.checkbox("Upload Custom Watermark", value=False)
-        if use_own_logo:
-            user_logo = st.file_uploader("Upload Watermark (PNG)", type=["png"])
-        
-        if use_own_logo and user_logo:
-            logo_image = Image.open(user_logo).convert("RGBA")
-        elif available_logos:
-            selected_logo = st.selectbox("Choose Logo", available_logos)
-            logo_path = os.path.join("assets/logos", selected_logo)
-            logo_image = Image.open(logo_path).convert("RGBA")
-        else:
-            logo_image = None
-        
-        if logo_image is not None:
-            watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)  # Fixed opacity slider
-            watermark_size = st.slider("Watermark Size (% of image)", 5, 50, 20)
-            watermark_position = st.selectbox("Watermark Position", ["Random", "Top Left", "Top Right", "Bottom Left", "Bottom Right", "Center"])
-    
-    with st.expander("✒️ Font Options", expanded=False):
-        # Font selection
-        available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-        use_own_font = st.checkbox("Upload Custom Font", value=False)
-        if use_own_font:
-            user_font = st.file_uploader("Upload Font (TTF/OTF)", type=["ttf", "otf"])
-        
-        font_choice = None
-        random_font_mode = False
-        if use_own_font and user_font:
-            font_choice = ImageFont.truetype(io.BytesIO(user_font.read()), 60)
-        elif available_fonts:
-            font_options = ["Random Font (each photo)"] + available_fonts
-            selected_font = st.selectbox("Choose Font", font_options)
-            if selected_font == "Random Font (each photo)":
-                random_font_mode = True
+        use_watermark = st.checkbox("Add Watermark", value=True)
+        if use_watermark:
+            watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
+            watermark_size = st.slider("Watermark Size", 5, 30, 15)
+            
+            # Watermark upload
+            watermark_file = st.file_uploader("Upload Watermark (PNG)", type=["png"])
+            if watermark_file:
+                watermark_image = Image.open(watermark_file).convert("RGBA")
             else:
-                font_path = os.path.join("assets/fonts", selected_font)
-                font_choice = ImageFont.truetype(font_path, 60)
-        
-        if font_choice or random_font_mode:
-            text_shadow = st.checkbox("Add Text Shadow", value=True)
-            if text_shadow:
-                shadow_color = st.color_picker("Shadow Color", "#000000")
-                shadow_offset = st.slider("Shadow Offset", 1, 10, 3)
-                shadow_blur = st.slider("Shadow Blur", 0, 10, 2)
+                watermark_image = None
+    
+    with st.expander("🎨 Image Effects", expanded=False):
+        enhance_quality = st.checkbox("Auto Enhance Quality", value=True)
+        apply_random_effects = st.checkbox("Apply Random Effects", value=True)
+        crop_method = st.selectbox("Crop Method", ["Smart Crop", "Center Crop"])
+    
+    with st.expander("💾 Output Options", expanded=False):
+        output_quality = st.slider("Output Quality", 80, 100, 95)
+        output_format = st.selectbox("Output Format", ["JPEG", "PNG"])
 
-# =================== RIGHT SIDE FEATURE PORTAL ===================
+# =================== RIGHT SIDE FEATURES ===================
 with col2:
     st.markdown("""
-        <div style='background: linear-gradient(45deg, #6a11cb 0%, #2575fc 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
-            <h3 style='color: white; text-align: center; margin: 0;'>✨ Premium Features</h3>
+        <div style='background-color: #000000; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ffff00;'>
+            <h3 style='color: #ffff00; text-align: center; margin: 0;'>✨ Features</h3>
         </div>
     """, unsafe_allow_html=True)
     
-    with st.container():
-        st.markdown("""
+    features = [
+        "Smart Object Detection",
+        "Auto Text Placement",
+        "Random Effects Engine",
+        "Bulk Processing",
+        "High Quality Output",
+        "Smart Watermarking",
+        "Multiple Greeting Types",
+        "Dynamic Color Selection",
+        "Auto Image Enhancement",
+        "Custom Font Support",
+        "Non-Destructive Editing",
+        "Fast Processing"
+    ]
+    
+    for feature in features:
+        st.markdown(f"""
             <div class="feature-card">
-                <h4>AI Image Enhancement <span class="premium-badge">PRO</span></h4>
-                <p>Automatically improves image quality with AI algorithms.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Batch Processing <span class="premium-badge">PRO</span></h4>
-                <p>Process hundreds of images simultaneously with consistent settings.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Professional Filters <span class="premium-badge">PRO</span></h4>
-                <p>20+ premium filters including cinematic, vintage, and HDR effects.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Advanced Watermarking <span class="premium-badge">PRO</span></h4>
-                <p>Precise watermark control with opacity, size, and positioning.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Custom Font Styling <span class="premium-badge">PRO</span></h4>
-                <p>Support for custom fonts with shadow, outline, and gradient effects.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Smart Cropping <span class="premium-badge">PRO</span></h4>
-                <p>AI-powered auto-cropping for perfect composition every time.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>3D Effects <span class="premium-badge">NEW</span></h4>
-                <p>Add depth and dimension to your images with 3D transformations.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Texture Overlays <span class="premium-badge">NEW</span></h4>
-                <p>Apply paper, canvas, or grunge textures for artistic effects.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Gradient Maps <span class="premium-badge">NEW</span></h4>
-                <p>Create stunning color grading with customizable gradients.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Vignette Control <span class="premium-badge">NEW</span></h4>
-                <p>Add professional vignettes with adjustable intensity and shape.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Border Styles <span class="premium-badge">NEW</span></h4>
-                <p>Choose from 10+ border styles including polaroid and shadow effects.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class="feature-card">
-                <h4>Bulk Export <span class="premium-badge">NEW</span></h4>
-                <p>Export all processed images in one click with ZIP compression.</p>
+                <h4>{feature}</h4>
             </div>
         """, unsafe_allow_html=True)
 
-# =================== MAIN PROCESSING ===================
+# =================== PROCESSING ===================
 results = []
-if st.button("✨ Process Images", key="process_button"):
+if st.button("⚡ Process Images", key="process_button"):
     if uploaded_images:
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        with st.spinner("⚡ Processing images with premium quality... Please wait..."):
+        with st.spinner("🚀 Processing images... Please wait..."):
             total_images = len(uploaded_images)
             for idx, image_file in enumerate(uploaded_images):
                 try:
                     # Update progress
                     progress = (idx + 1) / total_images
                     progress_bar.progress(progress)
-                    status_text.text(f"Processing image {idx + 1} of {total_images} ({int(progress * 100)}%)")
+                    status_text.text(f"Processing {idx + 1}/{total_images} ({int(progress * 100)}%)")
                     
-                    # Open and convert image
+                    # Open image
                     image = Image.open(image_file).convert("RGBA")
-                    original_image = image.copy()
                     
                     # Apply cropping
-                    image = crop_to_3_4(image)
+                    if crop_method == "Smart Crop":
+                        image = smart_crop(image)
+                    else:
+                        image = crop_to_3_4(image)
+                    
                     w, h = image.size
                     
-                    # Apply image enhancements
+                    # Apply random effects
+                    if apply_random_effects:
+                        image = apply_random_effect(image)
+                    
+                    # Enhance quality
                     if enhance_quality:
-                        image = apply_brightness(image, brightness_factor)
-                        image = apply_contrast(image, contrast_factor)
-                        image = apply_saturation(image, saturation_factor)
-                        if sharpness_factor > 1.0:
-                            image = apply_sharpen(image, sharpness_factor)
-                    
-                    # Apply selected filter
-                    if apply_filter == "Grayscale":
-                        image = apply_grayscale(image)
-                    elif apply_filter == "Sepia":
-                        image = apply_sepia(image)
-                    elif apply_filter == "Blur":
-                        image = apply_blur(image)
-                    elif apply_filter == "Sharpen":
-                        image = apply_sharpen(image)
-                    
-                    # Apply overlay effects
-                    if show_overlay:
-                        if selected_theme == "Auto Random":
-                            theme_folder = os.path.join("assets/overlays", random.choice(theme_dirs))
-                        else:
-                            theme_folder = os.path.join("assets/overlays", selected_theme)
-                        image = overlay_theme_overlays(image, greeting_type, theme_folder)
-                    
-                    # Apply vignette effect
-                    if apply_vignette_effect:
-                        image = apply_vignette(image, vignette_intensity)
-                    
-                    # Apply gradient overlay
-                    if apply_gradient_overlay:
-                        image = add_gradient_overlay(image, [gradient_color1, gradient_color2], gradient_opacity)
+                        image = apply_sharpen(image, 1.2)
+                        image = apply_contrast(image, 1.1)
                     
                     # Prepare for drawing
                     draw = ImageDraw.Draw(image)
                     
-                    # Per-image font selection
-                    this_font = None
-                    if font_choice and not random_font_mode:
-                        this_font = font_choice
-                    elif random_font_mode and available_fonts:
-                        rand_font_path = os.path.join("assets/fonts", random.choice(available_fonts))
-                        this_font = ImageFont.truetype(rand_font_path, 60)
+                    # Get random font for this image
+                    font = get_random_font()
+                    if font is None:
+                        font = ImageFont.load_default()
                     
-                    # Draw main text with optional shadow
-                    if show_text and this_font:
-                        font = this_font.font_variant(size=int(main_size * w // 100))
+                    # Draw main text
+                    if show_text:
+                        font_main = font.font_variant(size=main_size)
                         text = greeting_type
-                        text_width, text_height = draw.textsize(text, font=font)
                         
-                        if text_shadow:
-                            shadow_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
-                            shadow_draw = ImageDraw.Draw(shadow_layer)
-                            for i in range(shadow_blur + 1):
-                                offset = shadow_offset * (i / shadow_blur) if shadow_blur > 0 else shadow_offset
-                                shadow_draw.text((50 + offset, 50 + offset), text, font=font, fill=shadow_color)
-                            if shadow_blur > 0:
-                                shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(shadow_blur))
-                            image = Image.alpha_composite(image, shadow_layer)
+                        # Smart text positioning
+                        text_width, text_height = draw.textsize(text, font=font_main)
+                        text_x = random.randint(50, max(50, w - text_width - 50))
+                        text_y = random.randint(50, max(50, h - text_height - 150))
                         
-                        draw.text((50, 50), text, font=font, fill=main_color)
+                        # Add text with random effects
+                        add_text_with_effects(draw, (text_x, text_y), text, font_main, w)
                     
-                    # Draw sub wish text
-                    if show_wish and this_font:
-                        subtext = custom_wish if custom_wish else (
-                            "Have a nice day!" if greeting_type == "Good Morning" else "Sweet dreams!")
-                        font2 = this_font.font_variant(size=int(wish_size * w // 100))
-                        text_width, text_height = draw.textsize(subtext, font=font2)
+                    # Draw sub wish
+                    if show_wish:
+                        font_wish = font.font_variant(size=wish_size)
+                        wish_text = get_random_wish(greeting_type)
                         
-                        if text_shadow:
-                            shadow_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
-                            shadow_draw = ImageDraw.Draw(shadow_layer)
-                            for i in range(shadow_blur + 1):
-                                offset = shadow_offset * (i / shadow_blur) if shadow_blur > 0 else shadow_offset
-                                shadow_draw.text((60 + offset, 50 + int(main_size * w // 100) + 10 + offset), 
-                                               subtext, font=font2, fill=shadow_color)
-                            if shadow_blur > 0:
-                                shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(shadow_blur))
-                            image = Image.alpha_composite(image, shadow_layer)
+                        # Position below main text
+                        wish_x = random.randint(50, max(50, w - text_width - 50))
+                        wish_y = text_y + main_size + 20
                         
-                        draw.text((60, 50 + int(main_size * w // 100) + 10), subtext, font=font2, fill=wish_color)
+                        # Add wish with random effects
+                        add_text_with_effects(draw, (wish_x, wish_y), wish_text, font_wish, w)
                     
                     # Draw date
-                    if show_date and this_font:
-                        date_font = this_font.font_variant(size=int(w * 0.035))
+                    if show_date:
+                        font_date = font.font_variant(size=wish_size)
                         today = datetime.datetime.now().strftime("%d %B %Y")
-                        text_width, text_height = draw.textsize(today, font=date_font)
-                        
-                        if text_shadow:
-                            shadow_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
-                            shadow_draw = ImageDraw.Draw(shadow_layer)
-                            for i in range(shadow_blur + 1):
-                                offset = shadow_offset * (i / shadow_blur) if shadow_blur > 0 else shadow_offset
-                                shadow_draw.text((w - 300 + offset, h - 60 + offset), 
-                                               today, font=date_font, fill=shadow_color)
-                            if shadow_blur > 0:
-                                shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(shadow_blur))
-                            image = Image.alpha_composite(image, shadow_layer)
-                        
-                        draw.text((w - 300, h - 60), today, font=date_font, fill=main_color)
+                        date_width, date_height = draw.textsize(today, font=font_date)
+                        date_x = w - date_width - 50
+                        date_y = h - date_height - 50
+                        draw.text((date_x, date_y), today, font=font_date, fill=get_random_color())
                     
-                    # Apply watermark with fixed opacity
-                    if logo_image is not None:
-                        logo_resized = logo_image.copy()
-                        logo_size = int(w * watermark_size / 100)
-                        logo_resized.thumbnail((logo_size, logo_size))
+                    # Add watermark
+                    if use_watermark and watermark_image:
+                        # Resize watermark
+                        watermark = watermark_image.copy()
+                        watermark_size_px = int(min(w, h) * watermark_size / 100)
+                        watermark.thumbnail((watermark_size_px, watermark_size_px))
                         
-                        # Position watermark based on selection
-                        if watermark_position == "Random":
-                            image = place_logo_random(image, logo_resized, watermark_opacity)
-                        else:
-                            if watermark_position == "Top Left":
-                                pos = (20, 20)
-                            elif watermark_position == "Top Right":
-                                pos = (w - logo_resized.width - 20, 20)
-                            elif watermark_position == "Bottom Left":
-                                pos = (20, h - logo_resized.height - 20)
-                            elif watermark_position == "Bottom Right":
-                                pos = (w - logo_resized.width - 20, h - logo_resized.height - 20)
-                            elif watermark_position == "Center":
-                                pos = ((w - logo_resized.width) // 2, (h - logo_resized.height) // 2)
-                            
-                            # Apply opacity to watermark
-                            if watermark_opacity < 1.0:
-                                alpha = logo_resized.split()[3]
-                                alpha = ImageEnhance.Brightness(alpha).enhance(watermark_opacity)
-                                logo_resized.putalpha(alpha)
-                            
-                            image.paste(logo_resized, pos, logo_resized)
+                        # Place smart watermark
+                        image = place_watermark_smart(image, watermark, watermark_opacity)
                     
-                    # Apply border effects
-                    if border_option == "Simple":
-                        image = add_border(image, border_size=border_size, color=border_color)
-                    elif border_option == "Polaroid":
-                        image = apply_polaroid_effect(image, rotation=polaroid_rotation)
-                    elif border_option == "Rounded Corners":
-                        image = apply_rounded_corners(image)
+                    # Convert to output format
+                    if output_format == "JPEG":
+                        final = image.convert("RGB")
+                        ext = "jpg"
+                    else:
+                        final = image
+                        ext = "png"
                     
-                    final = image.convert("RGB")
-                    results.append((image_file.name, final))
+                    results.append((f"{os.path.splitext(image_file.name)[0]}_processed.{ext}", final))
                 
                 except Exception as e:
                     st.error(f"❌ Error processing {image_file.name}: {str(e)}")
         
         progress_bar.empty()
         status_text.empty()
-        st.success("🎉 All images processed successfully!")
+        st.success(f"✅ Successfully processed {len(results)} images!")
         
         # Display results in a grid
+        st.markdown("## Processed Images")
         cols = st.columns(3)
         for idx, (name, img) in enumerate(results):
             with cols[idx % 3]:
                 st.image(img, caption=name, use_column_width=True)
+                
+                # Create download button for each image
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
+                if output_format == "JPEG":
+                    img.save(img_bytes, format="JPEG", quality=output_quality)
+                    mime = "image/jpeg"
+                else:
+                    img.save(img_bytes, format="PNG", compress_level=9-output_quality//10)
+                    mime = "image/png"
+                
                 st.download_button(
                     label=f"⬇️ Download {name}",
                     data=img_bytes.getvalue(),
-                    file_name=f"edited_{name}",
-                    mime="image/jpeg",
+                    file_name=name,
+                    mime=mime,
                     key=f"dl_{idx}"
                 )
         
@@ -698,26 +586,25 @@ if st.button("✨ Process Images", key="process_button"):
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for name, img in results:
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
-                zipf.writestr(f"edited_{name}", img_bytes.getvalue())
-        zip_buffer.seek(0)
+                if output_format == "JPEG":
+                    img.save(img_bytes, format="JPEG", quality=output_quality)
+                else:
+                    img.save(img_bytes, format="PNG", compress_level=9-output_quality//10)
+                zipf.writestr(name, img_bytes.getvalue())
         
         st.download_button(
-            label="📦 Download All as ZIP (Premium Quality)",
-            data=zip_buffer,
-            file_name="Premium_Edited_Images.zip",
+            label="📦 Download All as ZIP",
+            data=zip_buffer.getvalue(),
+            file_name="processed_images.zip",
             mime="application/zip",
             key="dl_all"
         )
     else:
         st.warning("⚠️ Please upload at least one image to process.")
-else:
-    st.info("💡 Upload images and adjust settings to begin processing. Use the premium features to enhance your photos!")
 
 # =================== FOOTER ===================
 st.markdown("""
-    <div style='text-align: center; color: grey; margin-top: 50px; font-size: 0.9em;'>
-        <p>✨ Premium Photo Editor Pro ™ | © 2023 All Rights Reserved</p>
-        <p>Powered by Streamlit and Python PIL | v2.1.0</p>
+    <div style='text-align: center; color: #666666; margin-top: 50px; font-size: 0.9em;'>
+        <p>⚡ Bulk Image Generator Pro | © 2023</p>
     </div>
 """, unsafe_allow_html=True)
