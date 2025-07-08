@@ -56,8 +56,14 @@ logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Wat
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "Own Watermark" else None
 
 # Option to upload custom watermark
+logo = None  # Initialize logo variable
 if logo_choice == "Own Watermark":
     logo_path = st.sidebar.file_uploader("Upload Custom Watermark PNG", type=["png"])
+    if logo_path:
+        logo = Image.open(logo_path).convert("RGBA")
+else:
+    if logo_path:
+        logo = Image.open(logo_path).convert("RGBA")
 
 st.sidebar.subheader("Font Source")
 font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
@@ -84,7 +90,7 @@ if st.button("✅ Generate Edited Images"):
             for img_file in uploaded_images:
                 image = Image.open(img_file).convert("RGB")
                 variants = []
-                # Image processing...
+                
                 def generate_single_variant(img, seed=None):
                     random.seed(seed)
                     img = crop_to_3_4(img)
