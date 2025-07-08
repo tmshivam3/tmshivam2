@@ -73,13 +73,10 @@ def place_logo_random(img, logo):
     x = safe_randint(20, max_x)
     y = safe_randint(20, max_y)
 
-    # Ensure 100% opacity for watermark
-    if logo.mode != 'RGBA':
-        logo = logo.convert("RGBA")
-    alpha = logo.split()[3]
-    logo.putalpha(alpha)  # 100% opacity
-
-    img.paste(logo, (x, y), logo)
+    # ✅ Fixed watermark opacity to 100%
+    watermark = logo.copy()
+    watermark = ImageEnhance.Brightness(watermark).enhance(1.0)
+    img.paste(watermark, (x, y), watermark)
     return img
 
 def overlay_png_random(img, greeting_type):
