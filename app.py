@@ -46,10 +46,8 @@ greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Nig
 default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
 user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 
-# Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-# Default date size factor set to 70
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
@@ -58,7 +56,6 @@ logo_path = None
 if logo_choice != "None" and logo_choice != "Own Logo":
     logo_path = os.path.join("assets/logos", logo_choice)
 
-# User option to upload their own logo
 uploaded_logo = None
 if logo_choice == "Own Logo":
     uploaded_logo = st.sidebar.file_uploader("Upload Your Own Logo", type=["png"])
@@ -182,11 +179,16 @@ if st.button("✅ Generate Edited Images"):
         zip_filename = "edited_images.zip"
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
             for name, variants in all_results:
-                if generate_variations:
-                    st.write(f"**{name} - Variations**")
-                    for i, variant in enumerate(variants):
-                        st.image(variant, use_column_width=True)
-                        img_bytes = io.BytesIO()
-                        variant.save(img_bytes, format="JPEG", quality=95)
-                        timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                        file_name =
+                st.write(f"**{name} - Variations**")
+                for i, variant in enumerate(variants):
+                    st.image(variant, use_column_width=True)
+
+                    # Saving image to ZIP
+                    img_bytes = io.BytesIO()
+                    variant.save(img_bytes, format="JPEG", quality=95)
+                    img_bytes.seek(0)
+                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                    file_name = f"Picsart_{timestamp}.jpg"
+                    zipf.writestr(file_name, img_bytes.read())
+
+        # Provide the zip file
