@@ -88,8 +88,8 @@ if st.button("✅ Generate Edited Images"):
                     logo = Image.open(logo_path).convert("RGBA")
                 # Increased watermark size by 30% (resize to 130% of the original size)
                 original_logo_size = logo.size
-                new_width = int(original_logo_size[0] * 1.30)
-                new_height = int(original_logo_size[1] * 1.30)
+                new_width = int(original_logo_size[0] * 1.30)  # 30% larger
+                new_height = int(original_logo_size[1] * 1.30)  # 30% larger
                 logo = logo.resize((new_width, new_height))
 
             font_bytes = None
@@ -192,4 +192,4 @@ if st.button("✅ Generate Edited Images"):
                 img.save(img_bytes, format="JPEG", quality=95)
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
                 file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download
+                st.download_button
