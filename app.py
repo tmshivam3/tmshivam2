@@ -125,13 +125,23 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🖌️ Font")
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 font_file = st.sidebar.selectbox("Choose Font", available_fonts)
-uploaded_font = st.sidebar.file_uploader("Or Upload Your Own Font", type=["ttf", "otf"])
+
+use_own_font = st.sidebar.checkbox("📎 Upload Own Font")
+if use_own_font:
+    uploaded_font = st.sidebar.file_uploader("Upload Your Font", type=["ttf", "otf"])
+else:
+    uploaded_font = None
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💧 Watermark Logo")
 available_logos = list_files("assets/logos", [".png"])
 logo_file = st.sidebar.selectbox("Choose Watermark Logo", available_logos)
-uploaded_logo = st.sidebar.file_uploader("Or Upload Your Own Watermark", type=["png"])
+
+use_own_logo = st.sidebar.checkbox("📎 Upload Own Logo")
+if use_own_logo:
+    uploaded_logo = st.sidebar.file_uploader("Upload Your Logo", type=["png"])
+else:
+    uploaded_logo = None
 
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
