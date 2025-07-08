@@ -121,13 +121,11 @@ show_date = st.sidebar.checkbox("Show Date", False)
 
 st.sidebar.markdown("---")
 
-# Compact sliders
-coverage_percent = st.sidebar.slider("Text Coverage %", 5, 20, 8, step=1, help="Controls main text area")
+coverage_percent = st.sidebar.slider("Text Coverage %", 5, 20, 8, step=1)
 date_size_factor = st.sidebar.slider("Date Size %", 30, 120, 70, step=5)
 
 st.sidebar.markdown("---")
 
-# Overlay settings
 use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Instead of Text", True)
 
 theme_list = ["Auto Select"]
@@ -141,7 +139,6 @@ if use_png_overlay:
 
 st.sidebar.markdown("---")
 
-# Font
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 font_file = st.sidebar.selectbox("Font", available_fonts)
 
@@ -150,7 +147,6 @@ uploaded_font = None
 if use_own_font:
     uploaded_font = st.sidebar.file_uploader("Upload Font", type=["ttf", "otf"])
 
-# Watermark
 available_logos = list_files("assets/logos", [".png"])
 logo_file = st.sidebar.selectbox("Watermark", available_logos)
 
@@ -159,12 +155,10 @@ uploaded_logo = None
 if use_own_logo:
     uploaded_logo = st.sidebar.file_uploader("Upload Watermark", type=["png"])
 
-st.sidebar.markdown("---")
-
-# Images
-uploaded_images = st.sidebar.file_uploader("Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
 # ========== MAIN ==========
+st.markdown("---")
+st.subheader("📁 Upload Images")
+uploaded_images = st.file_uploader("Upload Images to Edit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 results = []
 
 if st.button("✅ Generate Edited Images"):
@@ -178,7 +172,6 @@ if st.button("✅ Generate Edited Images"):
                 if use_png_overlay:
                     image = overlay_theme_overlays(image.copy(), greeting_type, selected_theme, overlay_main_scale, overlay_wish_scale)
                 else:
-                    # Load Font
                     if uploaded_font:
                         font_bytes = io.BytesIO(uploaded_font.read())
                         font_path = font_bytes
@@ -219,7 +212,6 @@ if st.button("✅ Generate Edited Images"):
                         overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS),
                                      shadow=random.choice([True, False]))
 
-                # Watermark
                 if uploaded_logo:
                     logo = Image.open(uploaded_logo).convert("RGBA")
                 else:
