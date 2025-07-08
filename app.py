@@ -14,7 +14,7 @@ st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
 st.markdown("""
     <style>
     .main {
-        background-color: #ffffff;
+        background-color: #000000;
     }
     .stButton>button {
         background-color: #000000;
@@ -23,24 +23,24 @@ st.markdown("""
         padding: 0.5rem 1rem;
         border-radius: 8px;
         font-weight: bold;
-        transition: all 0.3s ease;
-    }
-    .stButton>button:hover {
-        background-color: #ffff00 !important;
-        color: #000000 !important;
     }
     .sidebar .sidebar-content {
         background-color: #000000;
         color: white;
+        border-right: 1px solid #ffff00;
     }
     .stSlider>div>div>div>div {
         background-color: #ffff00;
     }
-    .stCheckbox>label {
+    .stCheckbox>div>label {
         color: white !important;
     }
     .stSelectbox>div>div>select {
         color: white !important;
+    }
+    .stImage>img {
+        border: 2px solid #ffff00;
+        border-radius: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -85,7 +85,7 @@ def get_random_font():
 
 def get_random_wish(greeting_type):
     wishes = {
-        "Good Morning": ["Rise and shine!", "Make today amazing!", "Have a wonderful day!"],
+        "Good Morning": ["Rise and shine!", "Make today amazing!", "Morning blessings!"],
         "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!"]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
@@ -94,51 +94,38 @@ def get_random_color():
     return (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
 
 def apply_text_effects(draw, position, text, font):
-    effect = random.choice(["plain", "shadow", "outline", "gradient"])
-    color1 = get_random_color()
-    color2 = get_random_color()
+    effect = random.choice(["plain", "shadow", "outline"])
+    color = get_random_color()
     
     if effect == "shadow":
-        shadow_offset = random.randint(2, 5)
+        shadow_offset = 3
         draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
-                 text, font=font, fill=(0,0,0,150))
-        draw.text(position, text, font=font, fill=color1)
+                 text, font=font, fill=(0,0,0))
+        draw.text(position, text, font=font, fill=color)
     elif effect == "outline":
-        outline_size = random.randint(1, 3)
+        outline_size = 2
         for x in range(-outline_size, outline_size+1):
             for y in range(-outline_size, outline_size+1):
                 draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
-        draw.text(position, text, font=font, fill=color1)
-    elif effect == "gradient":
-        for i, char in enumerate(text):
-            factor = i / len(text)
-            color = (
-                int(color1[0] + (color2[0] - color1[0]) * factor),
-                int(color1[1] + (color2[1] - color1[1]) * factor),
-                int(color1[2] + (color2[2] - color1[2]) * factor)
-            )
-            char_width = get_text_size(draw, char, font)[0]
-            draw.text((position[0], position[1]), char, font=font, fill=color)
-            position = (position[0] + char_width, position[1])
+        draw.text(position, text, font=font, fill=color)
     else:
-        draw.text(position, text, font=font, fill=color1)
+        draw.text(position, text, font=font, fill=color)
 
-def apply_overlay(image, overlay_paths, size_factor=0.5):
-    for path in overlay_paths:
-        try:
-            overlay = Image.open(path).convert("RGBA")
-            new_size = (int(image.width * size_factor), int(image.height * size_factor))
-            overlay = overlay.resize(new_size)
-            
-            # Random position but within bounds
-            max_x = image.width - overlay.width - 20
-            max_y = image.height - overlay.height - 20
-            x = random.randint(20, max_x)
-            y = random.randint(20, max_y)
-            
-            image.paste(overlay, (x, y), overlay)
-        except Exception as e:
-            st.error(f"Error applying overlay: {str(e)}")
+def apply_overlay(image, overlay_path, size=0.5):
+    try:
+        overlay = Image.open(overlay_path).convert("RGBA")
+        new_size = (int(image.width * size), int(image.height * size))
+        overlay = overlay.resize(new_size)
+        
+        # Random position but within bounds
+        max_x = image.width - overlay.width - 20
+        max_y = image.height - overlay.height - 20
+        x = random.randint(20, max_x)
+        y = random.randint(20, max_y)
+        
+        image.paste(overlay, (x, y), overlay)
+    except Exception as e:
+        st.error(f"Error applying overlay: {str(e)}")
     return image
 
 def generate_filename():
@@ -146,41 +133,38 @@ def generate_filename():
     return f"Picsart_{now.strftime('%d-%m-%y_%H-%M-%S-%f')[:-3]}.jpg"
 
 # =================== MAIN APP ===================
-# Initialize session state
-if 'processed_images' not in st.session_state:
-    st.session_state.processed_images = []
-
-# File uploader
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 # Settings sidebar
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
     
-    # Text settings
+    # Greeting type
     greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Night"])
+    
+    # Text settings
     show_text = st.checkbox("Show Greeting", value=True)
     if show_text:
-        main_text_size = st.slider("Main Text Size", 20, 100, 60)
+        main_size = st.slider("Main Text Size", 20, 100, 60)
     show_wish = st.checkbox("Show Wish", value=True)
     if show_wish:
-        wish_text_size = st.slider("Wish Text Size", 10, 60, 30)
+        wish_size = st.slider("Wish Text Size", 10, 60, 30)
     
     # Watermark settings
     use_watermark = st.checkbox("Add Watermark", value=False)
     watermark_image = None
     
     if use_watermark:
-        # First show available watermarks
-        available_watermarks = list_files("assets/logos", [".png"])
-        if available_watermarks:
-            selected_watermark = st.selectbox("Select Watermark", available_watermarks)
-            watermark_image = Image.open(os.path.join("assets/logos", selected_watermark)).convert("RGBA")
-        
-        # Then show upload option
-        uploaded_watermark = st.file_uploader("Or Upload Watermark", type=["png"])
-        if uploaded_watermark:
-            watermark_image = Image.open(uploaded_watermark).convert("RGBA")
+        available_watermarks = [
+            "Think Tank TV.png",
+            "Wishful Vibes.png",
+            "Travellar Bharat.png",
+            "Good Vibes.png"
+        ]
+        selected_watermark = st.selectbox("Select Watermark", available_watermarks)
+        watermark_path = os.path.join("assets/logos", selected_watermark)
+        if os.path.exists(watermark_path):
+            watermark_image = Image.open(watermark_path).convert("RGBA")
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
     
@@ -188,38 +172,30 @@ with st.sidebar:
     use_overlay = st.checkbox("Use Pre-made Overlays", value=False)
     
     if use_overlay:
-        available_themes = [d for d in os.listdir("assets/overlays") 
-                          if os.path.isdir(os.path.join("assets/overlays", d))]
-        selected_theme = st.selectbox("Select Theme", available_themes)
+        overlay_theme = st.selectbox("Select Theme", ["Theme1", "Theme2"])
         
-        # Random overlay toggle
+        # Random overlay selection
         random_overlay = st.checkbox("Random Overlay Selection", value=True)
+        
+        if not random_overlay:
+            if greeting_type == "Good Morning":
+                overlay_files = ["1.png", "2.png"]
+            else:
+                overlay_files = ["1.png", "3.png"]
+        else:
+            overlay_files = random.sample(["1.png", "2.png", "3.png", "4.png", "5.png"], 2)
         
         overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
 
 # Process button at the top
 if st.button("✨ Generate Photos", key="generate"):
     if uploaded_images:
-        settings = {
-            "greeting_type": greeting_type,
-            "show_text": show_text,
-            "main_text_size": main_text_size if show_text else 0,
-            "show_wish": show_wish,
-            "wish_text_size": wish_text_size if show_wish else 0,
-            "use_watermark": use_watermark,
-            "watermark_image": watermark_image,
-            "watermark_opacity": watermark_opacity if use_watermark else 1.0,
-            "use_overlay": use_overlay,
-            "selected_theme": selected_theme if use_overlay else "",
-            "overlay_size": overlay_size if use_overlay else 0.5,
-            "random_overlay": random_overlay if use_overlay else False
-        }
-        
-        st.session_state.processed_images = []
         with st.spinner("Processing images..."):
-            for img_file in uploaded_images:
+            processed_images = []
+            
+            for uploaded_file in uploaded_images:
                 try:
-                    img = Image.open(img_file).convert("RGBA")
+                    img = Image.open(uploaded_file).convert("RGBA")
                     
                     # Auto crop to 3:4 ratio
                     img = smart_crop(img)
@@ -229,33 +205,20 @@ if st.button("✨ Generate Photos", key="generate"):
                     img = ImageEnhance.Sharpness(img).enhance(1.2)
                     
                     # Apply overlays if enabled
-                    if settings["use_overlay"]:
-                        overlay_folder = os.path.join("assets/overlays", settings["selected_theme"])
-                        
-                        # Determine which overlays to use
-                        if settings["random_overlay"]:
-                            # Randomly select 2-3 overlays
-                            overlay_files = random.sample(os.listdir(overlay_folder), 
-                                                        random.randint(2, 3))
-                        else:
-                            # Use greeting-specific overlays
-                            if settings["greeting_type"] == "Good Morning":
-                                overlay_files = ["1.png", "2.png"]
-                            else:
-                                overlay_files = ["1.png", "3.png"]
-                        
-                        overlay_paths = [os.path.join(overlay_folder, f) for f in overlay_files]
-                        img = apply_overlay(img, overlay_paths, settings["overlay_size"])
+                    if use_overlay:
+                        for overlay_file in overlay_files:
+                            overlay_path = os.path.join("assets/overlays", overlay_theme, overlay_file)
+                            img = apply_overlay(img, overlay_path, overlay_size)
                     
-                    # Only add text if overlays not used (since overlays contain text)
-                    if not settings["use_overlay"]:
+                    # Only add text if overlays not used
+                    if not use_overlay:
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
                         
                         # Add main text
-                        if settings["show_text"]:
-                            font_main = font.font_variant(size=settings["main_text_size"])
-                            text = settings["greeting_type"]
+                        if show_text:
+                            font_main = font.font_variant(size=main_size)
+                            text = greeting_type
                             text_width, text_height = get_text_size(draw, text, font_main)
                             
                             # Smart positioning
@@ -265,30 +228,30 @@ if st.button("✨ Generate Photos", key="generate"):
                             apply_text_effects(draw, (text_x, text_y), text, font_main)
                         
                         # Add wish text
-                        if settings["show_wish"]:
-                            font_wish = font.font_variant(size=settings["wish_text_size"])
-                            wish_text = get_random_wish(settings["greeting_type"])
+                        if show_wish:
+                            font_wish = font.font_variant(size=wish_size)
+                            wish_text = get_random_wish(greeting_type)
                             wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
                             wish_x = random.randint(20, img.width - wish_width - 20)
-                            wish_y = text_y + settings["main_text_size"] + 10
+                            wish_y = text_y + main_size + 10
                             
                             apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish)
                     
                     # Add watermark if enabled
-                    if settings["use_watermark"] and settings["watermark_image"]:
-                        watermark = settings["watermark_image"].copy()
+                    if use_watermark and watermark_image:
+                        watermark = watermark_image.copy()
                         
                         # Apply opacity
-                        if settings["watermark_opacity"] < 1.0:
+                        if watermark_opacity < 1.0:
                             alpha = watermark.split()[3]
-                            alpha = ImageEnhance.Brightness(alpha).enhance(settings["watermark_opacity"])
+                            alpha = ImageEnhance.Brightness(alpha).enhance(watermark_opacity)
                             watermark.putalpha(alpha)
                         
                         # Resize proportionally
                         watermark.thumbnail((img.width//4, img.height//4))
                         
-                        # Position in one of the corners randomly
+                        # Position in one of the corners
                         positions = [
                             (20, 20),  # top-left
                             (img.width - watermark.width - 20, 20),  # top-right
@@ -299,15 +262,16 @@ if st.button("✨ Generate Photos", key="generate"):
                         
                         img.paste(watermark, pos, watermark)
                     
-                    st.session_state.processed_images.append((generate_filename(), img.convert("RGB")))
+                    processed_images.append((generate_filename(), img.convert("RGB")))
                 
                 except Exception as e:
-                    st.error(f"Error processing {img_file.name}: {str(e)}")
-        
-        st.success(f"✅ Generated {len(st.session_state.processed_images)} photos!")
+                    st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+            
+            st.session_state.processed_images = processed_images
+            st.success(f"✅ Generated {len(processed_images)} photos!")
 
 # Display results
-if st.session_state.processed_images:
+if 'processed_images' in st.session_state and st.session_state.processed_images:
     cols = st.columns(3)
     for idx, (name, img) in enumerate(st.session_state.processed_images):
         with cols[idx % 3]:
@@ -335,4 +299,4 @@ if st.session_state.processed_images:
         data=zip_buffer.getvalue(),
         file_name="Generated_Photos.zip",
         mime="application/zip"
-    )
+        )
