@@ -14,6 +14,10 @@ st.markdown("""
     <h4 style='text-align: center; color: grey;'>Premium Good Morning / Good Night Watermark Generator</h4>
 """, unsafe_allow_html=True)
 
+# SESSION STATE INIT
+if 'all_results' not in st.session_state:
+    st.session_state.all_results = []
+
 # UTILS
 def list_files(folder, exts):
     if not os.path.exists(folder):
@@ -34,35 +38,46 @@ def crop_to_3_4(img):
         img = img.crop((0, top, w, top + new_h))
     return img
 
-# DATA
+def create_zip(images):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for img_name, variants in images:
+            for i, variant in enumerate(variants):
+                img_bytes = io.BytesIO()
+                variant.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"{img_name}_variant_{i+1}_{timestamp}.jpg"
+                zipf.writestr(file_name, img_bytes.getvalue())
+    zip_buffer.seek(0)
+    return zip_buffer
+
+def display_error_message():
+    st.markdown("""
+        <div style="background-color: red; padding: 10px; border-radius: 10px; text-align: center; font-size: 20px; color: white; font-weight: bold;">
+            ⚠️ <strong>Contact Developer via WhatsApp:</strong> <a href="https://wa.me/9140588751" style="color: white; text-decoration: underline;">9140588751</a>
+        </div>
+    """, unsafe_allow_html=True)
+
+# LOAD ASSETS
 available_logos = list_files("assets/logos", [".png"])
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 
 # SIDEBAR
 st.sidebar.header("🎨 Tool Settings")
-
 greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
-
 default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
 user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
-
-# Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
-
-# Default 'Add Today's Date' checkbox is unchecked
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
-
 logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Watermark"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "Own Watermark" else None
 
-# Option to upload custom watermark
 if logo_choice == "Own Watermark":
     logo_path = st.sidebar.file_uploader("Upload Custom Watermark PNG", type=["png"])
 
 st.sidebar.subheader("Font Source")
 font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
-
 if font_source == "Available Fonts":
     selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
     uploaded_font = None
@@ -75,43 +90,17 @@ generate_variations = st.sidebar.checkbox("Generate 4 Variations per Photo (Slid
 # MAIN UPLOAD
 uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-output_images = []
-
-# ZIP File Creation
-def create_zip(images, output_dir="temp_download"):
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for img_name, variants in images:
-            for i, variant in enumerate(variants):
-                img_bytes = io.BytesIO()
-                variant.save(img_bytes, format="JPEG", quality=95)
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"{img_name}_variant_{i+1}_{timestamp}.jpg"
-                zipf.writestr(file_name, img_bytes.getvalue())
-    
-    zip_buffer.seek(0)
-    return zip_buffer
-
-# Error Handling - Contact Developer
-def display_error_message():
-    st.markdown("""
-        <div style="background-color: red; padding: 10px; border-radius: 10px; text-align: center; font-size: 20px; color: white; font-weight: bold;">
-            ⚠️ <strong>Contact Developer via WhatsApp:</strong> <a href="https://wa.me/9140588751" style="color: white; text-decoration: underline;">9140588751</a>
-        </div>
-    """, unsafe_allow_html=True)
-
-# BUTTON
+# PROCESS BUTTON
 if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         try:
             with st.spinner("Processing..."):
                 logo = None
                 if logo_path:
-                    if isinstance(logo_path, str):  # Default watermark logo
+                    if isinstance(logo_path, str):
                         logo = Image.open(logo_path).convert("RGBA")
-                    else:  # Custom watermark uploaded by user
+                    else:
                         logo = Image.open(logo_path).convert("RGBA")
-                    # Increased watermark size by 50% (resize to 225px)
                     logo.thumbnail((225, 225))
 
                 font_bytes = None
@@ -142,40 +131,33 @@ if st.button("✅ Generate Edited Images"):
                             date_font = ImageFont.truetype(font_bytes, size=date_font_size)
                     except Exception as e:
                         display_error_message()
-                        raise e  # Re-raise the error
+                        raise e
 
                     draw = ImageDraw.Draw(img)
                     safe_margin = 30
-
-                    # Colors
                     strong_colors = [(255, 255, 0), (255, 0, 0), (255, 255, 255), (255, 192, 203), (0, 255, 0)]
                     text_color = random.choice(strong_colors + [tuple(random.randint(100, 255) for _ in range(3))])
 
-                    # Main Text
                     x = random.randint(safe_margin, max(safe_margin, img_w - main_font_size * len(greeting_type)//2 - safe_margin))
                     y = random.randint(safe_margin, max(safe_margin, img_h - main_font_size - safe_margin))
-                    shadow_color = "black"
                     for dx in [-2, 2]:
                         for dy in [-2, 2]:
-                            draw.text((x+dx, y+dy), greeting_type, font=main_font, fill=shadow_color)
+                            draw.text((x+dx, y+dy), greeting_type, font=main_font, fill="black")
                     draw.text((x, y), greeting_type, font=main_font, fill=text_color)
 
-                    # Subtext
                     sub_x = x + random.randint(-20, 20)
                     sub_y = y + main_font_size + 10
                     draw.text((sub_x, sub_y), user_subtext, font=sub_font, fill=text_color)
 
-                    # Date
                     if show_date:
                         today_str = datetime.datetime.now().strftime("%d %B %Y")
                         date_x = random.randint(safe_margin, max(safe_margin, img_w - date_font_size * 10 - safe_margin))
                         date_y = random.randint(safe_margin, max(safe_margin, img_h - date_font_size - safe_margin))
                         for dx in [-2, 2]:
                             for dy in [-2, 2]:
-                                draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill=shadow_color)
+                                draw.text((date_x+dx, date_y+dy), today_str, font=date_font, fill="black")
                         draw.text((date_x, date_y), today_str, font=date_font, fill=text_color)
 
-                    # Logo
                     if logo:
                         img.paste(logo, (img_w - logo.width - 10, img_h - logo.height - 10), mask=logo)
 
@@ -185,55 +167,58 @@ if st.button("✅ Generate Edited Images"):
                 for img_file in uploaded_images:
                     image = Image.open(img_file).convert("RGB")
                     variants = []
-                    random_font = random.choice(available_fonts)  # Randomly select a font for each image
-                    font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read()) 
-
                     if generate_variations:
                         for i in range(4):
                             variant = generate_single_variant(image.copy(), seed=random.randint(0, 99999))
                             variants.append(variant)
                     else:
                         variants = [generate_single_variant(image)]
-
                     all_results.append((img_file.name, variants))
 
-            st.success("✅ All images processed successfully!")
-
-            # Preview and Download
-            for name, variants in all_results:
-                if generate_variations:
-                    st.write(f"**{name} - Variations**")
-                    for variant in variants:
-                        st.image(variant, use_column_width=True)
-
-                        # Adding individual download button
-                        img_bytes = io.BytesIO()
-                        variant.save(img_bytes, format="JPEG", quality=95)
-                        timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                        file_name = f"Picsart_{timestamp}.jpg"
-                        st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-                else:
-                    st.image(variants[0], caption=name, use_column_width=True)
-
-                    # Adding individual download button
-                    img_bytes = io.BytesIO()
-                    variants[0].save(img_bytes, format="JPEG", quality=95)
-                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                    file_name = f"Picsart_{timestamp}.jpg"
-                    st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-
-            # Download All as ZIP
-            if st.button("⬇️ Download All as ZIP"):
-                zip_buffer = create_zip(all_results)
-                st.download_button(
-                    label="Download All Images as ZIP",
-                    data=zip_buffer,
-                    file_name="Shivam_Greetings.zip",
-                    mime="application/zip"
-                )
+                st.session_state.all_results = all_results
+                st.success("✅ All images processed successfully!")
 
         except Exception as e:
-            display_error_message()  # Display error message
-
+            display_error_message()
     else:
         st.warning("⚠️ Please upload images before clicking Generate.")
+
+# IMAGE DISPLAY & DOWNLOAD (Always visible if images exist)
+if st.session_state.all_results:
+    st.subheader("🎉 Your Generated Images")
+    for name, variants in st.session_state.all_results:
+        if generate_variations:
+            st.write(f"**{name} - Variations**")
+            for variant in variants:
+                st.image(variant, use_column_width=True)
+                img_bytes = io.BytesIO()
+                variant.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"Picsart_{timestamp}.jpg"
+                st.download_button(
+                    f"⬇️ Download {file_name}",
+                    data=img_bytes.getvalue(),
+                    file_name=file_name,
+                    mime="image/jpeg"
+                )
+        else:
+            st.image(variants[0], caption=name, use_column_width=True)
+            img_bytes = io.BytesIO()
+            variants[0].save(img_bytes, format="JPEG", quality=95)
+            timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+            file_name = f"Picsart_{timestamp}.jpg"
+            st.download_button(
+                f"⬇️ Download {file_name}",
+                data=img_bytes.getvalue(),
+                file_name=file_name,
+                mime="image/jpeg"
+            )
+
+    # ZIP DOWNLOAD BUTTON
+    zip_buffer = create_zip(st.session_state.all_results)
+    st.download_button(
+        label="⬇️ Download All Images as ZIP",
+        data=zip_buffer,
+        file_name="Shivam_Greetings.zip",
+        mime="application/zip"
+    )
