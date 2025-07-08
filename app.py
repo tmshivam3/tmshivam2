@@ -1,50 +1,49 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
 import io
 import random
 import datetime
 import zipfile
 import numpy as np
+from collections import Counter
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
+st.set_page_config(page_title="✨ Smart Photo Generator", layout="wide")
 
-# Custom CSS to clean up the interface
+# Custom CSS
 st.markdown("""
     <style>
     .main {
-        background-color: #ffffff;
+        background-color: #f5f5f5;
     }
     .stButton>button {
         background-color: #000000;
-        color: #ffff00;
-        border: 2px solid #ffff00;
+        color: #ffffff;
+        border: none;
         padding: 0.5rem 1rem;
         border-radius: 8px;
         font-weight: bold;
     }
     .sidebar .sidebar-content {
-        background-color: #000000;
-        color: white;
+        background-color: #ffffff;
+        border-right: 1px solid #e0e0e0;
     }
-    .stImage>img {
+    .advanced-panel {
+        background-color: #ffffff;
+        padding: 15px;
         border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
     }
     .feature-card {
-        background: #f8f9fa;
+        background: #ffffff;
         border-radius: 8px;
         padding: 15px;
         margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     </style>
-""", unsafe_allow_html=True)
-
-# Main header
-st.markdown("""
-    <div style='background-color: #000000; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #ffff00;'>
-        <h1 style='text-align: center; color: #ffff00; margin: 0;'>⚡ Instant Photo Generator</h1>
-    </div>
 """, unsafe_allow_html=True)
 
 # =================== UTILS ===================
@@ -53,11 +52,24 @@ def list_files(folder, exts):
         return []
     return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
 
-def get_text_size(draw, text, font):
-    bbox = draw.textbbox((0, 0), text, font=font)
-    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+def get_dominant_color(image):
+    image = image.copy()
+    image.thumbnail((100, 100))
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    colors = image.getcolors(maxcolors=10000)
+    if not colors:
+        return (255, 255, 255)
+    colors.sort(reverse=True)
+    return colors[0][1]
 
-def center_crop(img):
+def get_text_color(bg_color):
+    r, g, b = bg_color
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return (0, 0, 0) if luminance > 0.5 else (255, 255, 255)
+
+def smart_crop(img):
+    # Simple smart crop (replace with actual object detection if needed)
     w, h = img.size
     if w > h:
         left = (w - h) // 2
@@ -65,6 +77,10 @@ def center_crop(img):
     else:
         top = (h - w) // 2
         return img.crop((0, top, w, top + w))
+
+def get_text_size(draw, text, font):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 def get_random_font():
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
@@ -86,129 +102,194 @@ def get_random_wish(greeting_type):
 def get_random_color():
     return (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
 
+def get_gradient_color(color1, color2, factor):
+    return tuple(int(color1[i] + (color2[i] - color1[i]) * factor) for i in range(3))
+
+def add_text_effects(draw, position, text, font, image_width):
+    # Random effects
+    effect_type = random.choice(["outline", "shadow", "gradient", "plain"])
+    color1 = get_random_color()
+    color2 = get_random_color()
+    
+    if effect_type == "outline":
+        outline_size = random.randint(1, 3)
+        for x in range(-outline_size, outline_size+1):
+            for y in range(-outline_size, outline_size+1):
+                draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
+        draw.text(position, text, font=font, fill=color1)
+    
+    elif effect_type == "shadow":
+        shadow_offset = random.randint(2, 5)
+        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
+                 text, font=font, fill=(0,0,0,150))
+        draw.text(position, text, font=font, fill=color1)
+    
+    elif effect_type == "gradient":
+        for i, char in enumerate(text):
+            factor = i / len(text)
+            color = get_gradient_color(color1, color2, factor)
+            char_width = get_text_size(draw, char, font)[0]
+            draw.text((position[0], position[1]), char, font=font, fill=color)
+            position = (position[0] + char_width, position[1])
+    
+    else:
+        draw.text(position, text, font=font, fill=color1)
+
+def place_watermark_smart(img, logo):
+    w, h = img.size
+    logo_w, logo_h = logo.size
+    
+    # Simple smart placement (top-right corner)
+    x = w - logo_w - 20
+    y = 20
+    
+    img.paste(logo, (x, y), logo)
+    return img
+
 def generate_filename():
     now = datetime.datetime.now()
     return f"Picsart_{now.strftime('%d-%m-%y_%H-%M-%S-%f')[:-3]}.jpg"
-
-def process_image(img, settings):
-    try:
-        img = center_crop(img)
-        w, h = img.size
-        
-        draw = ImageDraw.Draw(img)
-        font = get_random_font()
-        
-        # Main text (70% size)
-        if settings["show_text"]:
-            font_main = font.font_variant(size=settings["main_size"])
-            text = settings["greeting_type"]
-            text_width, text_height = get_text_size(draw, text, font_main)
-            text_x = random.randint(20, max(20, w - text_width - 20))
-            text_y = random.randint(20, max(20, h - text_height - 50))
-            draw.text((text_x, text_y), text, font=font_main, fill=get_random_color())
-        
-        # Wish text (30% size)
-        if settings["show_wish"]:
-            font_wish = font.font_variant(size=settings["wish_size"])
-            wish_text = get_random_wish(settings["greeting_type"])
-            wish_x = random.randint(20, max(20, w - text_width - 20))
-            wish_y = text_y + settings["main_size"] + 10
-            draw.text((wish_x, wish_y), wish_text, font=font_wish, fill=get_random_color())
-        
-        # Watermark
-        if settings["use_watermark"] and settings["watermark_image"]:
-            watermark = settings["watermark_image"].copy()
-            watermark.thumbnail((w//4, h//4))
-            img.paste(watermark, (20, 20), watermark)
-        
-        return img.convert("RGB")
-    except Exception as e:
-        st.error(f"Processing error: {str(e)}")
-        return None
 
 # =================== MAIN APP ===================
 col1, col2 = st.columns([3, 1])
 
 # Image uploader
 with col1:
-    uploaded_images = st.file_uploader("📁 Upload Photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    uploaded_images = st.file_uploader("📷 Upload Photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-# Settings sidebar
+# Main settings panel
 with st.sidebar:
-    st.markdown("### ⚙️ Settings")
+    st.markdown("### ⚙️ Basic Settings")
     
-    # Text settings
     greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Night"])
-    show_text = st.checkbox("Show Main Text", value=True)
-    if show_text:
-        main_size = st.slider("Main Text Size", 20, 100, 60)
-    show_wish = st.checkbox("Show Wish Text", value=True)
-    if show_wish:
-        wish_size = st.slider("Wish Text Size", 10, 60, 30)
+    show_text = st.checkbox("Show Greeting", value=True)
+    show_wish = st.checkbox("Show Wish", value=True)
     
-    # Watermark settings
+    # Watermark options
     use_watermark = st.checkbox("Add Watermark", value=False)
     watermark_image = None
     
     if use_watermark:
-        # First show upload option
-        uploaded_watermark = st.file_uploader("Upload Your Watermark", type=["png"])
+        watermark_option = st.radio("Watermark Source", ["Select from Library", "Upload Your Own"])
         
-        # Then show available watermarks
-        available_watermarks = list_files("assets/watermarks", [".png"])
-        if available_watermarks:
-            selected_watermark = st.selectbox("Or Select Watermark", [""] + available_watermarks)
-            if selected_watermark:
-                watermark_image = Image.open(os.path.join("assets/watermarks", selected_watermark)).convert("RGBA")
-        if uploaded_watermark:
-            watermark_image = Image.open(uploaded_watermark).convert("RGBA")
+        if watermark_option == "Select from Library":
+            available_watermarks = list_files("assets/logos", [".png"])
+            if available_watermarks:
+                selected_watermark = st.selectbox("Select Watermark", available_watermarks)
+                watermark_image = Image.open(os.path.join("assets/logos", selected_watermark)).convert("RGBA")
+            else:
+                st.warning("No watermarks found in assets/logos folder")
+        else:
+            uploaded_watermark = st.file_uploader("Upload Watermark PNG", type=["png"])
+            if uploaded_watermark:
+                watermark_image = Image.open(uploaded_watermark).convert("RGBA")
 
-# Features panel
+# Advanced settings panel (floating on right)
 with col2:
-    st.markdown("### ✨ Features")
-    features = [
-        "One-Click Generation",
-        "Smart Text Placement",
-        "Random Styles",
-        "Bulk Processing",
-        "Watermark Support",
-        "High Quality Output"
-    ]
-    for feature in features:
-        st.markdown(f"✔️ {feature}")
+    st.markdown("### ✨ Advanced Tools")
+    
+    with st.expander("Text Effects"):
+        auto_text_size = st.checkbox("Auto Adjust Text Size", value=True)
+        random_effects = st.checkbox("Random Text Effects", value=True)
+        multi_line = st.checkbox("Multi-line Greeting", value=False)
+    
+    with st.expander("Image Enhancements"):
+        auto_contrast = st.checkbox("Auto Contrast", value=True)
+        enhance_sharpness = st.checkbox("Enhance Sharpness", value=True)
+    
+    with st.expander("Layout Options"):
+        text_position = st.selectbox("Text Position", ["Auto", "Top", "Center", "Bottom"])
+        watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
 
 # Process button
-if col1.button("✨ Generate Photos", key="generate"):
+if st.button("✨ Generate Photos", key="generate"):
     if uploaded_images:
-        settings = {
-            "greeting_type": greeting_type,
-            "show_text": show_text,
-            "main_size": main_size if show_text else 0,
-            "show_wish": show_wish,
-            "wish_size": wish_size if show_wish else 0,
-            "use_watermark": use_watermark,
-            "watermark_image": watermark_image
-        }
-        
-        progress_bar = col1.progress(0)
-        processed_images = []
-        
-        for idx, uploaded_file in enumerate(uploaded_images):
-            img = Image.open(uploaded_file).convert("RGBA")
-            processed_img = process_image(img, settings)
-            if processed_img:
-                processed_images.append((generate_filename(), processed_img))
-            progress_bar.progress((idx + 1) / len(uploaded_images))
-        
-        progress_bar.empty()
-        
-        if processed_images:
+        with st.spinner("Processing images..."):
+            processed_images = []
+            
+            for uploaded_file in uploaded_images:
+                try:
+                    img = Image.open(uploaded_file).convert("RGBA")
+                    img = smart_crop(img)
+                    w, h = img.size
+                    
+                    # Auto enhancements
+                    if auto_contrast:
+                        img = ImageEnhance.Contrast(img).enhance(1.2)
+                    if enhance_sharpness:
+                        img = img.filter(ImageFilter.SHARPEN)
+                    
+                    draw = ImageDraw.Draw(img)
+                    font = get_random_font()
+                    
+                    # Smart text placement
+                    if show_text:
+                        greeting = greeting_type
+                        if multi_line and random.choice([True, False]):
+                            greeting = greeting_type.replace(" ", "\n")
+                        
+                        # Auto font size based on image width
+                        font_size = min(w//5, h//3) if auto_text_size else w//6
+                        font = font.font_variant(size=font_size)
+                        
+                        text_width, text_height = get_text_size(draw, greeting, font)
+                        
+                        # Position text
+                        if text_position == "Auto":
+                            text_x = random.randint(20, max(20, w - text_width - 20))
+                            text_y = random.randint(20, max(20, h - text_height - 50))
+                        elif text_position == "Top":
+                            text_x = (w - text_width) // 2
+                            text_y = 20
+                        elif text_position == "Center":
+                            text_x = (w - text_width) // 2
+                            text_y = (h - text_height) // 2
+                        else: # Bottom
+                            text_x = (w - text_width) // 2
+                            text_y = h - text_height - 20
+                        
+                        # Add text with effects
+                        if random_effects:
+                            add_text_effects(draw, (text_x, text_y), greeting, font, w)
+                        else:
+                            draw.text((text_x, text_y), greeting, font=font, fill=get_random_color())
+                    
+                    # Add wish
+                    if show_wish:
+                        wish_text = get_random_wish(greeting_type)
+                        wish_font_size = font_size // 2
+                        wish_font = font.font_variant(size=wish_font_size)
+                        wish_width, wish_height = get_text_size(draw, wish_text, wish_font)
+                        
+                        wish_x = (w - wish_width) // 2
+                        wish_y = text_y + text_height + 10
+                        
+                        draw.text((wish_x, wish_y), wish_text, font=wish_font, fill=get_random_color())
+                    
+                    # Add watermark
+                    if use_watermark and watermark_image:
+                        watermark = watermark_image.copy()
+                        if watermark_opacity < 1.0:
+                            alpha = watermark.split()[3]
+                            alpha = ImageEnhance.Brightness(alpha).enhance(watermark_opacity)
+                            watermark.putalpha(alpha)
+                        
+                        watermark.thumbnail((w//4, h//4))
+                        img = place_watermark_smart(img, watermark)
+                    
+                    processed_images.append((generate_filename(), img.convert("RGB")))
+                
+                except Exception as e:
+                    st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+            
             st.session_state.processed_images = processed_images
-            col1.success(f"✅ Generated {len(processed_images)} photos!")
+            st.success(f"✅ Generated {len(processed_images)} photos!")
 
 # Display results
-if 'processed_images' in st.session_state:
-    cols = col1.columns(3)
+if 'processed_images' in st.session_state and st.session_state.processed_images:
+    st.markdown("## Generated Photos")
+    
+    cols = st.columns(3)
     for idx, (name, img) in enumerate(st.session_state.processed_images):
         with cols[idx % 3]:
             st.image(img)
@@ -230,9 +311,9 @@ if 'processed_images' in st.session_state:
             img.save(img_bytes, format="JPEG", quality=95)
             zipf.writestr(name, img_bytes.getvalue())
     
-    col1.download_button(
-        label="📦 Download All",
+    st.download_button(
+        label="📦 Download All Photos",
         data=zip_buffer.getvalue(),
         file_name="Generated_Photos.zip",
         mime="application/zip"
-                )
+)
