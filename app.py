@@ -4,6 +4,7 @@ import random
 import os
 import io
 import datetime
+import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -75,6 +76,23 @@ generate_variations = st.sidebar.checkbox("Generate 4 Variations per Photo (Slid
 uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 output_images = []
+
+# ZIP File Creation
+def create_zip(images, output_dir="temp_download"):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    zip_path = os.path.join(output_dir, "generated_images.zip")
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for img_name, variants in images:
+            for i, variant in enumerate(variants):
+                img_bytes = io.BytesIO()
+                variant.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"{img_name}_variant_{i+1}_{timestamp}.jpg"
+                zipf.writestr(file_name, img_bytes.getvalue())
+    
+    return zip_path
 
 # BUTTON
 if st.button("✅ Generate Edited Images"):
@@ -181,14 +199,33 @@ if st.button("✅ Generate Edited Images"):
                 st.write(f"**{name} - Variations**")
                 for variant in variants:
                     st.image(variant, use_column_width=True)
+                    
+                    # Adding individual download button
+                    img_bytes = io.BytesIO()
+                    variant.save(img_bytes, format="JPEG", quality=95)
+                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                    file_name = f"Picsart_{timestamp}.jpg"
+                    st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
             else:
                 st.image(variants[0], caption=name, use_column_width=True)
-
-            for i, img in enumerate(variants):
+                
+                # Adding individual download button
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
+                variants[0].save(img_bytes, format="JPEG", quality=95)
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
                 file_name = f"Picsart_{timestamp}.jpg"
                 st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
+
+        # Download All as ZIP
+        if st.button("⬇️ Download All as ZIP"):
+            zip_path = create_zip(all_results)
+            with open(zip_path, "rb") as f:
+                st.download_button(
+                    label="Download All Images as ZIP",
+                    data=f,
+                    file_name="generated_images.zip",
+                    mime="application/zip"
+                )
+
     else:
         st.warning("⚠️ Please upload images before clicking Generate.")
