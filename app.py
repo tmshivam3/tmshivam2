@@ -118,37 +118,45 @@ def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_s
     main_scale = overlay_main_scale / 100.0
     wish_scale = overlay_wish_scale / 100.0
     y_padding = 20
-    x_center = iw // 2
 
-    main_overlays = [(ov, num) for ov, role, num in overlays if role == "main"]
-    wish_overlays = [(ov, num) for ov, role, num in overlays if role == "wish"]
+    main_overlays = [ov for ov in overlays if ov[1] == "main"]
+    wish_overlays = [ov for ov in overlays if ov[1] == "wish"]
 
-    target_main_w = int(iw * main_scale)
-
+    # Main Overlays Side by Side
+    target_main_h = int(ih * main_scale)
     main_resized = []
-    for overlay, num in main_overlays:
+    for overlay, role, num in main_overlays:
         ow, oh = overlay.size
-        new_w = target_main_w
-        new_h = int(oh * new_w / ow)
+        new_h = target_main_h
+        new_w = int(ow * new_h / oh)
         main_resized.append((overlay.resize((new_w, new_h), Image.LANCZOS), new_w, new_h))
 
-    wish_resized = []
-    for overlay, num in wish_overlays:
-        ow, oh = overlay.size
-        new_w = int(iw * wish_scale)
-        new_h = int(oh * new_w / ow)
-        wish_resized.append((overlay.resize((new_w, new_h), Image.LANCZOS), new_w, new_h))
+    total_main_width = sum(w for _, w, _ in main_resized) + (len(main_resized) - 1) * 20
+    start_x = (iw - total_main_width) // 2
 
+    # Choose Top or Bottom
     if random.choice([True, False]):
         current_y = y_padding
     else:
-        total_height = sum(h + y_padding for _, _, h in main_resized + wish_resized)
-        current_y = ih - total_height - y_padding
+        current_y = ih - target_main_h - len(wish_overlays) * int(ih * wish_scale) - 2 * y_padding
 
-    for overlay_img, ow, oh in main_resized + wish_resized:
-        px = x_center - ow // 2
-        img.paste(overlay_img, (px, current_y), overlay_img)
-        current_y += (oh + y_padding)
+    # Paste main overlays side by side
+    x_pos = start_x
+    for overlay_img, ow, oh in main_resized:
+        img.paste(overlay_img, (x_pos, current_y), overlay_img)
+        x_pos += ow + 20
+    current_y += target_main_h + y_padding
+
+    # Wishes Overlays
+    for overlay, role, num in wish_overlays:
+        ow, oh = overlay.size
+        new_h = int(ih * wish_scale)
+        new_w = int(ow * new_h / oh)
+        overlay_resized = overlay.resize((new_w, new_h), Image.LANCZOS)
+
+        px = (iw - new_w) // 2
+        img.paste(overlay_resized, (px, current_y), overlay_resized)
+        current_y += new_h + y_padding
 
     return img
 
@@ -169,11 +177,13 @@ show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
 
 with st.sidebar.expander("🎨 Font & Watermark Selection", expanded=False):
+    uploaded_font = st.file_uploader("Upload Font (.ttf/.otf)", type=["ttf", "otf"])
     available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-    font_file = st.selectbox("Choose Font", available_fonts)
+    font_file = st.selectbox("Choose Built-in Font", available_fonts)
 
+    uploaded_logo = st.file_uploader("Upload Your Watermark (.png)", type=["png"])
     available_logos = list_files("assets/logos", [".png"])
-    logo_file = st.selectbox("Choose Watermark Logo", available_logos)
+    logo_file = st.selectbox("Choose Built-in Logo", available_logos)
 
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -184,8 +194,20 @@ if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("🌀 Processing images... Please wait."):
             status_text = st.empty()
-            logo_path = os.path.join("assets/logos", logo_file)
-            font_path = os.path.join("assets/fonts", font_file)
+
+            # Handle font selection
+            if uploaded_font is not None:
+                font_bytes = io.BytesIO(uploaded_font.read())
+                font_path = font_bytes
+            else:
+                font_path = os.path.join("assets/fonts", font_file)
+
+            # Handle logo selection
+            if uploaded_logo is not None:
+                logo = Image.open(uploaded_logo).convert("RGBA")
+            else:
+                logo_path = os.path.join("assets/logos", logo_file)
+                logo = Image.open(logo_path).convert("RGBA")
 
             for idx, image_file in enumerate(uploaded_images, start=1):
                 try:
@@ -231,7 +253,6 @@ if st.button("✅ Generate Edited Images"):
                             dy = safe_randint(30, h - 50)
                             overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS), shadow=True)
 
-                    logo = Image.open(logo_path).convert("RGBA")
                     logo.thumbnail((int(w * 0.25), int(h * 0.25)))
                     image = place_logo_random(image, logo)
 
@@ -266,7 +287,7 @@ if results:
     zip_buffer.seek(0)
 
     st.download_button(
-        label="📆 Download All as ZIP",
+        label="📦 Download All as ZIP",
         data=zip_buffer,
         file_name="Shivam_Images.zip",
         mime="application/zip"
