@@ -7,32 +7,28 @@ import datetime
 import zipfile
 import time
 
-# ========== PAGE CONFIG ==========
 st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="centered")
-
 st.markdown("""
     <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🖼️ Edit Photo in Bulk Tool ™</h1>
     <h4 style='text-align: center; color: grey;'>Apply Greetings, Watermarks, Fonts, Wishes & More</h4>
 """, unsafe_allow_html=True)
 
-# ========== CONSTANTS ==========
+# =================== CONSTANTS ====================
 MORNING_WISHES = [
     "Have a great day!", "Start your day with a smile", "Enjoy your coffee!",
     "Fresh start today!", "Make today beautiful", "Positive vibes only"
 ]
-
 NIGHT_WISHES = [
     "Sweet dreams", "Good night, sleep tight", "Peaceful rest ahead",
     "Relax and unwind", "Nighty night!", "Sleep peacefully"
 ]
-
 COLORS = [
     (255, 255, 0), (255, 0, 0), (255, 255, 255),
     (255, 192, 203), (0, 255, 0), (255, 165, 0),
     (173, 216, 230), (128, 0, 128), (255, 105, 180)
 ]
 
-# ========== UTILS ==========
+# =================== UTILS ====================
 def list_files(folder, exts):
     if not os.path.exists(folder): return []
     return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
@@ -82,84 +78,74 @@ def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_s
     base_folder = os.path.join("assets", "overlays")
     if not os.path.exists(base_folder):
         st.warning("⚠️ Overlays folder not found!")
-        return None
+        return img
 
     themes = [f for f in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, f))]
     if not themes:
-        st.warning("⚠️ No overlay themes found in overlays folder!")
-        return None
+        st.warning("⚠️ No overlay themes found!")
+        return img
 
     chosen_theme = random.choice(themes)
     theme_path = os.path.join(base_folder, chosen_theme)
 
-    if greeting_type == "Good Morning":
-        overlay_numbers = [1, 2, 4]
-    elif greeting_type == "Good Night":
-        overlay_numbers = [1, 3, 5]
-    else:
-        overlay_numbers = [1]
-
+    overlay_numbers = [1, 2, 4] if greeting_type == "Good Morning" else [1, 3, 5]
     iw, ih = img.size
+
     overlays = []
     for num in overlay_numbers:
-        file_path = os.path.join(theme_path, f"{num}.png")
-        if not os.path.exists(file_path):
-            continue
+        fpath = os.path.join(theme_path, f"{num}.png")
+        if not os.path.exists(fpath): continue
         try:
-            overlay = Image.open(file_path).convert("RGBA")
+            ov = Image.open(fpath).convert("RGBA")
             role = "main" if num in [1, 2, 3] else "wish"
-            overlays.append((overlay, role, num))
-        except:
-            continue
+            overlays.append((ov, role))
+        except: continue
 
-    if not overlays:
-        return img
+    if not overlays: return img
 
-    main_scale = overlay_main_scale / 100.0
-    wish_scale = overlay_wish_scale / 100.0
+    # Place main overlays (side by side, equal size)
+    main_overlays = [o for o in overlays if o[1] == "main"]
+    wish_overlays = [o for o in overlays if o[1] == "wish"]
     y_padding = 20
 
-    main_overlays = [ov for ov in overlays if ov[1] == "main"]
-    wish_overlays = [ov for ov in overlays if ov[1] == "wish"]
+    target_main_h = int(ih * (overlay_main_scale / 100))
+    resized_main = []
+    for ov, _ in main_overlays:
+        ow, oh = ov.size
+        new_w = int(ow * target_main_h / oh)
+        resized_main.append(ov.resize((new_w, target_main_h), Image.LANCZOS))
 
-    target_main_h = int(ih * main_scale)
-    main_resized = []
-    for overlay, role, num in main_overlays:
-        ow, oh = overlay.size
-        new_h = target_main_h
-        new_w = int(ow * new_h / oh)
-        main_resized.append((overlay.resize((new_w, new_h), Image.LANCZOS), new_w, new_h))
-
-    total_main_width = sum(w for _, w, _ in main_resized) + (len(main_resized) - 1) * 20
-    start_x = max(0, (iw - total_main_width) // 2)
+    total_main_width = sum(o.width for o in resized_main) + (len(resized_main)-1)*20
+    start_x = max(0, (iw - total_main_width)//2)
     current_y = y_padding
 
-    if current_y + target_main_h + len(wish_overlays)*int(ih*wish_scale) + 2*y_padding > ih:
-        current_y = ih - (target_main_h + len(wish_overlays)*int(ih*wish_scale) + 2*y_padding)
+    if current_y + target_main_h + len(wish_overlays)*int(ih*overlay_wish_scale/100) + 2*y_padding > ih:
+        current_y = ih - (target_main_h + len(wish_overlays)*int(ih*overlay_wish_scale/100) + 2*y_padding)
 
     x_pos = start_x
-    for overlay_img, ow, oh in main_resized:
-        if x_pos + ow > iw: break
-        img.paste(overlay_img, (x_pos, current_y), overlay_img)
-        x_pos += ow + 20
+    for ov in resized_main:
+        if x_pos + ov.width > iw: break
+        img.paste(ov, (x_pos, current_y), ov)
+        x_pos += ov.width + 20
     current_y += target_main_h + y_padding
 
-    for overlay, role, num in wish_overlays:
-        ow, oh = overlay.size
-        new_h = int(ih * wish_scale)
-        new_w = int(ow * new_h / oh)
-        overlay_resized = overlay.resize((new_w, new_h), Image.LANCZOS)
+    # Place wish overlays below main
+    for ov, _ in wish_overlays:
+        target_wish_h = int(ih * (overlay_wish_scale / 100))
+        ow, oh = ov.size
+        new_w = int(ow * target_wish_h / oh)
+        ov_resized = ov.resize((new_w, target_wish_h), Image.LANCZOS)
 
-        if current_y + new_h + y_padding > ih:
-            current_y = ih - new_h - y_padding
+        if current_y + target_wish_h + y_padding > ih:
+            current_y = ih - target_wish_h - y_padding
 
-        px = max(0, (iw - new_w) // 2)
-        img.paste(overlay_resized, (px, current_y), overlay_resized)
-        current_y += new_h + y_padding
+        px = max(0, (iw - new_w)//2)
+        img.paste(ov_resized, (px, current_y), ov_resized)
+        current_y += target_wish_h + y_padding
 
     return img
 
-# ========== SIDEBAR ==========
+# =================== SIDEBAR ====================
 st.sidebar.header("🛠️ Tool Settings")
 greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
 def_wish = random.choice(MORNING_WISHES if greeting_type == "Good Morning" else NIGHT_WISHES)
@@ -169,20 +155,19 @@ coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 8)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
 
-with st.sidebar.expander("🎨 Font & Watermark Selection", expanded=False):
-    uploaded_font = st.file_uploader("Upload Font (.ttf/.otf)", type=["ttf", "otf"])
-    available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-    font_file = st.selectbox("Choose Built-in Font", available_fonts)
+with st.sidebar.expander("🎨 Font & Watermark", expanded=False):
+    uploaded_font = st.file_uploader("Upload Your Font (.ttf/.otf)", type=["ttf","otf"])
+    fonts_available = list_files("assets/fonts", [".ttf", ".otf"])
+    font_file = st.selectbox("Or Choose Built-in Font", fonts_available)
 
     uploaded_logo = st.file_uploader("Upload Your Watermark (.png)", type=["png"])
-    available_logos = list_files("assets/logos", [".png"])
-    logo_file = st.selectbox("Choose Built-in Logo", available_logos)
+    logos_available = list_files("assets/logos", [".png"])
+    logo_file = st.selectbox("Or Choose Built-in Logo", logos_available)
 
-with st.sidebar.expander("🖼️ PNG Overlays (Optional, Compact)", expanded=False):
+with st.sidebar.expander("🖼️ PNG Overlays (Compact)", expanded=False):
     use_png_overlay = st.checkbox("Use PNG Overlay Wishes Instead of Text")
     overlay_main_scale = st.slider("Main Overlay Size (%)", 10, 100, 40)
     overlay_wish_scale = st.slider("Wishes Overlay Size (%)", 10, 100, 30)
 
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
 results = []
