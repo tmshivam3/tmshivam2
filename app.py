@@ -4,7 +4,6 @@ import random
 import os
 import io
 import datetime
-import zipfile
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -48,7 +47,7 @@ user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
+show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)  # default unchecked
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
 logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Logo"])
@@ -74,8 +73,6 @@ generate_variations = st.sidebar.checkbox("Generate 4 Variations per Photo (Slid
 
 # MAIN UPLOAD
 uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-output_images = []
 
 # BUTTON
 if st.button("✅ Generate Edited Images"):
@@ -175,20 +172,8 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Preview and Download
-        zip_filename = "edited_images.zip"
-        with zipfile.ZipFile(zip_filename, 'w') as zipf:
-            for name, variants in all_results:
-                st.write(f"**{name} - Variations**")
-                for i, variant in enumerate(variants):
-                    st.image(variant, use_column_width=True)
-
-                    # Saving image to ZIP
-                    img_bytes = io.BytesIO()
-                    variant.save(img_bytes, format="JPEG", quality=95)
-                    img_bytes.seek(0)
-                    timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                    file_name = f"Picsart_{timestamp}.jpg"
-                    zipf.writestr(file_name, img_bytes.read())
-
-        # Provide the zip file
+        # Preview Images
+        for name, variants in all_results:
+            st.write(f"**{name} - Variations**")
+            for variant in variants:
+                st.image(variant, use_column_width=True)
