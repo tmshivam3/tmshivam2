@@ -72,10 +72,9 @@ def place_logo_random(img, logo):
     max_y = max(0, h - logo_h - 30)
     x = safe_randint(20, max_x)
     y = safe_randint(20, max_y)
-
-    # ✅ Fixed watermark opacity to 100%
+    opacity = random.uniform(0.45, 1.0)
     watermark = logo.copy()
-    watermark = ImageEnhance.Brightness(watermark).enhance(1.0)
+    watermark = ImageEnhance.Brightness(watermark).enhance(opacity)
     img.paste(watermark, (x, y), watermark)
     return img
 
@@ -144,7 +143,7 @@ if st.button("✅ Generate Edited Images"):
                             continue
                         image = processed
                     else:
-                        scaled_coverage = coverage_slider * 0.00167
+                        scaled_coverage = coverage_slider * 0.00167  # So 30 becomes 0.05 (5%)
                         area = (scaled_coverage) * w * h
                         main_font_size = max(30, int(area ** 0.5 * 0.6))
                         sub_font_size = int(main_font_size * 0.5)
