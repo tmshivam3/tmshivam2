@@ -86,8 +86,11 @@ if st.button("✅ Generate Edited Images"):
                     logo = Image.open(logo_path).convert("RGBA")
                 else:  # Custom watermark uploaded by user
                     logo = Image.open(logo_path).convert("RGBA")
-                # Increased watermark size by 50% (resize to 225px)
-                logo.thumbnail((225, 225))
+                # Increased watermark size by 30% (resize to 130% of the original size)
+                original_logo_size = logo.size
+                new_width = int(original_logo_size[0] * 1.30)
+                new_height = int(original_logo_size[1] * 1.30)
+                logo = logo.resize((new_width, new_height))
 
             font_bytes = None
             if uploaded_font:
@@ -189,6 +192,4 @@ if st.button("✅ Generate Edited Images"):
                 img.save(img_bytes, format="JPEG", quality=95)
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
                 file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+                st.download_button(f"⬇️ Download
