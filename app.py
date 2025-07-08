@@ -6,7 +6,6 @@ import random
 import datetime
 import zipfile
 import numpy as np
-from streamlit_option_menu import option_menu
 import time
 import base64
 
