@@ -204,4 +204,8 @@ if st.button("✅ Generate Edited Images"):
         st.success("✅ All images processed successfully!")
 
         # Preview and Download
-        for name, variants in
+        for name, variants in all_results:
+            if generate_variations:
+                st.write(f"**{name} - Variations**")
+                for variant in variants:
+                    st
