@@ -77,14 +77,17 @@ def place_logo_random(img, logo):
     img.paste(watermark, (x, y), watermark)
     return img
 
-def overlay_theme_overlays(img, greeting_type, main_scale=40, wish_scale=30):
+def overlay_theme_overlays(img, greeting_type, theme_choice, main_scale=40, wish_scale=30):
     base_folder = "assets/overlays"
-    themes = [f for f in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, f))]
+    themes = sorted([f for f in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, f))], reverse=True)
     if not themes: return img
 
-    chosen_theme = random.choice(themes)
-    theme_path = os.path.join(base_folder, chosen_theme)
+    if theme_choice == "Auto Select":
+        chosen_theme = random.choice(themes)
+    else:
+        chosen_theme = theme_choice
 
+    theme_path = os.path.join(base_folder, chosen_theme)
     iw, ih = img.size
     overlay_numbers = [1, 2, 4] if greeting_type == "Good Morning" else [1, 3, 5]
 
@@ -108,37 +111,60 @@ def overlay_theme_overlays(img, greeting_type, main_scale=40, wish_scale=30):
     return img
 
 # ========== SIDEBAR ==========
-st.sidebar.header("🛠️ Tool Settings")
-greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
-def_wish = random.choice(MORNING_WISHES if greeting_type == "Good Morning" else NIGHT_WISHES)
-custom_wish = st.sidebar.text_input("Wishes Text (optional)", value="")
-show_wish_text = st.sidebar.checkbox("Show Wishes Text", value=True)
-coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 5, 20, 8)
-show_date = st.sidebar.checkbox("Add Today's Date", value=False)
-date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
+st.sidebar.header("🛠️ Settings")
 
-use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Wishes Instead of Text", value=True)
+greeting_type = st.sidebar.selectbox("Greeting", ["Good Morning", "Good Night"])
+def_wish = random.choice(MORNING_WISHES if greeting_type == "Good Morning" else NIGHT_WISHES)
+custom_wish = st.sidebar.text_input("Custom Wish", value="")
+show_wish_text = st.sidebar.checkbox("Show Wish Text", True)
+show_date = st.sidebar.checkbox("Show Date", False)
+
+st.sidebar.markdown("---")
+
+# Compact sliders
+coverage_percent = st.sidebar.slider("Text Coverage %", 5, 20, 8, step=1, help="Controls main text area")
+date_size_factor = st.sidebar.slider("Date Size %", 30, 120, 70, step=5)
+
+st.sidebar.markdown("---")
+
+# Overlay settings
+use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Instead of Text", True)
+
+theme_list = ["Auto Select"]
+themes_available = sorted([f for f in os.listdir("assets/overlays") if os.path.isdir(os.path.join("assets/overlays", f))], reverse=True)
+theme_list.extend(themes_available)
+selected_theme = st.sidebar.selectbox("Overlay Theme", theme_list)
 
 if use_png_overlay:
-    st.sidebar.markdown("✔️ Overlays will use PNG from assets/overlays folders")
-    overlay_main_scale = st.sidebar.slider("Main Overlay Size (%)", 10, 100, 40)
-    overlay_wish_scale = st.sidebar.slider("Wishes Overlay Size (%)", 10, 100, 30)
+    overlay_main_scale = st.sidebar.slider("Main Overlay Size %", 10, 100, 40, step=5)
+    overlay_wish_scale = st.sidebar.slider("Wish Overlay Size %", 10, 100, 30, step=5)
+
+st.sidebar.markdown("---")
 
 # Font
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-font_file = st.sidebar.selectbox("Choose Font", available_fonts)
-uploaded_font = st.sidebar.file_uploader("📁 Own Font Upload", type=["ttf", "otf"], label_visibility="collapsed")
+font_file = st.sidebar.selectbox("Font", available_fonts)
 
-# Logo
+use_own_font = st.sidebar.checkbox("Use Own Font Upload")
+uploaded_font = None
+if use_own_font:
+    uploaded_font = st.sidebar.file_uploader("Upload Font", type=["ttf", "otf"])
+
+# Watermark
 available_logos = list_files("assets/logos", [".png"])
-logo_file = st.sidebar.selectbox("Choose Watermark Logo", available_logos)
-uploaded_logo = st.sidebar.file_uploader("📁 Own Watermark Upload", type=["png"], label_visibility="collapsed")
+logo_file = st.sidebar.selectbox("Watermark", available_logos)
+
+use_own_logo = st.sidebar.checkbox("Use Own Watermark")
+uploaded_logo = None
+if use_own_logo:
+    uploaded_logo = st.sidebar.file_uploader("Upload Watermark", type=["png"])
+
+st.sidebar.markdown("---")
 
 # Images
-st.sidebar.markdown("---")
-uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_images = st.sidebar.file_uploader("Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-# ========== MAIN LOGIC ==========
+# ========== MAIN ==========
 results = []
 
 if st.button("✅ Generate Edited Images"):
@@ -150,7 +176,7 @@ if st.button("✅ Generate Edited Images"):
                 w, h = image.size
 
                 if use_png_overlay:
-                    image = overlay_theme_overlays(image.copy(), greeting_type, overlay_main_scale, overlay_wish_scale)
+                    image = overlay_theme_overlays(image.copy(), greeting_type, selected_theme, overlay_main_scale, overlay_wish_scale)
                 else:
                     # Load Font
                     if uploaded_font:
@@ -177,18 +203,21 @@ if st.button("✅ Generate Edited Images"):
                     x = safe_randint(30, x_range)
                     y = safe_randint(30, y_range)
 
-                    overlay_text(draw, (x, y), greeting_type, main_font, text_color, shadow=random.choice([True, False]), outline=random.choice([True, False]))
+                    overlay_text(draw, (x, y), greeting_type, main_font, text_color,
+                                 shadow=random.choice([True, False]), outline=random.choice([True, False]))
 
                     if show_wish_text:
                         wish_x = x + random.randint(-15, 15)
                         wish_y = y + main_font_size + 10
-                        overlay_text(draw, (wish_x, wish_y), wish_text, sub_font, text_color, shadow=random.choice([True, False]))
+                        overlay_text(draw, (wish_x, wish_y), wish_text, sub_font, text_color,
+                                     shadow=random.choice([True, False]))
 
                     if show_date:
                         today = datetime.datetime.now().strftime("%d %B %Y")
                         dx = safe_randint(30, max(30, w - 200))
                         dy = safe_randint(30, max(30, h - 50))
-                        overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS), shadow=random.choice([True, False]))
+                        overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS),
+                                     shadow=random.choice([True, False]))
 
                 # Watermark
                 if uploaded_logo:
@@ -203,7 +232,7 @@ if st.button("✅ Generate Edited Images"):
                 results.append((image_file.name, final_image))
 
             except Exception as e:
-                st.error(f"❌ Error Occurred: {str(e)}")
+                st.error(f"❌ Error: {str(e)}")
 
         for name, img in results:
             st.image(img, caption=name, use_container_width=True)
