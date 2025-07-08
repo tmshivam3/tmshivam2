@@ -37,31 +37,6 @@ def safe_randint(a, b):
         a, b = b, a
     return random.randint(a, b)
 
-def overlay_text(draw, position, text, font, fill, shadow=False, outline=False):
-    x, y = position
-    if shadow:
-        for dx in [-2, 2]:
-            for dy in [-2, 2]:
-                draw.text((x + dx, y + dy), text, font=font, fill="black")
-    if outline:
-        for dx in [-1, 1]:
-            for dy in [-1, 1]:
-                draw.text((x + dx, y + dy), text, font=font, fill="white")
-    draw.text((x, y), text, font=font, fill=fill)
-
-def place_logo_random(img, logo):
-    w, h = img.size
-    logo_w, logo_h = logo.size
-    max_x = max(0, w - logo_w - 30)
-    max_y = max(0, h - logo_h - 30)
-    x = safe_randint(20, max_x)
-    y = safe_randint(20, max_y)
-    opacity = random.uniform(0.45, 1.0)
-    watermark = logo.copy()
-    watermark = ImageEnhance.Brightness(watermark).enhance(opacity)
-    img.paste(watermark, (x, y), watermark)
-    return img
-
 def overlay_theme_overlays(img, greeting_type, theme_folder):
     iw, ih = img.size
     overlay_nums = [1]
@@ -88,6 +63,19 @@ def overlay_theme_overlays(img, greeting_type, theme_folder):
                 pass
     return img
 
+def place_logo_random(img, logo):
+    w, h = img.size
+    logo_w, logo_h = logo.size
+    max_x = max(0, w - logo_w - 30)
+    max_y = max(0, h - logo_h - 30)
+    x = safe_randint(20, max_x)
+    y = safe_randint(20, max_y)
+    opacity = random.uniform(0.45, 1.0)
+    watermark = logo.copy()
+    watermark = ImageEnhance.Brightness(watermark).enhance(opacity)
+    img.paste(watermark, (x, y), watermark)
+    return img
+
 # =================== MAIN PAGE UPLOAD ===================
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -108,18 +96,26 @@ theme_dirs = sorted([d for d in os.listdir("assets/overlays") if os.path.isdir(o
 theme_options = ["Auto Random"] + theme_dirs
 selected_theme = st.sidebar.selectbox("Overlay Theme", theme_options) if show_overlay else None
 
+# Font selection
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 use_own_font = st.sidebar.checkbox("Upload Own Font")
 if use_own_font:
     user_font = st.sidebar.file_uploader("Upload TTF/OTF Font", type=["ttf", "otf"])
+
 font_choice = None
+random_font_mode = False
 if use_own_font and user_font:
     font_choice = ImageFont.truetype(io.BytesIO(user_font.read()), 60)
 elif available_fonts:
-    selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
-    font_path = os.path.join("assets/fonts", selected_font)
-    font_choice = ImageFont.truetype(font_path, 60)
+    font_options = ["Random Font (each photo)"] + available_fonts
+    selected_font = st.sidebar.selectbox("Choose Font", font_options)
+    if selected_font == "Random Font (each photo)":
+        random_font_mode = True
+    else:
+        font_path = os.path.join("assets/fonts", selected_font)
+        font_choice = ImageFont.truetype(font_path, 60)
 
+# Watermark selection
 available_logos = list_files("assets/logos", [".png"])
 use_own_logo = st.sidebar.checkbox("Upload Own Watermark")
 if use_own_logo:
@@ -154,11 +150,11 @@ if st.button("✅ Generate Images"):
                     draw = ImageDraw.Draw(image)
                     color = random.choice([(255, 255, 255), (255, 255, 0), (255, 0, 0), (128, 0, 255)])
 
-                    # Pick random font per image if no font_choice
+                    # Per-image font selection
                     this_font = None
-                    if font_choice:
+                    if font_choice and not random_font_mode:
                         this_font = font_choice
-                    elif available_fonts:
+                    elif random_font_mode and available_fonts:
                         rand_font_path = os.path.join("assets/fonts", random.choice(available_fonts))
                         this_font = ImageFont.truetype(rand_font_path, 60)
 
@@ -192,7 +188,7 @@ if st.button("✅ Generate Images"):
         for name, img in results:
             st.image(img, caption=name, use_container_width=True)
             img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG")
+            img.save(img_bytes, format="JPEG", quality=100)   # HIGH QUALITY JPEG
             st.download_button(
                 label="⬇️ Download",
                 data=img_bytes.getvalue(),
@@ -204,7 +200,7 @@ if st.button("✅ Generate Images"):
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for name, img in results:
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG")
+                img.save(img_bytes, format="JPEG", quality=100)  # HIGH QUALITY JPEG
                 zipf.writestr(name.replace(".png", ".jpg"), img_bytes.getvalue())
         zip_buffer.seek(0)
         st.download_button(
