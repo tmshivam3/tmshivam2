@@ -1,3 +1,42 @@
+import streamlit as st
+from PIL import Image, ImageDraw, ImageFont
+import random
+import os
+import io
+import datetime
+
+# PAGE CONFIG
+st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
+
+st.markdown("""
+    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🔆 EDIT PHOTO IN ONE CLICK 🔆</h1>
+    <h4 style='text-align: center; color: grey;'>Premium Good Morning / Good Night Watermark Generator</h4>
+""", unsafe_allow_html=True)
+
+# UTILS
+def list_files(folder, exts):
+    if not os.path.exists(folder):
+        return []
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
+
+def crop_to_3_4(img):
+    w, h = img.size
+    target_ratio = 3 / 4
+    current_ratio = w / h
+    if current_ratio > target_ratio:
+        new_w = int(h * target_ratio)
+        left = (w - new_w) // 2
+        img = img.crop((left, 0, left + new_w, h))
+    else:
+        new_h = int(w / target_ratio)
+        top = (h - new_h) // 2
+        img = img.crop((0, top, w, top + new_h))
+    return img
+
+# DATA
+available_logos = list_files("assets/logos", [".png"])
+available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
+
 # SIDEBAR
 st.sidebar.header("🎨 Tool Settings")
 
@@ -9,15 +48,15 @@ user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 # Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-# Updated: Default 'Add Today's Date' checkbox is unchecked
-show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)  # <-- Updated here
+# Default 'Add Today's Date' checkbox is unchecked
+show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
-logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Watermark"])  # <-- Updated here
+logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Watermark"])
 logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "Own Watermark" else None
 
 # Option to upload custom watermark
-if logo_choice == "Own Watermark":  # <-- Updated here
+if logo_choice == "Own Watermark":
     logo_path = st.sidebar.file_uploader("Upload Custom Watermark PNG", type=["png"])
 
 st.sidebar.subheader("Font Source")
@@ -48,7 +87,7 @@ if st.button("✅ Generate Edited Images"):
                 else:  # Custom watermark uploaded by user
                     logo = Image.open(logo_path).convert("RGBA")
                 # Increased watermark size by 50% (resize to 225px)
-                logo.thumbnail((225, 225))  # <-- Updated here
+                logo.thumbnail((225, 225))
 
             font_bytes = None
             if uploaded_font:
