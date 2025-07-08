@@ -189,12 +189,3 @@ if st.button("✅ Generate Edited Images"):
 
         # Allow user to download the zip file
         with open("/tmp/edited_images.zip", "rb") as f:
-            st.download_button(
-                label="⬇️ Download All Edited Images",
-                data=f,
-                file_name="edited_images.zip",
-                mime="application/zip"
-            )
-
-    else:
-        st.warning("⚠️ Please upload images
