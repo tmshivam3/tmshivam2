@@ -73,17 +73,20 @@ def place_logo_random(img, logo):
     x = safe_randint(20, max_x)
     y = safe_randint(20, max_y)
 
-    # ✅ Full opacity (no transparency)
+    # Ensure 100% opacity for watermark
+    if logo.mode != 'RGBA':
+        logo = logo.convert("RGBA")
+    alpha = logo.split()[3]
+    logo.putalpha(alpha)  # 100% opacity
+
     img.paste(logo, (x, y), logo)
     return img
 
 def overlay_png_random(img, greeting_type):
     base_folder = f"assets/overlays/{greeting_type.lower().replace(' ', '')}"
-    if not os.path.exists(base_folder):
-        return None
+    if not os.path.exists(base_folder): return None
     png_files = list_files(base_folder, ['.png'])
-    if not png_files:
-        return None
+    if not png_files: return None
 
     for png_name in random.sample(png_files, min(3, len(png_files))):
         try:
@@ -106,7 +109,7 @@ def_wish = random.choice(MORNING_WISHES if greeting_type == "Good Morning" else 
 custom_wish = st.sidebar.text_input("Wishes Text (optional)", value="")
 use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Wishes Instead of Text")
 show_wish_text = st.sidebar.checkbox("Show Wishes Text", value=True)
-coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 30)
+coverage_slider = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 30)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
 
@@ -144,7 +147,8 @@ if st.button("✅ Generate Edited Images"):
                             continue
                         image = processed
                     else:
-                        area = (coverage_percent / 300) * w * h  # adjusted text power
+                        scaled_coverage = coverage_slider * 0.00167
+                        area = (scaled_coverage) * w * h
                         main_font_size = max(30, int(area ** 0.5 * 0.6))
                         sub_font_size = int(main_font_size * 0.5)
                         date_font_size = int(main_font_size * date_size_factor / 100)
@@ -175,23 +179,22 @@ if st.button("✅ Generate Edited Images"):
                     image = place_logo_random(image, logo)
 
                     final = image.convert("RGB")
-                    results.append((image_file.name, final))
+                    renamed = f"Picsart_{datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S-%f')[:-3]}.jpg"
+                    img_bytes = io.BytesIO()
+                    final.save(img_bytes, format="JPEG", quality=95, dpi=(300, 300), optimize=True)
+                    results.append((renamed, img_bytes.getvalue()))
 
                 except Exception as e:
                     st.error(f"❌ Error Occurred: {str(e)}")
 
             status_text.success("✅ All images processed successfully!")
 
-        for name, img in results:
-            st.image(img, caption=name, use_container_width=True)
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG", quality=100, subsampling=0, optimize=True)
-            timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")[:-3]
-            renamed = f"Picsart_{timestamp}.jpg"
+        for name, img_data in results:
+            st.image(Image.open(io.BytesIO(img_data)), caption=name, use_container_width=True)
             st.download_button(
-                label=f"⬇️ Download {renamed}",
-                data=img_bytes.getvalue(),
-                file_name=renamed,
+                label=f"⬇️ Download {name}",
+                data=img_data,
+                file_name=name,
                 mime="image/jpeg"
             )
 
@@ -199,11 +202,8 @@ if st.button("✅ Generate Edited Images"):
 if results:
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for _, img in results:
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG", quality=100, subsampling=0, optimize=True)
-            timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")[:-3]
-            zipf.writestr(f"Picsart_{timestamp}.jpg", img_bytes.getvalue())
+        for name, img_data in results:
+            zipf.writestr(name, img_data)
     zip_buffer.seek(0)
 
     st.download_button(
