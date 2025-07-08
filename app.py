@@ -4,8 +4,6 @@ import random
 import os
 import io
 import datetime
-import zipfile
-import shutil
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -47,8 +45,10 @@ greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Nig
 default_subtext = "Sweet Dreams" if greeting_type == "Good Night" else "Have a Nice Day"
 user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 
+# Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
+# Default 'Add Today's Date' checkbox is unchecked
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
@@ -76,42 +76,18 @@ uploaded_images = st.file_uploader("🖼️ Upload Images", type=["jpg", "jpeg",
 
 output_images = []
 
-# Function to create a ZIP file of images
-def create_zip(images, folder_name="generated_images"):
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
-
-    zip_filename = f"{folder_name}.zip"
-    
-    with zipfile.ZipFile(zip_filename, "w") as zipf:
-        for i, (image, original_name) in enumerate(images):
-            timestamp = datetime.datetime.now().strftime("%d-%m-%y_%H-%M-%S-%f")
-            new_filename = f"Picsart_{timestamp}.png"  # Renaming in desired format
-
-            img_bytes = io.BytesIO()
-            image.save(img_bytes, format="PNG", quality=95)
-            img_bytes.seek(0)
-            
-            with open(os.path.join(folder_name, new_filename), "wb") as f:
-                f.write(img_bytes.getvalue())
-            
-            zipf.write(os.path.join(folder_name, new_filename), new_filename)
-
-    shutil.rmtree(folder_name)
-
-    return zip_filename
-
 # BUTTON
 if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
             logo = None
             if logo_path:
-                if isinstance(logo_path, str):
+                if isinstance(logo_path, str):  # Default watermark logo
                     logo = Image.open(logo_path).convert("RGBA")
-                else:
+                else:  # Custom watermark uploaded by user
                     logo = Image.open(logo_path).convert("RGBA")
-                logo.thumbnail((150, 150))
+                # Increased watermark size by 50% (resize to 225px)
+                logo.thumbnail((225, 225))
 
             font_bytes = None
             if uploaded_font:
@@ -182,12 +158,11 @@ if st.button("✅ Generate Edited Images"):
                 return img
 
             all_results = []
-            all_images = []
-
             for img_file in uploaded_images:
                 image = Image.open(img_file).convert("RGB")
                 variants = []
-                random_font = random.choice(available_fonts)
+                random_font = random.choice(available_fonts)  # Randomly select a font for each image
+                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read()) 
 
                 if generate_variations:
                     for i in range(4):
@@ -198,9 +173,6 @@ if st.button("✅ Generate Edited Images"):
 
                 all_results.append((img_file.name, variants))
 
-                for variant in variants:
-                    all_images.append((variant, img_file.name))
-
         st.success("✅ All images processed successfully!")
 
         # Preview and Download
@@ -208,4 +180,15 @@ if st.button("✅ Generate Edited Images"):
             if generate_variations:
                 st.write(f"**{name} - Variations**")
                 for variant in variants:
-                    st
+                    st.image(variant, use_column_width=True)
+            else:
+                st.image(variants[0], caption=name, use_column_width=True)
+
+            for i, img in enumerate(variants):
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG", quality=95)
+                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                file_name = f"Picsart_{timestamp}.jpg"
+                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
+    else:
+        st.warning("⚠️ Please upload images before clicking Generate.")
