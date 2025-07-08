@@ -100,8 +100,9 @@ show_text = st.sidebar.checkbox("Show Main Text", value=True)
 show_wish = st.sidebar.checkbox("Show Sub Wish", value=True)
 show_date = st.sidebar.checkbox("Show Date", value=False)
 
-main_size = st.sidebar.slider("Main Text Size", 1, 25, 10) if show_text else None
-wish_size = st.sidebar.slider("Wish Text Size", 1, 25, 10) if show_wish else None
+# UPDATED SLIDER RANGES for smaller sizes
+main_size = st.sidebar.slider("Main Text Size", 5, 25, 12) if show_text else None
+wish_size = st.sidebar.slider("Wish Text Size", 5, 20, 10) if show_wish else None
 
 show_overlay = st.sidebar.checkbox("Enable Overlay Wishes", value=False)
 theme_dirs = sorted([d for d in os.listdir("assets/overlays") if os.path.isdir(os.path.join("assets/overlays", d))], reverse=True)
@@ -113,6 +114,27 @@ available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 use_own_font = st.sidebar.checkbox("Upload Own Font")
 if use_own_font:
     user_font = st.sidebar.file_uploader("Upload TTF/OTF Font", type=["ttf", "otf"])
+font_choice = None
+if use_own_font and user_font:
+    font_choice = ImageFont.truetype(io.BytesIO(user_font.read()), 60)
+elif available_fonts:
+    selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
+    font_path = os.path.join("assets/fonts", selected_font)
+    font_choice = ImageFont.truetype(font_path, 60)
+
+# Watermark selection
+available_logos = list_files("assets/logos", [".png"])
+use_own_logo = st.sidebar.checkbox("Upload Own Watermark")
+if use_own_logo:
+    user_logo = st.sidebar.file_uploader("Upload Watermark PNG", type=["png"])
+
+logo_image = None
+if use_own_logo and user_logo:
+    logo_image = Image.open(user_logo).convert("RGBA")
+elif available_logos:
+    selected_logo = st.sidebar.selectbox("Choose Logo", available_logos)
+    logo_path = os.path.join("assets/logos", selected_logo)
+    logo_image = Image.open(logo_path).convert("RGBA")
 
 # =================== MAIN ===================
 results = []
@@ -135,11 +157,6 @@ if st.button("✅ Generate Images"):
                     draw = ImageDraw.Draw(image)
                     color = random.choice([(255, 255, 255), (255, 255, 0), (255, 0, 0), (128, 0, 255)])
 
-                    if available_fonts:
-                        random_font_file = random.choice(available_fonts)
-                        font_path = os.path.join("assets/fonts", random_font_file)
-                        font_choice = ImageFont.truetype(font_path, 60)
-
                     if show_text and font_choice:
                         font = font_choice.font_variant(size=int(main_size * w // 100))
                         draw.text((50, 50), greeting_type, font=font, fill=color)
@@ -154,19 +171,6 @@ if st.button("✅ Generate Images"):
                         date_font = font_choice.font_variant(size=int(w * 0.035))
                         today = datetime.datetime.now().strftime("%d %B %Y")
                         draw.text((w - 300, h - 60), today, font=date_font, fill=color)
-
-                    available_logos = list_files("assets/logos", [".png"])
-                    use_own_logo = st.sidebar.checkbox("Upload Own Watermark")
-                    if use_own_logo:
-                        user_logo = st.sidebar.file_uploader("Upload Watermark PNG", type=["png"])
-                        if user_logo:
-                            logo_image = Image.open(user_logo).convert("RGBA")
-                    elif available_logos:
-                        selected_logo = st.sidebar.selectbox("Choose Logo", available_logos)
-                        logo_path = os.path.join("assets/logos", selected_logo)
-                        logo_image = Image.open(logo_path).convert("RGBA")
-                    else:
-                        logo_image = None
 
                     if logo_image:
                         logo_resized = logo_image.copy()
