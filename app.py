@@ -78,7 +78,6 @@ def place_logo_random(img, logo):
     img.paste(watermark, (x, y), watermark)
     return img
 
-# ========== NEW UPDATED PNG OVERLAY LOGIC ==========
 def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_scale=30):
     base_folder = os.path.join("assets", "overlays")
     if not os.path.exists(base_folder):
@@ -109,7 +108,7 @@ def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_s
         try:
             overlay = Image.open(file_path).convert("RGBA")
             role = "main" if num in [1, 2, 3] else "wish"
-            overlays.append((overlay, role))
+            overlays.append((overlay, role, num))
         except:
             continue
 
@@ -121,48 +120,32 @@ def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_s
     y_padding = 20
     x_center = iw // 2
 
-    if random.choice([True, False]):
-        main_base_y = y_padding
-        wishes_base_y = main_base_y
-        direction = 1
-    else:
-        main_base_y = ih - y_padding
-        wishes_base_y = main_base_y
-        direction = -1
+    main_overlays = [(ov, num) for ov, role, num in overlays if role == "main"]
+    wish_overlays = [(ov, num) for ov, role, num in overlays if role == "wish"]
 
-    total_main_height = 0
+    target_main_w = int(iw * main_scale)
+
     main_resized = []
-    for overlay, role in overlays:
-        if role != "main": continue
+    for overlay, num in main_overlays:
         ow, oh = overlay.size
-        scale = main_scale
-        new_w = int(iw * scale)
+        new_w = target_main_w
         new_h = int(oh * new_w / ow)
-        total_main_height += new_h + y_padding
         main_resized.append((overlay.resize((new_w, new_h), Image.LANCZOS), new_w, new_h))
 
-    total_wish_height = 0
     wish_resized = []
-    for overlay, role in overlays:
-        if role != "wish": continue
+    for overlay, num in wish_overlays:
         ow, oh = overlay.size
-        scale = wish_scale
-        new_w = int(iw * scale)
+        new_w = int(iw * wish_scale)
         new_h = int(oh * new_w / ow)
-        total_wish_height += new_h + y_padding
         wish_resized.append((overlay.resize((new_w, new_h), Image.LANCZOS), new_w, new_h))
 
-    if direction == 1:
-        current_y = main_base_y
+    if random.choice([True, False]):
+        current_y = y_padding
     else:
-        current_y = main_base_y - total_main_height
+        total_height = sum(h + y_padding for _, _, h in main_resized + wish_resized)
+        current_y = ih - total_height - y_padding
 
-    for overlay_img, ow, oh in main_resized:
-        px = x_center - ow // 2
-        img.paste(overlay_img, (px, current_y), overlay_img)
-        current_y += (oh + y_padding)
-
-    for overlay_img, ow, oh in wish_resized:
+    for overlay_img, ow, oh in main_resized + wish_resized:
         px = x_center - ow // 2
         img.paste(overlay_img, (px, current_y), overlay_img)
         current_y += (oh + y_padding)
@@ -185,11 +168,12 @@ coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 8)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
 
-available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-font_file = st.sidebar.selectbox("Choose Font", available_fonts)
+with st.sidebar.expander("🎨 Font & Watermark Selection", expanded=False):
+    available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
+    font_file = st.selectbox("Choose Font", available_fonts)
 
-available_logos = list_files("assets/logos", [".png"])
-logo_file = st.sidebar.selectbox("Choose Watermark Logo", available_logos)
+    available_logos = list_files("assets/logos", [".png"])
+    logo_file = st.selectbox("Choose Watermark Logo", available_logos)
 
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -282,7 +266,7 @@ if results:
     zip_buffer.seek(0)
 
     st.download_button(
-        label="📦 Download All as ZIP",
+        label="📆 Download All as ZIP",
         data=zip_buffer,
         file_name="Shivam_Images.zip",
         mime="application/zip"
