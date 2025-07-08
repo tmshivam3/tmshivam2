@@ -100,7 +100,6 @@ show_text = st.sidebar.checkbox("Show Main Text", value=True)
 show_wish = st.sidebar.checkbox("Show Sub Wish", value=True)
 show_date = st.sidebar.checkbox("Show Date", value=False)
 
-# UPDATED SLIDER RANGES for smaller sizes
 main_size = st.sidebar.slider("Main Text Size", 5, 25, 12) if show_text else None
 wish_size = st.sidebar.slider("Wish Text Size", 5, 20, 10) if show_wish else None
 
@@ -109,7 +108,6 @@ theme_dirs = sorted([d for d in os.listdir("assets/overlays") if os.path.isdir(o
 theme_options = ["Auto Random"] + theme_dirs
 selected_theme = st.sidebar.selectbox("Overlay Theme", theme_options) if show_overlay else None
 
-# Font selection
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 use_own_font = st.sidebar.checkbox("Upload Own Font")
 if use_own_font:
@@ -122,7 +120,6 @@ elif available_fonts:
     font_path = os.path.join("assets/fonts", selected_font)
     font_choice = ImageFont.truetype(font_path, 60)
 
-# Watermark selection
 available_logos = list_files("assets/logos", [".png"])
 use_own_logo = st.sidebar.checkbox("Upload Own Watermark")
 if use_own_logo:
@@ -157,18 +154,26 @@ if st.button("✅ Generate Images"):
                     draw = ImageDraw.Draw(image)
                     color = random.choice([(255, 255, 255), (255, 255, 0), (255, 0, 0), (128, 0, 255)])
 
-                    if show_text and font_choice:
-                        font = font_choice.font_variant(size=int(main_size * w // 100))
+                    # Pick random font per image if no font_choice
+                    this_font = None
+                    if font_choice:
+                        this_font = font_choice
+                    elif available_fonts:
+                        rand_font_path = os.path.join("assets/fonts", random.choice(available_fonts))
+                        this_font = ImageFont.truetype(rand_font_path, 60)
+
+                    if show_text and this_font:
+                        font = this_font.font_variant(size=int(main_size * w // 100))
                         draw.text((50, 50), greeting_type, font=font, fill=color)
 
-                    if show_wish and font_choice:
+                    if show_wish and this_font:
                         subtext = custom_wish if custom_wish else (
                             "Have a nice day!" if greeting_type == "Good Morning" else "Sweet dreams!")
-                        font2 = font_choice.font_variant(size=int(wish_size * w // 100))
+                        font2 = this_font.font_variant(size=int(wish_size * w // 100))
                         draw.text((60, 50 + int(main_size * w // 100) + 10), subtext, font=font2, fill=color)
 
-                    if show_date and font_choice:
-                        date_font = font_choice.font_variant(size=int(w * 0.035))
+                    if show_date and this_font:
+                        date_font = this_font.font_variant(size=int(w * 0.035))
                         today = datetime.datetime.now().strftime("%d %B %Y")
                         draw.text((w - 300, h - 60), today, font=date_font, fill=color)
 
