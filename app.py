@@ -174,7 +174,7 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Global Download Button (Download All Images in a ZIP)
+        # Create ZIP for download
         with tempfile.NamedTemporaryFile(delete=False) as tmp_zip:
             with zipfile.ZipFile(tmp_zip, 'w') as zipf:
                 for name, variants in all_results:
@@ -182,4 +182,13 @@ if st.button("✅ Generate Edited Images"):
                         img_bytes = io.BytesIO()
                         img.save(img_bytes, format="JPEG", quality=95)
                         img_bytes.seek(0)
-                        zipf.writestr(f"{name}_{i+1
+                        zipf.writestr(f"{name}_{i+1}.jpg", img_bytes.read())
+
+        tmp_zip.seek(0)
+        st.download_button("⬇️ Download All Images (ZIP)", tmp_zip, file_name="All_Generated_Images.zip", mime="application/zip")
+
+        # Show Preview of generated images
+        for name, variants in all_results:
+            st.write(f"**{name}**")
+            for img in variants:
+                st.image(img, use_column_width=True)
