@@ -6,7 +6,6 @@ import random
 import datetime
 import zipfile
 import numpy as np
-import cv2
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ Ultra Image Processor", layout="wide")
@@ -59,35 +58,21 @@ def get_text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def smart_crop(img, target_ratio=3/4):
-    # Convert to OpenCV format
-    if img.mode == 'RGBA':
-        img = img.convert('RGB')
-    img_np = np.array(img)
-    gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-    
-    # Detect faces
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-    
-    if len(faces) > 0:
-        # If faces detected, center crop around them
-        x, y, w, h = faces[0]
-        center_x, center_y = x + w//2, y + h//2
-    else:
-        # Otherwise use center
-        center_x, center_y = img.width//2, img.height//2
-    
-    # Calculate crop
+def center_crop(img, target_ratio=3/4):
     w, h = img.size
     if w/h > target_ratio:
         new_w = int(h * target_ratio)
-        left = max(0, min(center_x - new_w//2, w - new_w))
+        left = (w - new_w) // 2
         return img.crop((left, 0, left + new_w, h))
     else:
         new_h = int(w / target_ratio)
-        top = max(0, min(center_y - new_h//2, h - new_h))
+        top = (h - new_h) // 2
         return img.crop((0, top, w, top + new_h))
+
+def list_files(folder, exts):
+    if not os.path.exists(folder):
+        return []
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
 
 def get_random_font(font_folder="assets/fonts"):
     fonts = list_files(font_folder, [".ttf", ".otf"])
@@ -131,7 +116,7 @@ def add_text_with_effects(draw, position, text, font, shadow=True):
     
     draw.text(position, text, font=font, fill=text_color)
 
-def place_watermark_smart(img, logo, opacity=1.0):
+def place_watermark(img, logo, opacity=1.0):
     w, h = img.size
     logo_w, logo_h = logo.size
     
@@ -193,8 +178,8 @@ with col1:
                     # Open image
                     image = Image.open(image_file).convert("RGBA")
                     
-                    # Apply smart cropping
-                    image = smart_crop(image)
+                    # Apply cropping
+                    image = center_crop(image)
                     w, h = image.size
                     
                     # Apply random enhancement
@@ -240,7 +225,7 @@ with col1:
                         watermark = st.session_state.watermark_image.copy()
                         watermark_size = min(w, h) // 4
                         watermark.thumbnail((watermark_size, watermark_size))
-                        image = place_watermark_smart(image, watermark, st.session_state.watermark_opacity)
+                        image = place_watermark(image, watermark, st.session_state.watermark_opacity)
                     
                     # Convert to RGB for JPEG
                     final = image.convert("RGB")
@@ -324,7 +309,7 @@ with col2:
     """, unsafe_allow_html=True)
     
     features = [
-        "Smart Face Detection",
+        "Center Cropping",
         "Auto Text Placement",
         "Random Effects",
         "Bulk Processing",
