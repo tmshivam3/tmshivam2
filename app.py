@@ -52,12 +52,6 @@ def place_logo_random(img, logo):
     return img
 
 def overlay_theme_overlays(img, greeting_type):
-    """
-    Main overlay logic:
-    - Choose random theme folder from assets/overlays/
-    - For Good Morning ➜ overlays 1, 2, 4
-    - For Good Night ➜ overlays 1, 3, 5
-    """
     base_folder = "assets/overlays"
     themes = [f for f in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, f))]
     if not themes:
@@ -81,18 +75,13 @@ def overlay_theme_overlays(img, greeting_type):
             try:
                 overlay = Image.open(file_path).convert("RGBA")
                 ow, oh = overlay.size
-
-                # Slightly larger scaling for GOOD (1), smaller for others
                 if num == 1:
                     scale = random.uniform(0.3, 0.45)
                 else:
                     scale = random.uniform(0.2, 0.35)
-
                 overlay = overlay.resize((int(iw * scale), int(oh * scale)))
-
                 px = safe_randint(30, iw - overlay.width - 30)
                 py = safe_randint(30, ih - overlay.height - 30)
-
                 img.paste(overlay, (px, py), overlay)
             except Exception as e:
                 print(f"Overlay error: {e}")
@@ -105,13 +94,23 @@ greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Nig
 use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Wishes Instead of Text", value=True)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
 
+# ==== Font Settings ====
+st.sidebar.markdown("---")
+st.sidebar.subheader("🖌️ Font")
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-font_file = st.sidebar.selectbox("Choose Font (for text mode only)", available_fonts)
+font_file = st.sidebar.selectbox("Choose Font from Assets", available_fonts)
+uploaded_font = st.sidebar.file_uploader("Or Upload Your Own Font (.ttf/.otf)", type=["ttf", "otf"])
 
+# ==== Watermark Settings ====
+st.sidebar.markdown("---")
+st.sidebar.subheader("💧 Watermark Logo")
 available_logos = list_files("assets/logos", [".png"])
-logo_file = st.sidebar.selectbox("Choose Watermark Logo", available_logos)
+logo_file = st.sidebar.selectbox("Choose Watermark Logo from Assets", available_logos)
+uploaded_logo = st.sidebar.file_uploader("Or Upload Your Own Watermark (.png)", type=["png"])
 
-uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+# ==== Image Upload ====
+st.sidebar.markdown("---")
+uploaded_images = st.sidebar.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 results = []
 
@@ -119,10 +118,21 @@ results = []
 if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("🌀 Processing images... Please wait."):
-
             status_text = st.empty()
-            logo_path = os.path.join("assets/logos", logo_file)
-            font_path = os.path.join("assets/fonts", font_file) if font_file else None
+
+            # === FONT ===
+            if uploaded_font is not None:
+                font_bytes = io.BytesIO(uploaded_font.read())
+                font_path = font_bytes
+            else:
+                font_path = os.path.join("assets/fonts", font_file) if font_file else None
+
+            # === LOGO ===
+            if uploaded_logo is not None:
+                logo = Image.open(uploaded_logo).convert("RGBA")
+            else:
+                logo_path = os.path.join("assets/logos", logo_file)
+                logo = Image.open(logo_path).convert("RGBA")
 
             for idx, image_file in enumerate(uploaded_images, start=1):
                 try:
@@ -136,7 +146,6 @@ if st.button("✅ Generate Edited Images"):
                     if use_png_overlay:
                         image = overlay_theme_overlays(image.copy(), greeting_type)
                     else:
-                        # Fallback to text rendering if overlays are off
                         if font_path:
                             draw = ImageDraw.Draw(image)
                             main_font = ImageFont.truetype(font_path, 80)
@@ -145,16 +154,14 @@ if st.button("✅ Generate Edited Images"):
                             y = safe_randint(30, h - 150)
                             draw.text((x, y), greeting_type, font=main_font, fill=color)
 
-                    if show_date:
-                        if font_path:
-                            draw = ImageDraw.Draw(image)
-                            date_font = ImageFont.truetype(font_path, 50)
-                            today = datetime.datetime.now().strftime("%d %B %Y")
-                            dx = safe_randint(30, w - 300)
-                            dy = safe_randint(30, h - 100)
-                            draw.text((dx, dy), today, font=date_font, fill=(255, 255, 255))
+                    if show_date and font_path:
+                        draw = ImageDraw.Draw(image)
+                        date_font = ImageFont.truetype(font_path, 50)
+                        today = datetime.datetime.now().strftime("%d %B %Y")
+                        dx = safe_randint(30, w - 300)
+                        dy = safe_randint(30, h - 100)
+                        draw.text((dx, dy), today, font=date_font, fill=(255, 255, 255))
 
-                    logo = Image.open(logo_path).convert("RGBA")
                     logo.thumbnail((int(w * 0.25), int(h * 0.25)))
                     image = place_logo_random(image, logo)
 
