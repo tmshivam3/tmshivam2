@@ -79,11 +79,8 @@ output_images = []
 
 # ZIP File Creation
 def create_zip(images, output_dir="temp_download"):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    zip_path = os.path.join(output_dir, "generated_images.zip")
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for img_name, variants in images:
             for i, variant in enumerate(variants):
                 img_bytes = io.BytesIO()
@@ -92,7 +89,8 @@ def create_zip(images, output_dir="temp_download"):
                 file_name = f"{img_name}_variant_{i+1}_{timestamp}.jpg"
                 zipf.writestr(file_name, img_bytes.getvalue())
     
-    return zip_path
+    zip_buffer.seek(0)
+    return zip_buffer
 
 # BUTTON
 if st.button("✅ Generate Edited Images"):
@@ -218,14 +216,13 @@ if st.button("✅ Generate Edited Images"):
 
         # Download All as ZIP
         if st.button("⬇️ Download All as ZIP"):
-            zip_path = create_zip(all_results)
-            with open(zip_path, "rb") as f:
-                st.download_button(
-                    label="Download All Images as ZIP",
-                    data=f,
-                    file_name="generated_images.zip",
-                    mime="application/zip"
-                )
+            zip_buffer = create_zip(all_results)
+            st.download_button(
+                label="Download All Images as ZIP",
+                data=zip_buffer,
+                file_name="generated_images.zip",
+                mime="application/zip"
+            )
 
     else:
         st.warning("⚠️ Please upload images before clicking Generate.")
