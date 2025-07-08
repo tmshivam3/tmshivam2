@@ -5,6 +5,7 @@ import io
 import random
 import datetime
 import zipfile
+import time
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="centered")
@@ -100,12 +101,16 @@ results = []
 # ========== MAIN PROCESS ==========
 if st.button("✅ Generate Edited Images"):
     if uploaded_images:
-        with st.spinner("⏳ Processing images... Please wait..."):
+        with st.spinner("🌀 Processing images... Please wait."):
+            status_text = st.empty()
             logo_path = os.path.join("assets/logos", logo_file)
             font_path = os.path.join("assets/fonts", font_file)
 
-            for image_file in uploaded_images:
+            for idx, image_file in enumerate(uploaded_images, start=1):
                 try:
+                    status_text.markdown(f"🔧 Processing **{image_file.name}** ({idx}/{len(uploaded_images)})...")
+                    time.sleep(0.3)  # Simulate slight delay for animation visibility
+
                     image = Image.open(image_file).convert("RGBA")
                     image = crop_to_3_4(image)
                     w, h = image.size
@@ -154,6 +159,8 @@ if st.button("✅ Generate Edited Images"):
 
                 except Exception as e:
                     st.error(f"❌ Error Occurred: {str(e)}")
+
+            status_text.success("✅ All images processed successfully!")
 
         for name, img in results:
             st.image(img, caption=name, use_container_width=True)
