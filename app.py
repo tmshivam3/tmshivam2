@@ -5,7 +5,6 @@ import os
 import io
 import datetime
 import zipfile
-import shutil
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -187,4 +186,7 @@ if st.button("✅ Generate Edited Images"):
                     st.write(f"**{name} - Variations**")
                     for i, variant in enumerate(variants):
                         st.image(variant, use_column_width=True)
-                        img_bytes = io.Bytes
+                        img_bytes = io.BytesIO()
+                        variant.save(img_bytes, format="JPEG", quality=95)
+                        timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                        file_name = f"Picsart_{timestamp}.
