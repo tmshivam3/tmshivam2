@@ -5,7 +5,6 @@ import io
 import random
 import datetime
 import zipfile
-import time
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="wide")
@@ -17,7 +16,8 @@ st.markdown("""
 
 # =================== UTILS ===================
 def list_files(folder, exts):
-    if not os.path.exists(folder): return []
+    if not os.path.exists(folder):
+        return []
     return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
 
 def crop_to_3_4(img):
@@ -33,7 +33,8 @@ def crop_to_3_4(img):
         return img.crop((0, top, w, top + new_h))
 
 def safe_randint(a, b):
-    if a > b: a, b = b, a
+    if a > b:
+        a, b = b, a
     return random.randint(a, b)
 
 def overlay_text(draw, position, text, font, fill, shadow=False, outline=False):
@@ -68,21 +69,23 @@ def overlay_theme_overlays(img, greeting_type, theme_folder):
         overlay_nums += [2]
     elif greeting_type == "Good Night":
         overlay_nums += [3]
-    if "nice" in greeting_type.lower(): overlay_nums += [4]
-    if "sweet" in greeting_type.lower(): overlay_nums += [5]
+    if "nice" in greeting_type.lower():
+        overlay_nums += [4]
+    if "sweet" in greeting_type.lower():
+        overlay_nums += [5]
 
     for num in overlay_nums:
         path = os.path.join(theme_folder, f"{num}.png")
         if os.path.exists(path):
             try:
                 overlay = Image.open(path).convert("RGBA")
-                ow, oh = overlay.size
                 scale = 0.35 if num == 1 else 0.25
                 overlay = overlay.resize((int(iw * scale), int(ih * scale)))
                 px = safe_randint(30, iw - overlay.width - 30)
                 py = safe_randint(30, ih - overlay.height - 30)
                 img.paste(overlay, (px, py), overlay)
-            except: pass
+            except:
+                pass
     return img
 
 # =================== MAIN PAGE UPLOAD ===================
@@ -97,11 +100,12 @@ show_text = st.sidebar.checkbox("Show Main Text", value=True)
 show_wish = st.sidebar.checkbox("Show Sub Wish", value=True)
 show_date = st.sidebar.checkbox("Show Date", value=False)
 
-main_size = st.sidebar.slider("Main Text Size", 10, 100, 25) if show_text else None
-wish_size = st.sidebar.slider("Wish Text Size", 10, 80, 20) if show_wish else None
+# UPDATED SLIDER RANGES for smaller sizes
+main_size = st.sidebar.slider("Main Text Size", 5, 25, 12) if show_text else None
+wish_size = st.sidebar.slider("Wish Text Size", 5, 20, 10) if show_wish else None
 
 show_overlay = st.sidebar.checkbox("Enable Overlay Wishes", value=False)
-theme_dirs = sorted(list_files("assets/overlays", []), reverse=True)
+theme_dirs = sorted([d for d in os.listdir("assets/overlays") if os.path.isdir(os.path.join("assets/overlays", d))], reverse=True)
 theme_options = ["Auto Random"] + theme_dirs
 selected_theme = st.sidebar.selectbox("Overlay Theme", theme_options) if show_overlay else None
 
@@ -151,14 +155,15 @@ if st.button("✅ Generate Images"):
                         image = overlay_theme_overlays(image, greeting_type, theme_folder)
 
                     draw = ImageDraw.Draw(image)
-                    color = random.choice([(255,255,255), (255,255,0), (255,0,0), (128,0,255)])
+                    color = random.choice([(255, 255, 255), (255, 255, 0), (255, 0, 0), (128, 0, 255)])
 
                     if show_text and font_choice:
                         font = font_choice.font_variant(size=int(main_size * w // 100))
                         draw.text((50, 50), greeting_type, font=font, fill=color)
 
                     if show_wish and font_choice:
-                        subtext = custom_wish if custom_wish else ("Have a nice day!" if greeting_type=="Good Morning" else "Sweet dreams!")
+                        subtext = custom_wish if custom_wish else (
+                            "Have a nice day!" if greeting_type == "Good Morning" else "Sweet dreams!")
                         font2 = font_choice.font_variant(size=int(wish_size * w // 100))
                         draw.text((60, 50 + int(main_size * w // 100) + 10), subtext, font=font2, fill=color)
 
