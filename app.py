@@ -7,31 +7,18 @@ import datetime
 import zipfile
 import time
 
-# =================== PAGE CONFIG ===================
-st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="centered")
+# =================== CONFIG ===================
+st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="wide")
 
 st.markdown("""
-    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🖼️ Edit Photo in Bulk Tool ™</h1>
-    <h4 style='text-align: center; color: grey;'>Apply Greetings, Watermarks, Fonts, Wishes & More</h4>
+    <h1 style='text-align: center; color: white; background: linear-gradient(to right, #4b6cb7, #182848); padding: 15px; border-radius: 12px;'>🖼️ Edit Photo in Bulk Tool ™</h1>
+    <h4 style='text-align: center; color: grey;'>Apply Greetings, Watermarks, Fonts, Wishes, Overlays & More</h4>
 """, unsafe_allow_html=True)
 
-# =================== CONSTANTS ===================
-COLORS = [
-    (255, 255, 0), (255, 0, 0), (255, 255, 255),
-    (255, 192, 203), (0, 255, 0), (255, 165, 0),
-    (173, 216, 230), (128, 0, 128), (255, 105, 180)
-]
-
 # =================== UTILS ===================
-def list_dirs(path):
-    if not os.path.exists(path):
-        return []
-    return [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
-
-def list_files(path, exts):
-    if not os.path.exists(path):
-        return []
-    return [f for f in os.listdir(path) if any(f.lower().endswith(ext) for ext in exts)]
+def list_files(folder, exts):
+    if not os.path.exists(folder): return []
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
 
 def crop_to_3_4(img):
     w, h = img.size
@@ -74,216 +61,151 @@ def place_logo_random(img, logo):
     img.paste(watermark, (x, y), watermark)
     return img
 
-def paste_overlay_fixed(img, overlay, position):
-    overlay_ratio = overlay.width / overlay.height
-    target_w = int(img.width * 0.45)
-    target_h = int(target_w / overlay_ratio)
-    overlay_resized = overlay.resize((target_w, target_h), Image.LANCZOS)
-    x, y = position
-    img.paste(overlay_resized, (x, y), overlay_resized)
-    return img
+def overlay_theme_overlays(img, greeting_type, theme_folder):
+    iw, ih = img.size
+    overlay_nums = [1]  # always include 1.png
 
-def sorted_theme_list():
-    themes = list_dirs("assets/overlays")
-    themes.sort(reverse=True)
-    return themes
+    if greeting_type == "Good Morning":
+        overlay_nums += [2]
+    elif greeting_type == "Good Night":
+        overlay_nums += [3]
+    if "nice" in greeting_type.lower(): overlay_nums += [4]
+    if "sweet" in greeting_type.lower(): overlay_nums += [5]
+
+    for num in overlay_nums:
+        path = os.path.join(theme_folder, f"{num}.png")
+        if os.path.exists(path):
+            try:
+                overlay = Image.open(path).convert("RGBA")
+                ow, oh = overlay.size
+                scale = 0.35 if num == 1 else 0.25
+                overlay = overlay.resize((int(iw * scale), int(ih * scale)))
+                px = safe_randint(30, iw - overlay.width - 30)
+                py = safe_randint(30, ih - overlay.height - 30)
+                img.paste(overlay, (px, py), overlay)
+            except: pass
+    return img
 
 # =================== SIDEBAR ===================
 st.sidebar.header("🛠️ Tool Settings")
 
-# Overlay enable/disable
-use_overlay = st.sidebar.checkbox("🖼️ Enable Overlay Wishes", value=False)
+uploaded_images = st.sidebar.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-# If overlay is enabled show its options
-overlay_theme = None
-overlay_mode = None
-overlay_good_size = 100
-overlay_wish_size = 60
-
-if use_overlay:
-    theme_options = ["Auto", "Random"] + sorted_theme_list()
-    overlay_theme = st.sidebar.selectbox("🎨 Select Overlay Theme", theme_options)
-
-    with st.sidebar.expander("Overlay Text Settings"):
-        overlay_good_size = st.slider("Good / Morning / Night Text Size %", 40, 160, 100, step=5)
-        overlay_wish_size = st.slider("Wishes Text Size %", 30, 120, 60, step=5)
-
-# Greeting type
 greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
 
-# Wishes text
-custom_wish = st.sidebar.text_input("Wishes Text (optional)", value="")
-show_wish_text = st.sidebar.checkbox("Show Wishes Text", value=True)
+custom_wish = st.sidebar.text_input("Wish (optional)", value="")
+show_text = st.sidebar.checkbox("Show Main Text", value=True)
+show_wish = st.sidebar.checkbox("Show Sub Wish", value=True)
+show_date = st.sidebar.checkbox("Show Date", value=False)
 
-# Main text coverage
-coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 20)
+main_size = st.sidebar.slider("Main Text Size", 10, 100, 25) if show_text else None
+wish_size = st.sidebar.slider("Wish Text Size", 10, 80, 20) if show_wish else None
 
-# Date
-show_date = st.sidebar.checkbox("Add Today's Date", value=False)
-date_size_factor = None
-if show_date:
-    date_size_factor = st.sidebar.slider("Date Text Size (%)", 30, 120, 70)
+show_overlay = st.sidebar.checkbox("Enable Overlay Wishes", value=False)
+theme_dirs = sorted(list_files("assets/overlays", []), reverse=True)
+theme_options = ["Auto Random"] + theme_dirs
+selected_theme = st.sidebar.selectbox("Overlay Theme", theme_options) if show_overlay else None
 
 # Font selection
-own_font = st.sidebar.checkbox("Use Own Font")
-font_file = None
-if own_font:
-    uploaded_font = st.sidebar.file_uploader("Upload Font (.ttf, .otf)", type=["ttf", "otf"])
-    if uploaded_font:
-        font_file = io.BytesIO(uploaded_font.read())
-    else:
-        available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
-        font_file = st.sidebar.selectbox("Choose Font", available_fonts)
-        if font_file:
-            font_file = os.path.join("assets/fonts", font_file)
+available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
+use_own_font = st.sidebar.checkbox("Upload Own Font")
+if use_own_font:
+    user_font = st.sidebar.file_uploader("Upload TTF/OTF Font", type=["ttf", "otf"])
+font_choice = None
+if use_own_font and user_font:
+    font_choice = ImageFont.truetype(io.BytesIO(user_font.read()), 60)
+elif available_fonts:
+    selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
+    font_path = os.path.join("assets/fonts", selected_font)
+    font_choice = ImageFont.truetype(font_path, 60)
 
-# Logo selection
-own_logo = st.sidebar.checkbox("Use Own Watermark Logo")
-logo_file = None
-if own_logo:
-    uploaded_logo = st.sidebar.file_uploader("Upload Logo (.png)", type=["png"])
-    if uploaded_logo:
-        logo_file = io.BytesIO(uploaded_logo.read())
-    else:
-        available_logos = list_files("assets/logos", [".png"])
-        logo_file = st.sidebar.selectbox("Choose Watermark Logo", available_logos)
-        if logo_file:
-            logo_file = os.path.join("assets/logos", logo_file)
+# Watermark selection
+available_logos = list_files("assets/logos", [".png"])
+use_own_logo = st.sidebar.checkbox("Upload Own Watermark")
+if use_own_logo:
+    user_logo = st.sidebar.file_uploader("Upload Watermark PNG", type=["png"])
 
-# Upload images
-uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+logo_image = None
+if use_own_logo and user_logo:
+    logo_image = Image.open(user_logo).convert("RGBA")
+elif available_logos:
+    selected_logo = st.sidebar.selectbox("Choose Logo", available_logos)
+    logo_path = os.path.join("assets/logos", selected_logo)
+    logo_image = Image.open(logo_path).convert("RGBA")
 
 # =================== MAIN ===================
 results = []
-
-if st.button("✅ Generate Edited Images"):
+if st.button("✅ Generate Images"):
     if uploaded_images:
-        with st.spinner("🌀 Generating images, please wait..."):
-            time.sleep(0.5)
-
+        with st.spinner("🔄 Processing images... Please wait..."):
             for idx, image_file in enumerate(uploaded_images):
                 try:
                     image = Image.open(image_file).convert("RGBA")
                     image = crop_to_3_4(image)
                     w, h = image.size
 
-                    # ================= Overlay Wishes =================
-                    if use_overlay and overlay_theme:
-                        if overlay_theme == "Auto":
-                            theme_folders = sorted_theme_list()
-                            theme_path = os.path.join("assets/overlays", random.choice(theme_folders))
-                        elif overlay_theme == "Random":
-                            theme_folders = sorted_theme_list()
-                            theme_path = os.path.join("assets/overlays", random.choice(theme_folders))
+                    # Apply Overlay if enabled
+                    if show_overlay:
+                        if selected_theme == "Auto Random":
+                            theme_folder = os.path.join("assets/overlays", random.choice(theme_dirs))
                         else:
-                            theme_path = os.path.join("assets/overlays", overlay_theme)
-
-                        if greeting_type == "Good Morning":
-                            overlay_files = ["1.png", "2.png"]
-                        elif greeting_type == "Good Night":
-                            overlay_files = ["1.png", "3.png"]
-                        else:
-                            overlay_files = ["1.png"]
-
-                        for i, num in enumerate(overlay_files):
-                            overlay_file = os.path.join(theme_path, num)
-                            if os.path.exists(overlay_file):
-                                overlay_img = Image.open(overlay_file).convert("RGBA")
-                                if i == 0:
-                                    pos = (int(w*0.05), int(h*0.05))
-                                else:
-                                    pos = (int(w*0.05), int(h*0.75))
-                                image = paste_overlay_fixed(image, overlay_img, pos)
-
-                    # ================= Text Wishes =================
-                    text_area_scale = coverage_percent / 500
-                    main_font_size = max(20, int((w * h * text_area_scale) ** 0.5 * 0.6))
-                    sub_font_size = int(main_font_size * 0.5)
-                    date_font_size = int(main_font_size * date_size_factor / 100) if show_date and date_size_factor else None
-
-                    if font_file:
-                        if isinstance(font_file, str):
-                            main_font = ImageFont.truetype(font_file, main_font_size)
-                            sub_font = ImageFont.truetype(font_file, sub_font_size)
-                            if date_font_size:
-                                date_font = ImageFont.truetype(font_file, date_font_size)
-                        else:
-                            main_font = ImageFont.truetype(font_file, main_font_size)
-                            sub_font = ImageFont.truetype(font_file, sub_font_size)
-                            if date_font_size:
-                                date_font = ImageFont.truetype(font_file, date_font_size)
-                    else:
-                        main_font = ImageFont.load_default()
-                        sub_font = ImageFont.load_default()
-                        date_font = ImageFont.load_default()
+                            theme_folder = os.path.join("assets/overlays", selected_theme)
+                        image = overlay_theme_overlays(image, greeting_type, theme_folder)
 
                     draw = ImageDraw.Draw(image)
-                    text_color = random.choice(COLORS)
+                    color = random.choice([(255,255,255), (255,255,0), (255,0,0), (128,0,255)])
 
-                    x_range = max(30, w - main_font_size * len(greeting_type) // 2 - 30)
-                    y_range = max(30, h - main_font_size - 30)
-                    x = safe_randint(30, x_range)
-                    y = safe_randint(30, y_range)
+                    # Draw main text
+                    if show_text and font_choice:
+                        font = font_choice.font_variant(size=int(main_size * w // 100))
+                        draw.text((50, 50), greeting_type, font=font, fill=color)
 
-                    overlay_text(draw, (x, y), greeting_type, main_font, text_color, shadow=True, outline=True)
+                    # Sub-wish
+                    if show_wish and font_choice:
+                        subtext = custom_wish if custom_wish else ("Have a nice day!" if greeting_type=="Good Morning" else "Sweet dreams!")
+                        font2 = font_choice.font_variant(size=int(wish_size * w // 100))
+                        draw.text((60, 50 + int(main_size * w // 100) + 10), subtext, font=font2, fill=color)
 
-                    if show_wish_text:
-                        wish_text = custom_wish if custom_wish.strip() else "Have a Nice Day!"
-                        wish_x = x + random.randint(-15, 15)
-                        wish_y = y + main_font_size + 10
-                        overlay_text(draw, (wish_x, wish_y), wish_text, sub_font, text_color, shadow=True)
-
-                    if show_date:
+                    if show_date and font_choice:
+                        date_font = font_choice.font_variant(size=int(w * 0.035))
                         today = datetime.datetime.now().strftime("%d %B %Y")
-                        dx = safe_randint(30, max(30, w - 200))
-                        dy = safe_randint(30, max(30, h - 50))
-                        overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS), shadow=True)
+                        draw.text((w - 300, h - 60), today, font=date_font, fill=color)
 
-                    # ================= Watermark =================
-                    if logo_file:
-                        if isinstance(logo_file, str):
-                            logo = Image.open(logo_file).convert("RGBA")
-                        else:
-                            logo = Image.open(logo_file).convert("RGBA")
-                        logo.thumbnail((int(w * 0.25), int(h * 0.25)))
-                        image = place_logo_random(image, logo)
+                    if logo_image:
+                        logo_resized = logo_image.copy()
+                        logo_resized.thumbnail((int(w * 0.2), int(h * 0.2)))
+                        image = place_logo_random(image, logo_resized)
 
-                    # ================= Save result =================
-                    final_image = image.convert("RGB")
-                    results.append((image_file.name, final_image))
+                    final = image.convert("RGB")
+                    results.append((image_file.name, final))
 
                 except Exception as e:
-                    st.error(f"❌ Error Occurred: {str(e)}")
+                    st.error(f"❌ Error on {image_file.name}: {e}")
 
-            st.success("✅ All images processed successfully!")
-
+        st.success("✅ All images generated!")
         for name, img in results:
             st.image(img, caption=name, use_container_width=True)
             img_bytes = io.BytesIO()
             img.save(img_bytes, format="JPEG")
-            renamed = f"Picsart_{datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S-%f')}.jpg"
             st.download_button(
-                label=f"⬇️ Download {renamed}",
+                label="⬇️ Download",
                 data=img_bytes.getvalue(),
-                file_name=renamed,
+                file_name=name.replace(".png", ".jpg"),
                 mime="image/jpeg"
             )
 
-# =================== ZIP DOWNLOAD ===================
-if results:
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for _, img in results:
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG")
-            zipf.writestr(f"Picsart_{datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S-%f')}.jpg", img_bytes.getvalue())
-    zip_buffer.seek(0)
-
-    st.download_button(
-        label="📦 Download All as ZIP",
-        data=zip_buffer,
-        file_name="Shivam_Images.zip",
-        mime="application/zip"
-    )
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for name, img in results:
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format="JPEG")
+                zipf.writestr(name.replace(".png", ".jpg"), img_bytes.getvalue())
+        zip_buffer.seek(0)
+        st.download_button(
+            label="📦 Download All as ZIP",
+            data=zip_buffer,
+            file_name="Edited_Images.zip",
+            mime="application/zip"
+        )
 else:
-    st.info("📂 Upload and generate images first to enable ZIP download.")
+    st.info("Upload images and set your options to begin.")
