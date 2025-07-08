@@ -122,7 +122,6 @@ def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_s
     main_overlays = [ov for ov in overlays if ov[1] == "main"]
     wish_overlays = [ov for ov in overlays if ov[1] == "wish"]
 
-    # Main Overlays Side by Side
     target_main_h = int(ih * main_scale)
     main_resized = []
     for overlay, role, num in main_overlays:
@@ -132,29 +131,29 @@ def overlay_png_random(img, greeting_type, overlay_main_scale=40, overlay_wish_s
         main_resized.append((overlay.resize((new_w, new_h), Image.LANCZOS), new_w, new_h))
 
     total_main_width = sum(w for _, w, _ in main_resized) + (len(main_resized) - 1) * 20
-    start_x = (iw - total_main_width) // 2
+    start_x = max(0, (iw - total_main_width) // 2)
+    current_y = y_padding
 
-    # Choose Top or Bottom
-    if random.choice([True, False]):
-        current_y = y_padding
-    else:
-        current_y = ih - target_main_h - len(wish_overlays) * int(ih * wish_scale) - 2 * y_padding
+    if current_y + target_main_h + len(wish_overlays)*int(ih*wish_scale) + 2*y_padding > ih:
+        current_y = ih - (target_main_h + len(wish_overlays)*int(ih*wish_scale) + 2*y_padding)
 
-    # Paste main overlays side by side
     x_pos = start_x
     for overlay_img, ow, oh in main_resized:
+        if x_pos + ow > iw: break
         img.paste(overlay_img, (x_pos, current_y), overlay_img)
         x_pos += ow + 20
     current_y += target_main_h + y_padding
 
-    # Wishes Overlays
     for overlay, role, num in wish_overlays:
         ow, oh = overlay.size
         new_h = int(ih * wish_scale)
         new_w = int(ow * new_h / oh)
         overlay_resized = overlay.resize((new_w, new_h), Image.LANCZOS)
 
-        px = (iw - new_w) // 2
+        if current_y + new_h + y_padding > ih:
+            current_y = ih - new_h - y_padding
+
+        px = max(0, (iw - new_w) // 2)
         img.paste(overlay_resized, (px, current_y), overlay_resized)
         current_y += new_h + y_padding
 
@@ -165,12 +164,6 @@ st.sidebar.header("🛠️ Tool Settings")
 greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
 def_wish = random.choice(MORNING_WISHES if greeting_type == "Good Morning" else NIGHT_WISHES)
 custom_wish = st.sidebar.text_input("Wishes Text (optional)", value="")
-
-use_png_overlay = st.sidebar.checkbox("🖼️ Use PNG Overlay Wishes Instead of Text")
-if use_png_overlay:
-    overlay_main_scale = st.sidebar.slider("Main Overlay Size (%)", 10, 100, 40)
-    overlay_wish_scale = st.sidebar.slider("Wishes Overlay Size (%)", 10, 100, 30)
-
 show_wish_text = st.sidebar.checkbox("Show Wishes Text", value=True)
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 1, 100, 8)
 show_date = st.sidebar.checkbox("Add Today's Date", value=False)
@@ -185,112 +178,11 @@ with st.sidebar.expander("🎨 Font & Watermark Selection", expanded=False):
     available_logos = list_files("assets/logos", [".png"])
     logo_file = st.selectbox("Choose Built-in Logo", available_logos)
 
+with st.sidebar.expander("🖼️ PNG Overlays (Optional, Compact)", expanded=False):
+    use_png_overlay = st.checkbox("Use PNG Overlay Wishes Instead of Text")
+    overlay_main_scale = st.slider("Main Overlay Size (%)", 10, 100, 40)
+    overlay_wish_scale = st.slider("Wishes Overlay Size (%)", 10, 100, 30)
+
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 results = []
-
-# ========== MAIN ==========
-if st.button("✅ Generate Edited Images"):
-    if uploaded_images:
-        with st.spinner("🌀 Processing images... Please wait."):
-            status_text = st.empty()
-
-            # Handle font selection
-            if uploaded_font is not None:
-                font_bytes = io.BytesIO(uploaded_font.read())
-                font_path = font_bytes
-            else:
-                font_path = os.path.join("assets/fonts", font_file)
-
-            # Handle logo selection
-            if uploaded_logo is not None:
-                logo = Image.open(uploaded_logo).convert("RGBA")
-            else:
-                logo_path = os.path.join("assets/logos", logo_file)
-                logo = Image.open(logo_path).convert("RGBA")
-
-            for idx, image_file in enumerate(uploaded_images, start=1):
-                try:
-                    status_text.markdown(f"🔧 Processing **{image_file.name}** ({idx}/{len(uploaded_images)})...")
-                    time.sleep(0.2)
-
-                    image = Image.open(image_file).convert("RGBA")
-                    image = crop_to_3_4(image)
-                    w, h = image.size
-
-                    if use_png_overlay:
-                        processed = overlay_png_random(image.copy(), greeting_type, overlay_main_scale, overlay_wish_scale)
-                        if processed is None:
-                            st.markdown("<h4 style='color: yellow;'>⚠ PNG Wishes Coming Soon!</h4>", unsafe_allow_html=True)
-                            continue
-                        image = processed
-                    else:
-                        normalized = coverage_percent / 100
-                        scale_factor = (normalized ** 2.5) * 2.8
-                        area = scale_factor * w * h
-                        main_font_size = max(30, int(area ** 0.5))
-                        sub_font_size = int(main_font_size * 0.5)
-                        date_font_size = int(main_font_size * date_size_factor / 100)
-
-                        main_font = ImageFont.truetype(font_path, main_font_size)
-                        sub_font = ImageFont.truetype(font_path, sub_font_size)
-                        date_font = ImageFont.truetype(font_path, date_font_size)
-
-                        draw = ImageDraw.Draw(image)
-                        color = random.choice(COLORS)
-                        wish_text = custom_wish.strip() or def_wish
-
-                        x = safe_randint(30, w - main_font_size * len(greeting_type) // 2 - 30)
-                        y = safe_randint(30, h - main_font_size - 30)
-                        overlay_text(draw, (x, y), greeting_type, main_font, color, shadow=True)
-
-                        if show_wish_text:
-                            overlay_text(draw, (x + 10, y + main_font_size + 10), wish_text, sub_font, color, shadow=True)
-
-                        if show_date:
-                            today = datetime.datetime.now().strftime("%d %B %Y")
-                            dx = safe_randint(30, w - 200)
-                            dy = safe_randint(30, h - 50)
-                            overlay_text(draw, (dx, dy), today, date_font, random.choice(COLORS), shadow=True)
-
-                    logo.thumbnail((int(w * 0.25), int(h * 0.25)))
-                    image = place_logo_random(image, logo)
-
-                    final = image.convert("RGB")
-                    results.append((image_file.name, final))
-
-                except Exception as e:
-                    st.error(f"❌ Error Occurred: {str(e)}")
-
-            status_text.success("✅ All images processed successfully!")
-
-        for name, img in results:
-            st.image(img, caption=name, use_container_width=True)
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG", quality=100, optimize=True)
-            renamed = f"Picsart_{datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S-%f')}.jpg"
-            st.download_button(
-                label=f"⬇️ Download {renamed}",
-                data=img_bytes.getvalue(),
-                file_name=renamed,
-                mime="image/jpeg"
-            )
-
-# ========== ZIP DOWNLOAD ==========
-if results:
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for _, img in results:
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG", quality=100, optimize=True)
-            zipf.writestr(f"Picsart_{datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S-%f')}.jpg", img_bytes.getvalue())
-    zip_buffer.seek(0)
-
-    st.download_button(
-        label="📦 Download All as ZIP",
-        data=zip_buffer,
-        file_name="Shivam_Images.zip",
-        mime="application/zip"
-    )
-else:
-    st.info("📂 Upload and generate images first to enable ZIP download.")
