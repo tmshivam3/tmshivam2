@@ -6,197 +6,168 @@ import io
 import datetime
 import zipfile
 
-# ----------------- Page Config -------------------
-st.set_page_config(page_title="✨ Edit Photo in Bulk Tool ™", layout="centered")
+# PAGE CONFIG
+st.set_page_config(page_title="Edit Photo in Bulk Tool ™", layout="centered")
 
+# HEADER
 st.markdown("""
-    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🌟 EDIT PHOTO IN BULK TOOL ™ 🌟</h1>
-    <h4 style='text-align: center; color: grey;'>Create beautiful morning/night wishes in one click!</h4>
+    <h1 style='text-align: center; color: white; background-color: black; padding: 15px; border-radius: 10px;'>🖼️ Edit Photo in Bulk Tool ™</h1>
+    <h4 style='text-align: center; color: grey;'>Add Good Morning / Good Night greetings with stylish fonts, watermark, and more</h4>
 """, unsafe_allow_html=True)
 
-# ----------------- Utility Functions -------------------
+# FUNCTIONS
 def list_files(folder, exts):
-    if not os.path.exists(folder):
-        return []
     return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
 
 def crop_to_3_4(img):
     w, h = img.size
     target_ratio = 3 / 4
-    current_ratio = w / h
-    if current_ratio > target_ratio:
+    if w / h > target_ratio:
         new_w = int(h * target_ratio)
         left = (w - new_w) // 2
-        img = img.crop((left, 0, left + new_w, h))
+        return img.crop((left, 0, left + new_w, h))
     else:
         new_h = int(w / target_ratio)
         top = (h - new_h) // 2
-        img = img.crop((0, top, w, top + new_h))
-    return img
+        return img.crop((0, top, w, top + new_h))
 
-def safe_randint(a, b):
-    return a if a >= b else random.randint(a, b)
+def get_random_position(img_w, img_h, text_w, text_h):
+    margin = 30
+    areas = ['center'] * 5 + ['top_left'] * 10 + ['top_right'] * 10 + ['bottom_left'] * 10 + ['bottom_right'] * 10
+    choice = random.choice(areas)
+    if choice == 'center':
+        return (img_w - text_w) // 2, (img_h - text_h) // 2
+    elif choice == 'top_left':
+        return margin, margin
+    elif choice == 'top_right':
+        return img_w - text_w - margin, margin
+    elif choice == 'bottom_left':
+        return margin, img_h - text_h - margin
+    else:
+        return img_w - text_w - margin, img_h - text_h - margin
 
-# ----------------- Load Resources -------------------
+def apply_shadow(draw, pos, text, font, color):
+    for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2)]:
+        draw.text((pos[0]+dx, pos[1]+dy), text, font=font, fill="black")
+    draw.text(pos, text, font=font, fill=color)
+
+def get_random_color():
+    return tuple(random.randint(100, 255) for _ in range(3))
+
+# MORNING/NIGHT WISHES
+morning_wishes = ["Have a great day", "Rise and Shine!", "Wishing you success today!", "Stay positive!", "Fresh start ahead", "Smile & Shine!", "Bright morning to you"]
+night_wishes = ["Sweet dreams", "Sleep tight", "Good Night & Take care", "Dream big", "Peaceful sleep", "Relax & Unwind", "Moonlight blessings"]
+
+# LOAD FILES
 available_logos = list_files("assets/logos", [".png"])
 available_fonts = list_files("assets/fonts", [".ttf", ".otf"])
 
-morning_wishes = [
-    "Have a great day!",
-    "Start fresh!",
-    "Shine bright!",
-    "Wishing you joy!",
-    "Make it amazing!",
-    "Rise & shine!",
-    "Embrace the light!",
-    "Spread positivity!"
-]
-
-goodnight_wishes = [
-    "Sweet dreams!",
-    "Good night dear!",
-    "Sleep well!",
-    "Rest your soul!",
-    "Peaceful night!",
-    "Dream big!",
-    "Stars watching!",
-    "Silent night!"
-]
-
-# ----------------- Sidebar -------------------
-st.sidebar.header("🎨 Tool Settings")
+# SIDEBAR OPTIONS
 greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
+default_subtext = "Sweet dreams" if greeting_type == "Good Night" else "Have a great day"
 
-use_custom_wish = st.sidebar.checkbox("Use Custom Wishes", value=False)
+user_subtext = st.sidebar.text_input("Optional Wish Text", "")
+coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 4, 15, 8)
+add_date = st.sidebar.checkbox("Add Today's Date")
+date_scale = st.sidebar.slider("Date Size Factor", 50, 150, 80)
 
-if use_custom_wish:
-    user_subtext = st.sidebar.text_input("Custom Wish Text", "Stay Blessed!")
-else:
-    user_subtext = None
+selected_logo = st.sidebar.selectbox("Watermark Logo", available_logos + ["Upload Custom"])
+logo_path = st.sidebar.file_uploader("Upload PNG Logo", type="png") if selected_logo == "Upload Custom" else os.path.join("assets/logos", selected_logo)
 
-show_date = st.sidebar.checkbox("Add Date", value=True)
-date_size_factor = st.sidebar.slider("Date Size %", 30, 120, 70)
-coverage_percent = st.sidebar.slider("Text Coverage %", 3, 20, 8)
-
-# Fonts
-st.sidebar.subheader("Fonts")
 font_source = st.sidebar.radio("Font Source", ["Available Fonts", "Upload Font"])
-selected_font = None
-uploaded_font = None
-if font_source == "Available Fonts":
-    selected_font = st.sidebar.selectbox("Select Font", available_fonts)
-else:
-    uploaded_font = st.sidebar.file_uploader("Upload Font", type=["ttf", "otf"])
+selected_font = st.sidebar.selectbox("Choose Font", available_fonts) if font_source == "Available Fonts" else None
+uploaded_font = st.sidebar.file_uploader("Upload Font", type=["ttf", "otf"]) if font_source == "Upload Font" else None
 
-# Watermark
-logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Upload Custom Logo"])
-logo_path = None
-if logo_choice == "Upload Custom Logo":
-    logo_path = st.sidebar.file_uploader("Upload PNG Logo", type=["png"])
-else:
-    logo_path = os.path.join("assets/logos", logo_choice)
+multi_variation = st.sidebar.checkbox("Generate 4 Variations per Photo", True)
 
-# Variations
-generate_variations = st.sidebar.checkbox("Generate 4 Variants Per Image", value=True)
+# MAIN UPLOAD
+uploaded_images = st.file_uploader("Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-# ----------------- Upload Images -------------------
-uploaded_images = st.file_uploader("Upload Your Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+# IMAGE GENERATOR FUNCTION
+def generate_variant(img, seed):
+    random.seed(seed)
+    img = crop_to_3_4(img.convert("RGBA"))
+    draw = ImageDraw.Draw(img)
 
-def create_zip(images):
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for name, variants in images:
-            for i, variant in enumerate(variants):
-                img_bytes = io.BytesIO()
-                variant.save(img_bytes, format="PNG")
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                zipf.writestr(f"Picsart_{timestamp}.png", img_bytes.getvalue())
-    zip_buffer.seek(0)
-    return zip_buffer
+    img_w, img_h = img.size
+    area = (coverage_percent / 100) * img_w * img_h
+    main_font_size = max(30, int((area) ** 0.5 * 0.6))
+    sub_font_size = int(main_font_size * 0.5)
+    date_font_size = int(main_font_size * date_scale / 100)
 
-# ----------------- Generation Button -------------------
-if st.button("✅ Generate Images"):
+    font_path = io.BytesIO(uploaded_font.read()) if uploaded_font else os.path.join("assets/fonts", selected_font)
+    main_font = ImageFont.truetype(font_path, main_font_size)
+    sub_font = ImageFont.truetype(font_path, sub_font_size)
+    date_font = ImageFont.truetype(font_path, date_font_size)
+
+    main_text = greeting_type
+    wish_text = user_subtext if user_subtext else random.choice(morning_wishes if greeting_type == "Good Morning" else night_wishes)
+    color = get_random_color()
+
+    # MAIN TEXT
+    text_w, text_h = draw.textbbox((0,0), main_text, font=main_font)[2:]
+    x, y = get_random_position(img_w, img_h, text_w, text_h)
+    apply_shadow(draw, (x, y), main_text, main_font, color)
+
+    # SUB TEXT
+    sub_w, sub_h = draw.textbbox((0,0), wish_text, font=sub_font)[2:]
+    sub_x, sub_y = x + 10, y + text_h + 10
+    apply_shadow(draw, (sub_x, sub_y), wish_text, sub_font, color)
+
+    # DATE
+    if add_date:
+        date_text = datetime.datetime.now().strftime("%d %B %Y")
+        date_w, date_h = draw.textbbox((0,0), date_text, font=date_font)[2:]
+        dx, dy = get_random_position(img_w, img_h, date_w, date_h)
+        draw.text((dx, dy), date_text, font=date_font, fill=random.choice([(255,215,0), color]))
+
+    # WATERMARK
+    if logo_path:
+        logo = Image.open(logo_path).convert("RGBA")
+        logo = logo.resize((int(logo.width * 1.25), int(logo.height * 1.25)))
+        lw, lh = logo.size
+        pos_choices = [(10,10), (img_w - lw - 10,10), (10, img_h - lh - 10), (img_w - lw - 10, img_h - lh - 10)]
+        px, py = random.choice(pos_choices)
+        opacity = random.choice([128, 192, 255])
+        logo.putalpha(opacity)
+        img.paste(logo, (px, py), logo)
+
+    return img.convert("RGB")
+
+# GENERATE
+if st.button("Generate Images"):
     if uploaded_images:
         results = []
-        for img_file in uploaded_images:
-            try:
-                image = Image.open(img_file).convert("RGB")
-                base_img = crop_to_3_4(image)
+        with st.spinner("Processing..."):
+            for file in uploaded_images:
+                base = Image.open(file)
+                name = file.name
+                variants = [generate_variant(base.copy(), random.randint(0,9999)) for _ in range(4 if multi_variation else 1)]
+                results.append((name, variants))
 
-                logo = None
-                if logo_path:
-                    logo = Image.open(logo_path).convert("RGBA")
-                    logo.thumbnail((200, 200))
+        st.success("Done!")
 
-                if uploaded_font:
-                    font_bytes = io.BytesIO(uploaded_font.read())
-                elif selected_font:
-                    font_bytes = os.path.join("assets/fonts", selected_font)
-                else:
-                    font_bytes = "assets/fonts/roboto.ttf"
-
-                def draw_variant(base_img, seed=None):
-                    random.seed(seed)
-                    img = base_img.copy()
-                    draw = ImageDraw.Draw(img)
-
-                    w, h = img.size
-                    area = (coverage_percent / 100) * w * h
-                    main_size = max(30, int(area**0.5 * 0.6))
-                    sub_size = int(main_size * 0.5)
-                    date_size = int(main_size * date_size_factor / 100)
-
-                    font = ImageFont.truetype(font_bytes, size=main_size)
-                    sub_font = ImageFont.truetype(font_bytes, size=sub_size)
-                    date_font = ImageFont.truetype(font_bytes, size=date_size)
-
-                    colors = [(255,255,255),(255,255,0),(255,192,203),(0,255,255),(0,255,0),(255,128,0)]
-                    text_color = random.choice(colors)
-
-                    pos_x = safe_randint(30, max(31, w - main_size * len(greeting_type)//2))
-                    pos_y = safe_randint(int(h*0.35), int(h*0.85))
-
-                    # Shadow
-                    for dx in [-2, 2]:
-                        for dy in [-2, 2]:
-                            draw.text((pos_x+dx, pos_y+dy), greeting_type, font=font, fill="black")
-                    draw.text((pos_x, pos_y), greeting_type, font=font, fill=text_color)
-
-                    # Subtext
-                    wish = user_subtext or random.choice(morning_wishes if greeting_type == "Good Morning" else goodnight_wishes)
-                    draw.text((pos_x+10, pos_y + main_size + 10), wish, font=sub_font, fill=text_color)
-
-                    # Date
-                    if show_date:
-                        today = datetime.datetime.now().strftime("%d %B %Y")
-                        dx = safe_randint(20, max(21, w - 200))
-                        dy = safe_randint(20, max(21, h - 100))
-                        draw.text((dx, dy), today, font=date_font, fill=random.choice(colors))
-
-                    # Logo
-                    if logo:
-                        img.paste(logo, (w - logo.width - 10, h - logo.height - 10), logo)
-
-                    return img
-
-                variants = [draw_variant(base_img, seed=i) for i in range(4)] if generate_variations else [draw_variant(base_img)]
-                results.append((img_file.name, variants))
-
-            except Exception as e:
-                st.error(f"Error Occurred: {e}")
-
-        # ----------------- Show Results -------------------
         for name, variants in results:
-            for i, var in enumerate(variants):
-                st.image(var, caption=f"{name} - Variant {i+1}", use_column_width=True)
+            for img in variants:
+                st.image(img, use_column_width=True)
                 buffer = io.BytesIO()
-                var.save(buffer, format="PNG")
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                st.download_button("Download Image", buffer.getvalue(), file_name=f"Picsart_{timestamp}.png", mime="image/png")
+                file_name = f"Picsart_{timestamp}.jpg"
+                img.save(buffer, format="JPEG")
+                st.download_button("Download Image", buffer.getvalue(), file_name=file_name, mime="image/jpeg")
 
-        if st.button("⬇️ Download All As ZIP"):
-            zip_file = create_zip(results)
-            st.download_button("Download ZIP", zip_file, file_name="Bulk_Images.zip", mime="application/zip")
+        if st.button("Download All as ZIP"):
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w') as zipf:
+                for name, variants in results:
+                    for img in variants:
+                        img_io = io.BytesIO()
+                        timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+                        fname = f"Picsart_{timestamp}.jpg"
+                        img.save(img_io, format="JPEG")
+                        zipf.writestr(fname, img_io.getvalue())
+            zip_buffer.seek(0)
+            st.download_button("Download ZIP", zip_buffer.getvalue(), file_name="Picsart_Images.zip", mime="application/zip")
 
     else:
-        st.warning("🚨 Please upload images first.")
+        st.warning("Please upload images first.")
