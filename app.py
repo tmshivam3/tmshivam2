@@ -48,16 +48,21 @@ user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 # Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-# Default date size factor set to 70
-show_date = st.sidebar.checkbox("Add Today's Date on Image", value=True)
-date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
+# Date Selection (Now Dynamic - User Clicks)
+show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
 
-logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
-logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
+# Watermark Logo Options
+logo_choice = st.sidebar.selectbox("Watermark Logo", ["None"] + available_logos)
+logo_upload = st.sidebar.file_uploader("Upload Your Own Watermark PNG", type=["png"])
 
-st.sidebar.subheader("Font Source")
-font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
+# Logo Path Logic
+if logo_upload:
+    logo_path = logo_upload
+else:
+    logo_path = os.path.join("assets/logos", logo_choice) if logo_choice != "None" else None
 
+# Font Selection (Available or Upload Custom)
+font_source = st.sidebar.radio("Select Font Source:", ["Available Fonts", "Upload Your Own"])
 if font_source == "Available Fonts":
     selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
     uploaded_font = None
@@ -79,7 +84,7 @@ if st.button("✅ Generate Edited Images"):
             logo = None
             if logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
-                logo.thumbnail((150, 150))
+                logo = logo.resize((int(logo.width * 1.5), int(logo.height * 1.5)))  # Increase size by 50%
 
             font_bytes = None
             if uploaded_font:
@@ -96,7 +101,7 @@ if st.button("✅ Generate Edited Images"):
                 main_text_area = (coverage_percent / 100) * img_w * img_h
                 main_font_size = max(30, int((main_text_area) ** 0.5 * 0.6))
                 sub_font_size = int(main_font_size * 0.5)
-                date_font_size = int(main_font_size * date_size_factor / 100)
+                date_font_size = int(main_font_size * 0.7)
 
                 try:
                     if isinstance(font_bytes, str):
@@ -154,7 +159,7 @@ if st.button("✅ Generate Edited Images"):
                 image = Image.open(img_file).convert("RGB")
                 variants = []
                 random_font = random.choice(available_fonts)  # Randomly select a font for each image
-                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read()) 
+                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read())
 
                 if generate_variations:
                     for i in range(4):
@@ -167,20 +172,13 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Preview and Download
+        # Global Download Button (All images)
+        download_all_button = io.BytesIO()
         for name, variants in all_results:
-            if generate_variations:
-                st.write(f"**{name} - Variations**")
-                for variant in variants:
-                    st.image(variant, use_column_width=True)
-            else:
-                st.image(variants[0], caption=name, use_column_width=True)
-
             for i, img in enumerate(variants):
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format="JPEG", quality=95)
-                timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"Picsart_{timestamp}.jpg"
-                st.download_button(f"⬇️ Download {file_name}", data=img_bytes.getvalue(), file_name=file_name, mime="image/jpeg")
-    else:
-        st.warning("⚠️ Please upload images before clicking Generate.")
+                img.save(download_all_button, format="JPEG", quality=95)
+        download_all_button.seek(0)
+        st.download_button("⬇️ Download All Generated Images", download_all_button, file_name="All_Generated_Images.zip", mime="application/zip")
+
+        # Preview and Download
+        for name, variants in all_results
