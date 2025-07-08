@@ -48,15 +48,16 @@ user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 # Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-# Default date size factor set to 70
-show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)  # Unchecked by default
+# Updated: Default 'Add Today's Date' checkbox is unchecked
+show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)  
 date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
-logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos if available_logos else ["None"])
-logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "None" else None
+logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Watermark"])
+logo_path = os.path.join("assets/logos", logo_choice) if available_logos and logo_choice != "Own Watermark" else None
 
-# New option: Upload your own logo
-own_logo = st.sidebar.file_uploader("Or Upload Your Own Logo", type=["png"])
+# Option to upload custom watermark
+if logo_choice == "Own Watermark":
+    logo_path = st.sidebar.file_uploader("Upload Custom Watermark PNG", type=["png"])
 
 st.sidebar.subheader("Font Source")
 font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
@@ -80,13 +81,13 @@ if st.button("✅ Generate Edited Images"):
     if uploaded_images:
         with st.spinner("Processing..."):
             logo = None
-            # Check for custom logo
-            if own_logo:
-                logo = Image.open(own_logo).convert("RGBA")
-                logo.thumbnail((logo.width * 1.5, logo.height * 1.5))  # 50% bigger logo
-            elif logo_path:
-                logo = Image.open(logo_path).convert("RGBA")
-                logo.thumbnail((logo.width * 1.5, logo.height * 1.5))  # 50% bigger logo
+            if logo_path:
+                if isinstance(logo_path, str):  # Default logo
+                    logo = Image.open(logo_path).convert("RGBA")
+                else:  # Custom uploaded watermark
+                    logo = Image.open(logo_path).convert("RGBA")
+                # Increase watermark size by 50%
+                logo.thumbnail((int(225), int(225)))
 
             font_bytes = None
             if uploaded_font:
@@ -161,7 +162,7 @@ if st.button("✅ Generate Edited Images"):
                 image = Image.open(img_file).convert("RGB")
                 variants = []
                 random_font = random.choice(available_fonts)  # Randomly select a font for each image
-                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read())
+                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read()) 
 
                 if generate_variations:
                     for i in range(4):
@@ -179,10 +180,4 @@ if st.button("✅ Generate Edited Images"):
             if generate_variations:
                 st.write(f"**{name} - Variations**")
                 for variant in variants:
-                    st.image(variant, use_column_width=True)
-            else:
-                st.image(variants[0], caption=name, use_column_width=True)
-
-            for i, img in enumerate(variants):
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format
+                    st.image(variant, use
