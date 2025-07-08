@@ -192,5 +192,4 @@ if st.button("✅ Generate Edited Images"):
                 img_bytes.seek(0)
                 
                 timestamp = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
-                file_name = f"{name}_{timestamp}_variant_{i+1}.jpg"  # Closing the f-string correctly
-                download_links.append(st.download_button(label=f"Download {file
+                file_name
