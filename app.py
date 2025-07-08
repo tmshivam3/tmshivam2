@@ -11,7 +11,7 @@ import time
 st.set_page_config(page_title="🖼️ Edit Photo in Bulk Tool ™", layout="wide")
 
 st.markdown("""
-    <h1 style='text-align: center; color: white; background: linear-gradient(to right, #4b6cb7, #182848); padding: 15px; border-radius: 12px;'>🖼️ Edit Photo in Bulk Tool ™</h1>
+    <h1 style='text-align: center; color: black; background: #fff176; padding: 15px; border-radius: 12px;'>🖼️ Edit Photo in Bulk Tool ™</h1>
     <h4 style='text-align: center; color: grey;'>Apply Greetings, Watermarks, Fonts, Wishes, Overlays & More</h4>
 """, unsafe_allow_html=True)
 
@@ -63,8 +63,7 @@ def place_logo_random(img, logo):
 
 def overlay_theme_overlays(img, greeting_type, theme_folder):
     iw, ih = img.size
-    overlay_nums = [1]  # always include 1.png
-
+    overlay_nums = [1]
     if greeting_type == "Good Morning":
         overlay_nums += [2]
     elif greeting_type == "Good Night":
@@ -86,13 +85,13 @@ def overlay_theme_overlays(img, greeting_type, theme_folder):
             except: pass
     return img
 
+# =================== MAIN PAGE UPLOAD ===================
+uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
 # =================== SIDEBAR ===================
 st.sidebar.header("🛠️ Tool Settings")
 
-uploaded_images = st.sidebar.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
 greeting_type = st.sidebar.selectbox("Greeting Type", ["Good Morning", "Good Night"])
-
 custom_wish = st.sidebar.text_input("Wish (optional)", value="")
 show_text = st.sidebar.checkbox("Show Main Text", value=True)
 show_wish = st.sidebar.checkbox("Show Sub Wish", value=True)
@@ -144,7 +143,6 @@ if st.button("✅ Generate Images"):
                     image = crop_to_3_4(image)
                     w, h = image.size
 
-                    # Apply Overlay if enabled
                     if show_overlay:
                         if selected_theme == "Auto Random":
                             theme_folder = os.path.join("assets/overlays", random.choice(theme_dirs))
@@ -155,12 +153,10 @@ if st.button("✅ Generate Images"):
                     draw = ImageDraw.Draw(image)
                     color = random.choice([(255,255,255), (255,255,0), (255,0,0), (128,0,255)])
 
-                    # Draw main text
                     if show_text and font_choice:
                         font = font_choice.font_variant(size=int(main_size * w // 100))
                         draw.text((50, 50), greeting_type, font=font, fill=color)
 
-                    # Sub-wish
                     if show_wish and font_choice:
                         subtext = custom_wish if custom_wish else ("Have a nice day!" if greeting_type=="Good Morning" else "Sweet dreams!")
                         font2 = font_choice.font_variant(size=int(wish_size * w // 100))
