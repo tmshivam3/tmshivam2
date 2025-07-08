@@ -5,7 +5,7 @@ import os
 import io
 import datetime
 import zipfile
-import tempfile
+import shutil
 
 # PAGE CONFIG
 st.set_page_config(page_title="🔆 SHIVAM TOOL", layout="centered")
@@ -50,21 +50,23 @@ user_subtext = st.sidebar.text_input("Wishes Text", default_subtext)
 # Default coverage is set to 8%
 coverage_percent = st.sidebar.slider("Main Text Coverage (%)", 2, 20, 8)
 
-# Date Selection (Now Default Unchecked)
+# Default date size factor set to 70
 show_date = st.sidebar.checkbox("Add Today's Date on Image", value=False)
+date_size_factor = st.sidebar.slider("Date Text Size (relative)", 30, 120, 70)
 
-# Watermark Logo Options (With Option for Own Upload)
-logo_choice = st.sidebar.selectbox("Watermark Logo", ["None"] + available_logos)
-logo_upload = st.sidebar.file_uploader("Upload Your Own Watermark PNG", type=["png"])
+logo_choice = st.sidebar.selectbox("Watermark Logo", available_logos + ["Own Logo"])
+logo_path = None
+if logo_choice != "None" and logo_choice != "Own Logo":
+    logo_path = os.path.join("assets/logos", logo_choice)
 
-# Logic for Logo Path
-if logo_upload:
-    logo_path = logo_upload
-else:
-    logo_path = os.path.join("assets/logos", logo_choice) if logo_choice != "None" else None
+# User option to upload their own logo
+uploaded_logo = None
+if logo_choice == "Own Logo":
+    uploaded_logo = st.sidebar.file_uploader("Upload Your Own Logo", type=["png"])
 
-# Font Selection (Available or Upload Custom)
-font_source = st.sidebar.radio("Select Font Source:", ["Available Fonts", "Upload Your Own"])
+st.sidebar.subheader("Font Source")
+font_source = st.sidebar.radio("Select:", ["Available Fonts", "Upload Your Own"])
+
 if font_source == "Available Fonts":
     selected_font = st.sidebar.selectbox("Choose Font", available_fonts)
     uploaded_font = None
@@ -86,7 +88,10 @@ if st.button("✅ Generate Edited Images"):
             logo = None
             if logo_path:
                 logo = Image.open(logo_path).convert("RGBA")
-                logo = logo.resize((int(logo.width * 1.5), int(logo.height * 1.5)))  # Increase size by 50%
+                logo = logo.resize((int(logo.width * 1.5), int(logo.height * 1.5)))  # Increased size by 50%
+            elif uploaded_logo:
+                logo = Image.open(uploaded_logo).convert("RGBA")
+                logo = logo.resize((int(logo.width * 1.5), int(logo.height * 1.5)))  # Increased size by 50%
 
             font_bytes = None
             if uploaded_font:
@@ -103,7 +108,7 @@ if st.button("✅ Generate Edited Images"):
                 main_text_area = (coverage_percent / 100) * img_w * img_h
                 main_font_size = max(30, int((main_text_area) ** 0.5 * 0.6))
                 sub_font_size = int(main_font_size * 0.5)
-                date_font_size = int(main_font_size * 0.7)
+                date_font_size = int(main_font_size * date_size_factor / 100)
 
                 try:
                     if isinstance(font_bytes, str):
@@ -161,7 +166,7 @@ if st.button("✅ Generate Edited Images"):
                 image = Image.open(img_file).convert("RGB")
                 variants = []
                 random_font = random.choice(available_fonts)  # Randomly select a font for each image
-                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read())
+                font_bytes = os.path.join("assets/fonts", random_font) if font_source == "Available Fonts" else io.BytesIO(uploaded_font.read()) 
 
                 if generate_variations:
                     for i in range(4):
@@ -174,15 +179,12 @@ if st.button("✅ Generate Edited Images"):
 
         st.success("✅ All images processed successfully!")
 
-        # Create ZIP for download using in-memory BytesIO
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Preview and Download
+        zip_filename = "edited_images.zip"
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
             for name, variants in all_results:
-                for i, img in enumerate(variants):
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format="JPEG", quality=95)
-                    img_bytes.seek(0)
-                    zipf.writestr(f"{name}_{i+1}.jpg", img_bytes.read())
-
-        zip_buffer.seek(0)  # Move the pointer to the beginning of the in-memory file
-        st.download_button("
+                if generate_variations:
+                    st.write(f"**{name} - Variations**")
+                    for i, variant in enumerate(variants):
+                        st.image(variant, use_column_width=True)
+                        img_bytes = io.Bytes
