@@ -127,9 +127,8 @@ def get_random_text_effect():
     else:
         return random.choice(["shadow", "outline", "both"])
 
-def apply_text_effects(draw, position, text, font, color, effect=None):
-    if effect is None:
-        effect = get_random_text_effect()
+def apply_text_effects(draw, position, text, font, color):
+    effect = get_random_text_effect()
     
     if effect == "shadow":
         shadow_offset = 3
@@ -152,7 +151,6 @@ def apply_text_effects(draw, position, text, font, color, effect=None):
                     draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
     
     draw.text(position, text, font=font, fill=color)
-    return effect
 
 def format_date(date_format="%d %B %Y", show_day=False):
     today = datetime.datetime.now()
@@ -174,7 +172,7 @@ def apply_overlay(image, overlay_path, size=0.5):
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
         new_size = (int(image.width * size), int(image.height * size))
-        overlay = overlay.resize(new_size, Image.LANCZOS)
+        overlay = overlay.resize(new_size)
         
         # Random position but within bounds
         max_x = max(20, image.width - overlay.width - 20)  # Ensure max_x >= 20
@@ -233,12 +231,17 @@ def enhance_image_quality(img):
 
 def upscale_text_elements(img, scale_factor=2):
     """Upscale text elements in the image"""
+    # This is a placeholder - in a real implementation you would:
+    # 1. Detect text regions
+    # 2. Upscale them separately
+    # 3. Blend back into the image
+    # For now we'll just upscale the whole image
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def create_variant(original_img, settings, text_effect=None):
+def create_variant(original_img, settings):
     """Create a variant of the original image with different text positions/effects"""
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
@@ -257,9 +260,9 @@ def create_variant(original_img, settings, text_effect=None):
         max_text_y = max(20, img.height // 3)
         text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
-        effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, text_effect)
+        apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
     
-    # Add wish text with same effect as main text
+    # Add wish text
     if settings['show_wish']:
         font_wish = font.font_variant(size=settings['wish_size'])
         wish_text = get_random_wish(settings['greeting_type'])
@@ -276,9 +279,9 @@ def create_variant(original_img, settings, text_effect=None):
             max_wish_y = max(20, img.height // 2)
             wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
         
-        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
+        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color)
     
-    # Add date text with same effect
+    # Add date text
     if settings['show_date']:
         font_date = font.font_variant(size=settings['date_size'])
         
@@ -305,7 +308,7 @@ def create_variant(original_img, settings, text_effect=None):
             if date_x + day_width > img.width - 20:
                 date_x = img.width - day_width - 25
         
-        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
+        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
     
     # Add watermark if enabled
     if settings['use_watermark'] and settings['watermark_image']:
@@ -369,27 +372,7 @@ def create_variant(original_img, settings, text_effect=None):
     
     return img.convert("RGB")
 
-def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
-    """Adjust font size to fit within specified dimensions"""
-    font = None
-    size = initial_size
-    while size > 10:  # Minimum font size
-        try:
-            font = ImageFont.truetype("assets/fonts/default.ttf", size)
-            text_width, text_height = get_text_size(draw, text, font)
-            if text_width <= max_width and text_height <= max_height:
-                break
-        except:
-            font = ImageFont.load_default()
-            break
-        size -= 2  # Decrease by 2 points each iteration
-    return font
-
 # =================== MAIN APP ===================
-# Store generated images in session state to persist after download
-if 'generated_images' not in st.session_state:
-    st.session_state.generated_images = []
-
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 # Settings sidebar
@@ -497,10 +480,27 @@ if st.button("✨ Generate Photos", key="generate"):
                 'date_format': date_format if show_date else "8 July 2025",
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
-                'watermark_opacity': watermark_opacity if use_watermark else 1.0,
+                'watermark_opacity': watermark_opacity if use_watermark else 0.7,
                 'use_overlay': use_overlay,
                 'overlay_files': overlay_files if use_overlay else [],
                 'overlay_theme': overlay_theme if use_overlay else "",
                 'overlay_size': overlay_size if use_overlay else 0.5,
                 'use_coffee_pet': use_coffee_pet,
-                'pet_size': pet_
+                'pet_size': pet_size if use_coffee_pet else 0.3,
+                'selected_pet': selected_pet if use_coffee_pet else None
+            }
+            
+            for uploaded_file in uploaded_images:
+                try:
+                    img = Image.open(uploaded_file).convert("RGBA")
+                    
+                    # Auto crop to 3:4 ratio
+                    img = smart_crop(img)
+                    
+                    # Auto enhance
+                    img = enhance_image_quality(img)
+                    
+                    # Apply overlays if enabled
+                    if use_overlay:
+                        for overlay_file in overlay_files:
+                            overlay_path = os.path.join("assets/overlays", overlay_theme, o
