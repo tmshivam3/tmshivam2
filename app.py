@@ -127,8 +127,9 @@ def get_random_text_effect():
     else:
         return random.choice(["shadow", "outline", "both"])
 
-def apply_text_effects(draw, position, text, font, color):
-    effect = get_random_text_effect()
+def apply_text_effects(draw, position, text, font, color, effect=None):
+    if effect is None:
+        effect = get_random_text_effect()
     
     if effect == "shadow":
         shadow_offset = 3
@@ -151,6 +152,7 @@ def apply_text_effects(draw, position, text, font, color):
                     draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
     
     draw.text(position, text, font=font, fill=color)
+    return effect
 
 def format_date(date_format="%d %B %Y", show_day=False):
     today = datetime.datetime.now()
@@ -172,7 +174,7 @@ def apply_overlay(image, overlay_path, size=0.5):
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
         new_size = (int(image.width * size), int(image.height * size))
-        overlay = overlay.resize(new_size)
+        overlay = overlay.resize(new_size, Image.LANCZOS)
         
         # Random position but within bounds
         max_x = max(20, image.width - overlay.width - 20)  # Ensure max_x >= 20
@@ -231,17 +233,12 @@ def enhance_image_quality(img):
 
 def upscale_text_elements(img, scale_factor=2):
     """Upscale text elements in the image"""
-    # This is a placeholder - in a real implementation you would:
-    # 1. Detect text regions
-    # 2. Upscale them separately
-    # 3. Blend back into the image
-    # For now we'll just upscale the whole image
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def create_variant(original_img, settings):
+def create_variant(original_img, settings, text_effect=None):
     """Create a variant of the original image with different text positions/effects"""
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
@@ -260,9 +257,9 @@ def create_variant(original_img, settings):
         max_text_y = max(20, img.height // 3)
         text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
-        apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
+        effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, text_effect)
     
-    # Add wish text
+    # Add wish text with same effect as main text
     if settings['show_wish']:
         font_wish = font.font_variant(size=settings['wish_size'])
         wish_text = get_random_wish(settings['greeting_type'])
@@ -279,9 +276,9 @@ def create_variant(original_img, settings):
             max_wish_y = max(20, img.height // 2)
             wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
         
-        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color)
+        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
     
-    # Add date text
+    # Add date text with same effect
     if settings['show_date']:
         font_date = font.font_variant(size=settings['date_size'])
         
@@ -308,7 +305,7 @@ def create_variant(original_img, settings):
             if date_x + day_width > img.width - 20:
                 date_x = img.width - day_width - 25
         
-        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
+        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
     
     # Add watermark if enabled
     if settings['use_watermark'] and settings['watermark_image']:
@@ -372,7 +369,27 @@ def create_variant(original_img, settings):
     
     return img.convert("RGB")
 
+def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
+    """Adjust font size to fit within specified dimensions"""
+    font = None
+    size = initial_size
+    while size > 10:  # Minimum font size
+        try:
+            font = ImageFont.truetype("assets/fonts/default.ttf", size)
+            text_width, text_height = get_text_size(draw, text, font)
+            if text_width <= max_width and text_height <= max_height:
+                break
+        except:
+            font = ImageFont.load_default()
+            break
+        size -= 2  # Decrease by 2 points each iteration
+    return font
+
 # =================== MAIN APP ===================
+# Store generated images in session state to persist after download
+if 'generated_images' not in st.session_state:
+    st.session_state.generated_images = []
+
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 # Settings sidebar
@@ -507,10 +524,11 @@ if st.button("✨ Generate Photos", key="generate"):
                             img = apply_overlay(img, overlay_path, overlay_size)
                     
                     if generate_variants:
-                        # Create 3 variants
+                        # Create 3 variants with consistent text effects
+                        text_effect = get_random_text_effect()
                         variants = []
                         for i in range(3):
-                            variant = create_variant(img, settings)
+                            variant = create_variant(img, settings, text_effect)
                             variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
@@ -519,29 +537,39 @@ if st.button("✨ Generate Photos", key="generate"):
                         font = get_random_font()
                         text_color = get_random_color()
                         
-                        # Add main text
+                        # Add main text with consistent effect
                         if show_text:
                             font_main = font.font_variant(size=main_size)
                             text = greeting_type
                             text_width, text_height = get_text_size(draw, text, font_main)
                             
+                            # Adjust font size if text is too wide
+                            if text_width > img.width - 40:
+                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
+                                text_width, text_height = get_text_size(draw, text, font_main)
+                            
                             text_x = (img.width - text_width) // 2
                             text_y = 20  # Top position
                             
-                            apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
+                            effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
                         
-                        # Add wish text
+                        # Add wish text with same effect
                         if show_wish:
                             font_wish = font.font_variant(size=wish_size)
                             wish_text = get_random_wish(greeting_type)
                             wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
+                            # Adjust font size if text is too wide
+                            if wish_width > img.width - 40:
+                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
+                                wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+                            
                             wish_x = (img.width - wish_width) // 2
                             wish_y = text_y + main_size + 20 if show_text else 20
                             
-                            apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color)
+                            apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
                         
-                        # Add date text
+                        # Add date text with same effect
                         if show_date:
                             font_date = font.font_variant(size=date_size)
                             
@@ -556,6 +584,11 @@ if st.button("✨ Generate Photos", key="generate"):
                                 
                             date_width, date_height = get_text_size(draw, date_text, font_date)
                             
+                            # Adjust font size if text is too wide
+                            if date_width > img.width - 40:
+                                font_date = adjust_font_size_to_fit(draw, date_text, img.width - 40, img.height//3, date_size)
+                                date_width, date_height = get_text_size(draw, date_text, font_date)
+                            
                             date_x = (img.width - date_width) // 2
                             date_y = img.height - date_height - 20  # Bottom position
                             
@@ -566,7 +599,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 if date_x + day_width > img.width - 20:
                                     date_x = img.width - day_width - 25
                             
-                            apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
+                            apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
                         
                         # Add watermark if enabled
                         if use_watermark and watermark_image:
@@ -629,49 +662,51 @@ if st.button("✨ Generate Photos", key="generate"):
                     st.error(f"Error processing {uploaded_file.name}: {str(e)}")
                     continue
 
+            # Store all images in session state
+            st.session_state.generated_images = processed_images + variant_images
+            
             # Display results
-            if processed_images or variant_images:
-                st.success(f"Successfully processed {len(processed_images) + len(variant_images)} images!")
-                
-                # Create download buttons
-                if processed_images or variant_images:
-                    # Create zip file
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-                        for filename, img in processed_images + variant_images:
-                            img_bytes = io.BytesIO()
-                            img.save(img_bytes, format='JPEG', quality=95)
-                            zip_file.writestr(filename, img_bytes.getvalue())
-                    
-                    # Download button for all
-                    st.download_button(
-                        label="⬇️ Download All Photos",
-                        data=zip_buffer.getvalue(),
-                        file_name="generated_photos.zip",
-                        mime="application/zip"
-                    )
-                
-                # Show previews with individual download options
-                st.markdown("### 📸 Preview")
-                cols = st.columns(3)
-                
-                all_images = processed_images + variant_images
-                for i, (filename, img) in enumerate(all_images[:9]):  # Show max 9 previews
-                    with cols[i % 3]:
-                        st.image(img, use_container_width=True)
-                        st.caption(filename)
-                        
-                        # Individual download button
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format='JPEG', quality=95)
-                        st.download_button(
-                            label="⬇️ Download",
-                            data=img_bytes.getvalue(),
-                            file_name=filename,
-                            mime="image/jpeg",
-                            key=f"download_{i}"
-                        )
+            if st.session_state.generated_images:
+                st.success(f"Successfully processed {len(st.session_state.generated_images)} images!")
             else:
                 st.warning("No images were processed successfully.")
     else:
         st.warning("Please upload at least one image.")
+
+# Display previews with individual download options
+if st.session_state.generated_images:
+    # Create zip file
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
+        for filename, img in st.session_state.generated_images:
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format='JPEG', quality=95)
+            zip_file.writestr(filename, img_bytes.getvalue())
+    
+    # Download button for all
+    st.download_button(
+        label="⬇️ Download All Photos",
+        data=zip_buffer.getvalue(),
+        file_name="generated_photos.zip",
+        mime="application/zip"
+    )
+    
+    # Show previews with individual download options
+    st.markdown("### 📸 Preview")
+    cols = st.columns(3)
+    
+    for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):  # Show max 9 previews
+        with cols[i % 3]:
+            st.image(img, use_container_width=True)
+            st.caption(filename)
+            
+            # Individual download button
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format='JPEG', quality=95)
+            st.download_button(
+                label="⬇️ Download",
+                data=img_bytes.getvalue(),
+                file_name=filename,
+                mime="image/jpeg",
+                key=f"download_{i}"
+    )
