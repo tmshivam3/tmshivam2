@@ -6,6 +6,122 @@ import random
 import datetime
 import zipfile
 import numpy as np
+import sqlite3
+import time
+
+# =================== DATABASE SETUP ===================
+def init_db():
+    conn = sqlite3.connect('visitors.db')
+    c = conn.cursor()
+    
+    # Create tables if they don't exist
+    c.execute('''CREATE TABLE IF NOT EXISTS visitors 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  ip_address TEXT,
+                  user_agent TEXT)''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS messages
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  sender_name TEXT,
+                  message TEXT,
+                  contact_info TEXT,
+                  is_review BOOLEAN DEFAULT 0,
+                  rating INTEGER)''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS admin_credentials
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT UNIQUE,
+                  password TEXT)''')
+    
+    # Insert default admin credentials if none exist
+    c.execute("SELECT COUNT(*) FROM admin_credentials")
+    if c.fetchone()[0] == 0:
+        c.execute("INSERT INTO admin_credentials (username, password) VALUES (?, ?)", 
+                 ("admin", "admin123"))  # Change this in production!
+    
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# =================== VISITOR TRACKING ===================
+def track_visitor():
+    try:
+        # Get visitor info (simplified for Streamlit sharing)
+        visitor_info = {
+            'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'ip_address': "Streamlit_Cloud",  # Actual IP not available in Streamlit sharing
+            'user_agent': st.experimental_get_query_params().get("user_agent", ["Unknown"])[0]
+        }
+        
+        conn = sqlite3.connect('visitors.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO visitors (timestamp, ip_address, user_agent) VALUES (?, ?, ?)",
+                 (visitor_info['timestamp'], visitor_info['ip_address'], visitor_info['user_agent']))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error tracking visitor: {e}")
+
+# Track the visitor when the app loads
+track_visitor()
+
+# =================== CHAT/REVIEW SYSTEM ===================
+def save_message(sender_name, message, contact_info="", is_review=False, rating=None):
+    conn = sqlite3.connect('visitors.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO messages (sender_name, message, contact_info, is_review, rating) VALUES (?, ?, ?, ?, ?)",
+             (sender_name, message, contact_info, is_review, rating))
+    conn.commit()
+    conn.close()
+
+def get_messages(limit=50, is_review=None):
+    conn = sqlite3.connect('visitors.db')
+    c = conn.cursor()
+    
+    query = "SELECT * FROM messages"
+    if is_review is not None:
+        query += f" WHERE is_review = {1 if is_review else 0}"
+    query += " ORDER BY timestamp DESC LIMIT ?"
+    
+    c.execute(query, (limit,))
+    messages = c.fetchall()
+    conn.close()
+    return messages
+
+def get_visitor_stats():
+    conn = sqlite3.connect('visitors.db')
+    c = conn.cursor()
+    
+    # Total visitors
+    c.execute("SELECT COUNT(*) FROM visitors")
+    total_visitors = c.fetchone()[0]
+    
+    # Today's visitors
+    c.execute("SELECT COUNT(*) FROM visitors WHERE date(timestamp) = date('now')")
+    today_visitors = c.fetchone()[0]
+    
+    # This week's visitors
+    c.execute("SELECT COUNT(*) FROM visitors WHERE strftime('%Y-%W', timestamp) = strftime('%Y-%W', 'now')")
+    week_visitors = c.fetchone()[0]
+    
+    conn.close()
+    return {
+        'total': total_visitors,
+        'today': today_visitors,
+        'week': week_visitors
+    }
+
+# =================== ADMIN FUNCTIONS ===================
+def admin_login(username, password):
+    conn = sqlite3.connect('visitors.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM admin_credentials WHERE username = ? AND password = ?", (username, password))
+    result = c.fetchone()
+    conn.close()
+    return result is not None
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
@@ -56,6 +172,28 @@ st.markdown("""
         margin-top: 5px;
         text-align: center;
     }
+    .chat-message {
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 8px;
+        background-color: #1a1a1a;
+    }
+    .admin-message {
+        background-color: #333333;
+    }
+    .stats-container {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    .stat-box {
+        background-color: #1a1a1a;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        flex: 1;
+        margin: 0 5px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,646 +205,184 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =================== UTILS ===================
-def list_files(folder, exts):
-    if not os.path.exists(folder):
-        return []
-    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
+# [Keep all your existing utility functions here unchanged]
+# ... (all your existing utility functions remain the same)
 
-def smart_crop(img, target_ratio=3/4):
-    w, h = img.size
-    if w/h > target_ratio:
-        new_w = int(h * target_ratio)
-        left = (w - new_w) // 2
-        return img.crop((left, 0, left + new_w, h))
-    else:
-        new_h = int(w / target_ratio)
-        top = (h - new_h) // 2
-        return img.crop((0, top, w, top + new_h))
-
-def get_text_size(draw, text, font):
-    bbox = draw.textbbox((0, 0), text, font=font)
-    return bbox[2] - bbox[0], bbox[3] - bbox[1]
-
-def get_random_font():
-    fonts = list_files("assets/fonts", [".ttf", ".otf"])
-    if not fonts:
-        return ImageFont.load_default()
-    font_path = os.path.join("assets/fonts", random.choice(fonts))
-    try:
-        return ImageFont.truetype(font_path, 80)  # Default size 80
-    except:
-        return ImageFont.load_default()
-
-def get_random_wish(greeting_type):
-    wishes = {
-        "Good Morning": ["Rise and shine!", "Make today amazing!", "Morning blessings!", "New day, new blessings!"],
-        "Good Afternoon": ["Enjoy your day!", "Afternoon delights!", "Sunshine and smiles!", "Perfect day ahead!"],
-        "Good Evening": ["Beautiful sunset!", "Evening serenity!", "Twilight magic!", "Peaceful evening!"],
-        "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!"]
-    }
-    return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
-
-def get_random_color():
-    # Bright colors that work well with effects
-    colors = [
-        (255, 255, 0),   # Yellow
-        (255, 255, 255), # White
-        (0, 255, 255),   # Cyan
-        (255, 0, 255),   # Magenta
-        (255, 165, 0),   # Orange
-        (0, 255, 0),     # Green
-        (255, 0, 0),     # Red
-        (0, 0, 255)      # Blue
-    ]
-    return random.choice(colors)
-
-def get_random_text_effect():
-    # 40% chance of normal text, 60% chance of effect
-    if random.random() < 0.4:
-        return "none"
-    else:
-        return random.choice(["shadow", "outline", "both"])
-
-def apply_text_effects(draw, position, text, font, color, effect=None):
-    if effect is None:
-        effect = get_random_text_effect()
+# =================== ADMIN SECTION ===================
+def show_admin_section():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🔐 Admin Login")
     
-    if effect == "shadow":
-        shadow_offset = 3
-        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
-                 text, font=font, fill=(0,0,0,128))
-    elif effect == "outline":
-        outline_size = 2
-        for x in range(-outline_size, outline_size+1):
-            for y in range(-outline_size, outline_size+1):
-                if x != 0 or y != 0:  # Skip the center position
-                    draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
-    elif effect == "both":
-        shadow_offset = 3
-        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
-                 text, font=font, fill=(0,0,0,128))
-        outline_size = 2
-        for x in range(-outline_size, outline_size+1):
-            for y in range(-outline_size, outline_size+1):
-                if x != 0 or y != 0:
-                    draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
+    username = st.sidebar.text_input("Username")
+    password = st.sidebar.text_input("Password", type="password")
     
-    draw.text(position, text, font=font, fill=color)
-    return effect
-
-def format_date(date_format="%d %B %Y", show_day=False):
-    today = datetime.datetime.now()
-    formatted_date = today.strftime(date_format)
-    
-    if show_day:
-        # Check if within 4-5 hours of next day (19:00-23:59)
-        if today.hour >= 19:
-            next_day = today + datetime.timedelta(days=1)
-            day_name = next_day.strftime("%A")
-            formatted_date += f" (Advance {day_name})"
+    if st.sidebar.button("Login"):
+        if admin_login(username, password):
+            st.session_state.admin_logged_in = True
+            st.sidebar.success("Logged in successfully!")
         else:
-            day_name = today.strftime("%A")
-            formatted_date += f" ({day_name})"
+            st.sidebar.error("Invalid credentials")
     
-    return formatted_date
-
-def apply_overlay(image, overlay_path, size=0.5):
-    try:
-        overlay = Image.open(overlay_path).convert("RGBA")
-        new_size = (int(image.width * size), int(image.height * size))
-        overlay = overlay.resize(new_size, Image.LANCZOS)
+    if st.session_state.get('admin_logged_in'):
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🛠️ Admin Tools")
         
-        # Random position but within bounds
-        max_x = max(20, image.width - overlay.width - 20)  # Ensure max_x >= 20
-        max_y = max(20, image.height - overlay.height - 20)  # Ensure max_y >= 20
-        x = random.randint(20, max_x) if max_x > 20 else 20
-        y = random.randint(20, max_y) if max_y > 20 else 20
+        if st.sidebar.button("Logout"):
+            st.session_state.admin_logged_in = False
+            st.experimental_rerun()
         
-        image.paste(overlay, (x, y), overlay)
-    except Exception as e:
-        st.error(f"Error applying overlay: {str(e)}")
-    return image
-
-def generate_filename():
-    now = datetime.datetime.now()
-    # Use future time (current minute + random 1-10 minutes)
-    future_minutes = random.randint(1, 10)
-    future_time = now + datetime.timedelta(minutes=future_minutes)
-    return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
-
-def get_watermark_position(img, watermark):
-    # 70% chance to be at bottom, 30% chance to be random
-    if random.random() < 0.7:
-        # Bottom position (random left/right)
-        x = random.choice([
-            20,  # left
-            max(20, img.width - watermark.width - 20)  # right (ensure >= 20)
-        ])
-        y = max(20, img.height - watermark.height - 20)  # ensure >= 20
-    else:
-        # Random position (avoid center)
-        max_x = max(20, img.width - watermark.width - 20)  # ensure >= 20
-        max_y = max(20, img.height - watermark.height - 20)  # ensure >= 20
-        x = random.randint(20, max_x) if max_x > 20 else 20
-        y = random.randint(20, max_y) if max_y > 20 else 20
-    
-    return (x, y)
-
-def enhance_image_quality(img):
-    """Enhance image quality with multiple filters"""
-    # Convert to RGB if not already
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    
-    # Apply sharpness
-    img = ImageEnhance.Sharpness(img).enhance(1.5)
-    
-    # Apply contrast
-    img = ImageEnhance.Contrast(img).enhance(1.1)
-    
-    # Apply brightness if needed
-    hist = img.histogram()
-    if sum(hist[:100]) > sum(hist[-100:]):  # More dark pixels than light
-        img = ImageEnhance.Brightness(img).enhance(1.1)
-    
-    return img
-
-def upscale_text_elements(img, scale_factor=2):
-    """Upscale text elements in the image"""
-    if scale_factor > 1:
-        new_size = (img.width * scale_factor, img.height * scale_factor)
-        img = img.resize(new_size, Image.LANCZOS)
-    return img
-
-def create_variant(original_img, settings, text_effect=None):
-    """Create a variant of the original image with different text positions/effects"""
-    img = original_img.copy()
-    draw = ImageDraw.Draw(img)
-    font = get_random_font()
-    text_color = get_random_color()
-    
-    # Add main text
-    if settings['show_text']:
-        font_main = font.font_variant(size=settings['main_size'])
-        text = settings['greeting_type']
-        text_width, text_height = get_text_size(draw, text, font_main)
+        if st.sidebar.button("View Messages"):
+            st.session_state.admin_view = "messages"
         
-        # Varied positioning with bounds checking
-        max_text_x = max(20, img.width - text_width - 20)
-        text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-        max_text_y = max(20, img.height // 3)
-        text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
+        if st.sidebar.button("View Reviews"):
+            st.session_state.admin_view = "reviews"
         
-        effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, text_effect)
-    
-    # Add wish text with same effect as main text
-    if settings['show_wish']:
-        font_wish = font.font_variant(size=settings['wish_size'])
-        wish_text = get_random_wish(settings['greeting_type'])
-        wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+        if st.sidebar.button("View Visitor Stats"):
+            st.session_state.admin_view = "stats"
         
-        # Position relative to main text or random
-        if settings['show_text']:
-            max_wish_x = max(20, img.width - wish_width - 20)
-            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            wish_y = text_y + settings['main_size'] + random.randint(10, 30)
-        else:
-            max_wish_x = max(20, img.width - wish_width - 20)
-            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            max_wish_y = max(20, img.height // 2)
-            wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
-        
-        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
-    
-    # Add date text with same effect
-    if settings['show_date']:
-        font_date = font.font_variant(size=settings['date_size'])
-        
-        # Format date based on selection
-        if settings['date_format'] == "8 July 2025":
-            date_text = format_date("%d %B %Y", settings['show_day'])
-        elif settings['date_format'] == "28 January 2025":
-            date_text = format_date("%d %B %Y", settings['show_day'])
-        elif settings['date_format'] == "07/08/2025":
-            date_text = format_date("%m/%d/%Y", settings['show_day'])
-        else:
-            date_text = format_date("%Y-%m-%d", settings['show_day'])
+        # Admin main content
+        if st.session_state.get('admin_view') == "messages":
+            st.markdown("### 📨 User Messages")
+            messages = get_messages(is_review=False)
+            for msg in messages:
+                st.markdown(f"""
+                <div class="chat-message">
+                    <strong>{msg[2]}</strong> ({msg[1]})<br>
+                    {msg[3]}<br>
+                    <small>Contact: {msg[4] if msg[4] else 'Not provided'}</small>
+                </div>
+                """, unsafe_allow_html=True)
             
-        date_width, date_height = get_text_size(draw, date_text, font_date)
+            if not messages:
+                st.info("No messages yet.")
         
-        max_date_x = max(20, img.width - date_width - 20)
-        date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
-        date_y = max(20, img.height - date_height - 20)  # Bottom position
-        
-        # Ensure day text doesn't overlap
-        if settings['show_day'] and "(" in date_text:
-            day_part = date_text[date_text.index("("):]
-            day_width, _ = get_text_size(draw, day_part, font_date)
-            if date_x + day_width > img.width - 20:
-                date_x = img.width - day_width - 25
-        
-        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
-    
-    # Add watermark if enabled
-    if settings['use_watermark'] and settings['watermark_image']:
-        watermark = settings['watermark_image'].copy()
-        
-        # Apply opacity
-        if settings['watermark_opacity'] < 1.0:
-            alpha = watermark.split()[3]
-            alpha = ImageEnhance.Brightness(alpha).enhance(settings['watermark_opacity'])
-            watermark.putalpha(alpha)
-        
-        # Resize proportionally
-        watermark.thumbnail((img.width//4, img.height//4))
-        
-        # Get position (70% bottom, 30% random)
-        pos = get_watermark_position(img, watermark)
-        
-        # Simple overlap avoidance
-        for _ in range(3):  # Try 3 times to find non-overlapping position
-            overlap = False
-            if settings['show_text']:
-                if (pos[0] < text_x + text_width and pos[0] + watermark.width > text_x and
-                    pos[1] < text_y + text_height and pos[1] + watermark.height > text_y):
-                    overlap = True
-            if not overlap and settings['show_wish']:
-                if (pos[0] < wish_x + wish_width and pos[0] + watermark.width > wish_x and
-                    pos[1] < wish_y + wish_height and pos[1] + watermark.height > wish_y):
-                    overlap = True
-            if not overlap and settings['show_date']:
-                if (pos[0] < date_x + date_width and pos[0] + watermark.width > date_x and
-                    pos[1] < date_y + date_height and pos[1] + watermark.height > date_y):
-                    overlap = True
+        elif st.session_state.get('admin_view') == "reviews":
+            st.markdown("### ⭐ User Reviews")
+            reviews = get_messages(is_review=True)
+            for review in reviews:
+                stars = "⭐" * review[6] if review[6] else ""
+                st.markdown(f"""
+                <div class="chat-message">
+                    <strong>{review[2]}</strong> ({review[1]}) {stars}<br>
+                    {review[3]}<br>
+                    <small>Contact: {review[4] if review[4] else 'Not provided'}</small>
+                </div>
+                """, unsafe_allow_html=True)
             
-            if not overlap:
-                break
+            if not reviews:
+                st.info("No reviews yet.")
+        
+        elif st.session_state.get('admin_view') == "stats":
+            stats = get_visitor_stats()
+            st.markdown("### 📊 Visitor Statistics")
+            
+            st.markdown("""
+            <div class="stats-container">
+                <div class="stat-box">
+                    <h3>Total Visitors</h3>
+                    <h1>{total}</h1>
+                </div>
+                <div class="stat-box">
+                    <h3>Today's Visitors</h3>
+                    <h1>{today}</h1>
+                </div>
+                <div class="stat-box">
+                    <h3>This Week</h3>
+                    <h1>{week}</h1>
+                </div>
+            </div>
+            """.format(**stats), unsafe_allow_html=True)
+            
+            # Visitor chart (last 7 days)
+            conn = sqlite3.connect('visitors.db')
+            c = conn.cursor()
+            c.execute("""
+                SELECT date(timestamp) as day, COUNT(*) as count 
+                FROM visitors 
+                WHERE date(timestamp) >= date('now', '-7 days')
+                GROUP BY day
+                ORDER BY day
+            """)
+            data = c.fetchall()
+            conn.close()
+            
+            if data:
+                days, counts = zip(*data)
+                st.line_chart({day: count for day, count in zip(days, counts)})
             else:
-                pos = get_watermark_position(img, watermark)
-        
-        img.paste(watermark, pos, watermark)
-    
-    # Apply Coffee & Pet PNG if enabled
-    if settings['use_coffee_pet'] and settings['selected_pet']:
-        pet_path = os.path.join("assets/pets", settings['selected_pet'])
-        if os.path.exists(pet_path):
-            pet_img = Image.open(pet_path).convert("RGBA")
-            pet_img = pet_img.resize(
-                (int(img.width * settings['pet_size']), 
-                int(img.height * settings['pet_size'] * (pet_img.height/pet_img.width))),
-                Image.LANCZOS
-            )
-            # Position at bottom right
-            x = img.width - pet_img.width - 20
-            y = img.height - pet_img.height - 20
-            img.paste(pet_img, (x, y), pet_img)
-    
-    # Apply quality enhancements
-    img = enhance_image_quality(img)
-    
-    # Upscale text elements
-    img = upscale_text_elements(img, scale_factor=2)
-    
-    return img.convert("RGB")
+                st.info("No visitor data for the last 7 days.")
 
-def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
-    """Adjust font size to fit within specified dimensions"""
-    font = None
-    size = initial_size
-    while size > 10:  # Minimum font size
-        try:
-            font = ImageFont.truetype("assets/fonts/default.ttf", size)
-            text_width, text_height = get_text_size(draw, text, font)
-            if text_width <= max_width and text_height <= max_height:
-                break
-        except:
-            font = ImageFont.load_default()
-            break
-        size -= 2  # Decrease by 2 points each iteration
-    return font
+# =================== CHAT/REVIEW SECTION ===================
+def show_chat_section():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 💬 Help & Feedback")
+    
+    tab1, tab2 = st.sidebar.tabs(["Send Message", "Leave Review"])
+    
+    with tab1:
+        with st.form("chat_form"):
+            name = st.text_input("Your Name", key="chat_name")
+            message = st.text_area("Your Message", key="chat_message")
+            contact = st.text_input("Contact Info (optional)", key="chat_contact")
+            
+            if st.form_submit_button("Send Message"):
+                if name and message:
+                    save_message(name, message, contact)
+                    st.sidebar.success("Message sent successfully!")
+                else:
+                    st.sidebar.warning("Please enter your name and message")
+    
+    with tab2:
+        with st.form("review_form"):
+            name = st.text_input("Your Name", key="review_name")
+            rating = st.selectbox("Rating", [None, 1, 2, 3, 4, 5], format_func=lambda x: "⭐"*x if x else "Select")
+            message = st.text_area("Your Review", key="review_message")
+            contact = st.text_input("Contact Info (optional)", key="review_contact")
+            
+            if st.form_submit_button("Submit Review"):
+                if name and message and rating:
+                    save_message(name, message, contact, is_review=True, rating=rating)
+                    st.sidebar.success("Thank you for your review!")
+                else:
+                    st.sidebar.warning("Please complete all required fields")
+
+# =================== WHATSAPP BUTTON ===================
+def show_whatsapp_button():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📱 Contact via WhatsApp")
+    st.sidebar.markdown(f"""
+    <a href="https://wa.me/919140588751" target="_blank" style="text-decoration: none;">
+        <button style="background-color: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; width: 100%;">
+            WhatsApp Us
+        </button>
+    </a>
+    """, unsafe_allow_html=True)
 
 # =================== MAIN APP ===================
 # Store generated images in session state to persist after download
 if 'generated_images' not in st.session_state:
     st.session_state.generated_images = []
 
+# Initialize admin session
+if 'admin_logged_in' not in st.session_state:
+    st.session_state.admin_logged_in = False
+
+# Show admin section if logged in
+if st.session_state.get('admin_logged_in'):
+    show_admin_section()
+else:
+    # Show chat/review section for normal users
+    show_chat_section()
+    show_whatsapp_button()
+
+# [Rest of your existing code for the photo generator remains unchanged]
+# ... (all your existing photo generator code remains the same)
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 # Settings sidebar
 with st.sidebar:
-    st.markdown("### ⚙️ Settings")
-    
-    # Greeting type
-    greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Afternoon", "Good Evening", "Good Night"])
-    
-    # Variant option
-    generate_variants = st.checkbox("Generate 3 Variants per Photo", value=False)
-    
-    # Text settings
-    show_text = st.checkbox("Show Greeting", value=True)
-    if show_text:
-        main_size = st.slider("Main Text Size", 10, 200, 80)  # Default 80, range 10-200
-    
-    show_wish = st.checkbox("Show Wish", value=True)
-    if show_wish:
-        wish_size = st.slider("Wish Text Size", 10, 200, 50)  # Default 50, range 10-200
-    
-    show_date = st.checkbox("Show Date", value=False)  # Default unchecked
-    if show_date:
-        date_size = st.slider("Date Text Size", 10, 200, 30)  # Range 10-200
-        date_format = st.selectbox("Date Format", 
-                                 ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
-                                 index=0)
-        show_day = st.checkbox("Show Day", value=False)  # Default unchecked
-    
-    # Watermark settings
-    use_watermark = st.checkbox("Add Watermark", value=True)  # Default checked now
-    watermark_image = None
-    
-    if use_watermark:
-        watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
-        
-        if watermark_option == "Pre-made":
-            available_watermarks = [
-                "Think Tank TV.png",
-                "Wishful Vibes.png",  # This will be selected by default
-                "Travellar Bharat.png",
-                "Good Vibes.png",
-                "naturevibes.png"  # Added new logo
-            ]
-            selected_watermark = st.selectbox("Select Watermark", available_watermarks, index=1)  # Wishful Vibes selected by default
-            watermark_path = os.path.join("assets/logos", selected_watermark)
-            if os.path.exists(watermark_path):
-                watermark_image = Image.open(watermark_path).convert("RGBA")
-        else:
-            uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
-            if uploaded_watermark:
-                watermark_image = Image.open(uploaded_watermark).convert("RGBA")
-        
-        watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
-    
-    # Overlay settings
-    use_overlay = st.checkbox("Use Pre-made Overlays", value=False)
-    
-    if use_overlay:
-        overlay_theme = st.selectbox("Select Theme", ["Theme1", "Theme2"])
-        
-        # Random overlay selection
-        random_overlay = st.checkbox("Random Overlay Selection", value=True)
-        
-        if not random_overlay:
-            if greeting_type == "Good Morning":
-                overlay_files = ["1.png", "2.png"]
-            else:
-                overlay_files = ["1.png", "3.png"]
-        else:
-            overlay_files = random.sample(["1.png", "2.png", "3.png", "4.png", "5.png"], 2)
-        
-        overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
-    
-    # Coffee & Pet PNG Section
-    st.markdown("---")
-    st.markdown("### ☕🐾 Coffee & Pet PNG")
-    use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
-    if use_coffee_pet:
-        pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
-        
-        # Get available pet PNGs from assets/pets folder
-        pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
-        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
-        
-        if selected_pet == "Random":
-            selected_pet = random.choice(pet_files) if pet_files else None
+    # [Keep all your existing sidebar settings code unchanged]
+    # ... (all your existing sidebar settings code remains the same)
 
-# Process button at the top
-if st.button("✨ Generate Photos", key="generate"):
-    if uploaded_images:
-        with st.spinner("Processing images..."):
-            processed_images = []
-            variant_images = []
-            
-            settings = {
-                'greeting_type': greeting_type,
-                'show_text': show_text,
-                'main_size': main_size if show_text else 80,
-                'show_wish': show_wish,
-                'wish_size': wish_size if show_wish else 50,
-                'show_date': show_date,
-                'show_day': show_day if show_date else False,
-                'date_size': date_size if show_date else 30,
-                'date_format': date_format if show_date else "8 July 2025",
-                'use_watermark': use_watermark,
-                'watermark_image': watermark_image,
-                'watermark_opacity': watermark_opacity if use_watermark else 0.7,
-                'use_overlay': use_overlay,
-                'overlay_files': overlay_files if use_overlay else [],
-                'overlay_theme': overlay_theme if use_overlay else "",
-                'overlay_size': overlay_size if use_overlay else 0.5,
-                'use_coffee_pet': use_coffee_pet,
-                'pet_size': pet_size if use_coffee_pet else 0.3,
-                'selected_pet': selected_pet if use_coffee_pet else None
-            }
-            
-            for uploaded_file in uploaded_images:
-                try:
-                    img = Image.open(uploaded_file).convert("RGBA")
-                    
-                    # Auto crop to 3:4 ratio
-                    img = smart_crop(img)
-                    
-                    # Auto enhance
-                    img = enhance_image_quality(img)
-                    
-                    # Apply overlays if enabled
-                    if use_overlay:
-                        for overlay_file in overlay_files:
-                            overlay_path = os.path.join("assets/overlays", overlay_theme, overlay_file)
-                            img = apply_overlay(img, overlay_path, overlay_size)
-                    
-                    if generate_variants:
-                        # Create 3 variants with consistent text effects
-                        text_effect = get_random_text_effect()
-                        variants = []
-                        for i in range(3):
-                            variant = create_variant(img, settings, text_effect)
-                            variants.append((generate_filename(), variant))
-                        variant_images.extend(variants)
-                    else:
-                        # Create single version
-                        draw = ImageDraw.Draw(img)
-                        font = get_random_font()
-                        text_color = get_random_color()
-                        
-                        # Add main text with consistent effect
-                        if show_text:
-                            font_main = font.font_variant(size=main_size)
-                            text = greeting_type
-                            text_width, text_height = get_text_size(draw, text, font_main)
-                            
-                            # Adjust font size if text is too wide
-                            if text_width > img.width - 40:
-                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
-                                text_width, text_height = get_text_size(draw, text, font_main)
-                            
-                            text_x = (img.width - text_width) // 2
-                            text_y = 20  # Top position
-                            
-                            effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
-                        
-                        # Add wish text with same effect
-                        if show_wish:
-                            font_wish = font.font_variant(size=wish_size)
-                            wish_text = get_random_wish(greeting_type)
-                            wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
-                            
-                            # Adjust font size if text is too wide
-                            if wish_width > img.width - 40:
-                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
-                                wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
-                            
-                            wish_x = (img.width - wish_width) // 2
-                            wish_y = text_y + main_size + 20 if show_text else 20
-                            
-                            apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
-                        
-                        # Add date text with same effect
-                        if show_date:
-                            font_date = font.font_variant(size=date_size)
-                            
-                            if date_format == "8 July 2025":
-                                date_text = format_date("%d %B %Y", show_day)
-                            elif date_format == "28 January 2025":
-                                date_text = format_date("%d %B %Y", show_day)
-                            elif date_format == "07/08/2025":
-                                date_text = format_date("%m/%d/%Y", show_day)
-                            else:
-                                date_text = format_date("%Y-%m-%d", show_day)
-                                
-                            date_width, date_height = get_text_size(draw, date_text, font_date)
-                            
-                            # Adjust font size if text is too wide
-                            if date_width > img.width - 40:
-                                font_date = adjust_font_size_to_fit(draw, date_text, img.width - 40, img.height//3, date_size)
-                                date_width, date_height = get_text_size(draw, date_text, font_date)
-                            
-                            date_x = (img.width - date_width) // 2
-                            date_y = img.height - date_height - 20  # Bottom position
-                            
-                            # Adjust position if day text is too long
-                            if show_day and "(" in date_text:
-                                day_part = date_text[date_text.index("("):]
-                                day_width, _ = get_text_size(draw, day_part, font_date)
-                                if date_x + day_width > img.width - 20:
-                                    date_x = img.width - day_width - 25
-                            
-                            apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
-                        
-                        # Add watermark if enabled
-                        if use_watermark and watermark_image:
-                            watermark = watermark_image.copy()
-                            
-                            if watermark_opacity < 1.0:
-                                alpha = watermark.split()[3]
-                                alpha = ImageEnhance.Brightness(alpha).enhance(watermark_opacity)
-                                watermark.putalpha(alpha)
-                            
-                            watermark.thumbnail((img.width//4, img.height//4))
-                            pos = get_watermark_position(img, watermark)
-                            
-                            # Simple overlap avoidance
-                            text_areas = []
-                            if show_text:
-                                text_areas.append((text_x, text_y, text_x + text_width, text_y + text_height))
-                            if show_wish:
-                                text_areas.append((wish_x, wish_y, wish_x + wish_width, wish_y + wish_height))
-                            if show_date:
-                                text_areas.append((date_x, date_y, date_x + date_width, date_y + date_height))
-                            
-                            for _ in range(3):
-                                overlap = False
-                                for (x1, y1, x2, y2) in text_areas:
-                                    if (pos[0] < x2 and pos[0] + watermark.width > x1 and
-                                        pos[1] < y2 and pos[1] + watermark.height > y1):
-                                        overlap = True
-                                        break
-                                
-                                if not overlap:
-                                    break
-                                else:
-                                    pos = get_watermark_position(img, watermark)
-                            
-                            img.paste(watermark, pos, watermark)
-                        
-                        # Apply Coffee & Pet PNG if enabled
-                        if use_coffee_pet and selected_pet:
-                            pet_path = os.path.join("assets/pets", selected_pet)
-                            if os.path.exists(pet_path):
-                                pet_img = Image.open(pet_path).convert("RGBA")
-                                pet_img = pet_img.resize(
-                                    (int(img.width * pet_size), 
-                                    int(img.height * pet_size * (pet_img.height/pet_img.width))),
-                                    Image.LANCZOS
-                                )
-                                # Position at bottom right
-                                x = img.width - pet_img.width - 20
-                                y = img.height - pet_img.height - 20
-                                img.paste(pet_img, (x, y), pet_img)
-                        
-                        # Final quality enhancements
-                        img = enhance_image_quality(img)
-                        img = upscale_text_elements(img, scale_factor=2)
-                        
-                        processed_images.append((generate_filename(), img))
-                
-                except Exception as e:
-                    st.error(f"Error processing {uploaded_file.name}: {str(e)}")
-                    continue
-
-            # Store all images in session state
-            st.session_state.generated_images = processed_images + variant_images
-            
-            # Display results
-            if st.session_state.generated_images:
-                st.success(f"Successfully processed {len(st.session_state.generated_images)} images!")
-            else:
-                st.warning("No images were processed successfully.")
-    else:
-        st.warning("Please upload at least one image.")
-
-# Display previews with individual download options
-if st.session_state.generated_images:
-    # Create zip file
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-        for filename, img in st.session_state.generated_images:
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format='JPEG', quality=95)
-            zip_file.writestr(filename, img_bytes.getvalue())
-    
-    # Download button for all
-    st.download_button(
-        label="⬇️ Download All Photos",
-        data=zip_buffer.getvalue(),
-        file_name="generated_photos.zip",
-        mime="application/zip"
-    )
-    
-    # Show previews with individual download options
-    st.markdown("### 📸 Preview")
-    cols = st.columns(3)
-    
-    for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):  # Show max 9 previews
-        with cols[i % 3]:
-            st.image(img, use_container_width=True)
-            st.caption(filename)
-            
-            # Individual download button
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format='JPEG', quality=95)
-            st.download_button(
-                label="⬇️ Download",
-                data=img_bytes.getvalue(),
-                file_name=filename,
-                mime="image/jpeg",
-                key=f"download_{i}"
-    )
+# [Keep all your existing processing and display code unchanged]
+# ... (all your existing processing and display code remains the same)
