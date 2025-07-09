@@ -67,14 +67,13 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# =================== IMPROVED UTILITY FUNCTIONS ===================
+# =================== UTILITY FUNCTIONS ===================
 def list_files(folder, exts):
     if not os.path.exists(folder):
         return []
     return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
 
 def get_random_font():
-    # List all font folders (font1, font2, etc.) inside assets/fonts
     fonts_dir = "assets/fonts"
     if not os.path.exists(fonts_dir):
         return ImageFont.load_default()
@@ -84,21 +83,15 @@ def get_random_font():
     if not font_folders:
         return ImageFont.load_default()
     
-    # Randomly select a font folder
     selected_folder = random.choice(font_folders)
     folder_path = os.path.join(fonts_dir, selected_folder)
-    
-    # List all font files in the selected folder
     font_files = list_files(folder_path, [".ttf", ".otf"])
     
     if not font_files:
         return ImageFont.load_default()
     
-    # Select a random font file from the folder
     font_path = os.path.join(folder_path, random.choice(font_files))
-    
     try:
-        # Use larger default size (100) for better visibility
         return ImageFont.truetype(font_path, 100)
     except:
         return ImageFont.load_default()
@@ -409,22 +402,6 @@ def create_variant(original_img, settings, text_effect=None):
     
     return img.convert("RGB")
 
-def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
-    font = None
-    size = initial_size
-    while size > 10:
-        try:
-            font = get_random_font()
-            font.size = size
-            text_width, text_height = get_text_size(draw, text, font)
-            if text_width <= max_width and text_height <= max_height:
-                break
-        except:
-            font = ImageFont.load_default()
-            break
-        size -= 2
-    return font
-
 # =================== MAIN APP ===================
 if 'generated_images' not in st.session_state:
     st.session_state.generated_images = []
@@ -587,7 +564,7 @@ if st.session_state.generated_images:
     
     for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):
         with cols[i % 3]:
-            st.image(img, use_column_width=True)
+            st.image(img, use_container_width=True)  # Fixed deprecated parameter
             st.caption(filename)
             
             img_bytes = io.BytesIO()
@@ -598,4 +575,4 @@ if st.session_state.generated_images:
                 file_name=filename,
                 mime="image/jpeg",
                 key=f"download_{i}"
-        )
+    )
