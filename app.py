@@ -67,7 +67,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# =================== UTILS ===================
+# =================== IMPROVED UTILITY FUNCTIONS ===================
 def list_files(folder, exts):
     if not os.path.exists(folder):
         return []
@@ -217,47 +217,72 @@ def upscale_text_elements(img, scale_factor=2):
     return img
 
 def analyze_image_for_text(img):
-    """Auto-analyze image for text placement"""
+    """Improved image analysis for better text placement and sizing"""
     img_np = np.array(img.convert('RGB'))
-    avg_color = np.mean(img_np, axis=(0,1))
-    text_color = (255, 255, 255) if avg_color.mean() < 128 else (0, 0, 0)
     
-    # Simple face detection to avoid text on faces
-    gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-    faces = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml').detectMultiScale(gray, 1.1, 4)
+    # 1. Better background color detection (using dominant color)
+    pixels = np.float32(img_np.reshape(-1, 3))
+    n_colors = 3
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 0.1)
+    _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    _, counts = np.unique(labels, return_counts=True)
+    dominant_color = palette[np.argmax(counts)]
     
-    if len(faces) > 0:
-        position = (img.width // 2, 50)  # Top if faces detected
-    else:
-        position = (img.width // 2, img.height // 3)  # Center otherwise
+    # Choose contrasting text color
+    brightness = np.dot(dominant_color, [0.299, 0.587, 0.114])
+    text_color = (0, 0, 0) if brightness > 127 else (255, 255, 255)
+    
+    # 2. Find empty space using saliency detection
+    saliency = cv2.saliency.StaticSaliencyFineGrained_create()
+    (success, saliency_map) = saliency.computeSaliency(img_np)
+    
+    # Find least salient region (most empty space)
+    min_val, _, min_loc, _ = cv2.minMaxLoc(saliency_map)
+    text_position = (min_loc[0], min_loc[1])
+    
+    # 3. Dynamic font sizing based on image dimensions and empty space
+    img_height, img_width = img_np.shape[:2]
+    base_size = min(img_width, img_height) // 5  # More reasonable base size
     
     return {
         'text_color': text_color,
-        'position': position,
-        'font_size': min(img.width // 10, img.height // 5)
+        'position': text_position,
+        'font_size': min(max(base_size, 40), 120)  # Limit between 40-120px
     }
 
-def draw_stacked_text(draw, text, position, font_size, color):
-    """Draw stacked text format"""
+def draw_stacked_text(draw, text, position, font_size, color, img_width):
+    """Improved stacked text drawing with better positioning"""
     words = text.split()
     if len(words) != 2:
         return False
     
     try:
-        font = ImageFont.truetype("assets/fonts/arial.ttf", font_size)
+        # Use a bold font for better visibility
+        font_path = os.path.join("assets/fonts", "arialbd.ttf")
+        font = ImageFont.truetype(font_path, font_size)
     except:
-        font = ImageFont.load_default()
+        try:
+            font = ImageFont.truetype("arial.ttf", font_size)
+        except:
+            font = ImageFont.load_default()
+            font.size = font_size
     
     x, y = position
+    
+    # Calculate word positions with better spacing
     word1_width = draw.textlength(words[0], font=font)
     word2_width = draw.textlength(words[1], font=font)
+    
+    # Ensure text stays within image bounds
+    max_x = img_width - max(word1_width, word2_width) - 20
+    x = min(x, max_x) if max_x > 20 else img_width // 2
     
     # Draw first word (Good)
     draw.text((x - word1_width//2, y - font_size//2), 
              words[0], font=font, fill=color)
     
-    # Draw second word (Morning)
-    draw.text((x - word2_width//2 + font_size//3, y + font_size//2), 
+    # Draw second word (Morning) with slight right offset
+    draw.text((x - word2_width//2 + font_size//4, y + font_size//2), 
              words[1], font=font, fill=color)
     
     return True
@@ -268,21 +293,35 @@ def create_variant(original_img, settings, text_effect=None):
     font = get_random_font()
     text_color = get_random_color()
     
-    # Add main text (using auto-analysis)
+    # Add main text with improved auto-placement
     if settings['show_text']:
         analysis = analyze_image_for_text(img)
+        
+        # Ensure minimum font size from settings
+        analysis['font_size'] = max(analysis['font_size'], settings.get('main_size', 60))
         
         # Try stacked text first
         if not draw_stacked_text(draw, settings['greeting_type'], 
                                analysis['position'], 
                                analysis['font_size'], 
-                               tuple(analysis['text_color'])):
-            # Fallback to normal text
-            font_main = font.font_variant(size=settings['main_size'])
+                               tuple(analysis['text_color']),
+                               img.width):
+            # Fallback to normal centered text
+            try:
+                font = ImageFont.truetype("assets/fonts/arialbd.ttf", analysis['font_size'])
+            except:
+                font = ImageFont.load_default()
+            
             text = settings['greeting_type']
-            text_width, _ = get_text_size(draw, text, font_main)
-            draw.text((analysis['position'][0] - text_width//2, analysis['position'][1]), 
-                     text, font=font_main, fill=tuple(analysis['text_color']))
+            text_width = draw.textlength(text, font=font)
+            x = analysis['position'][0] - text_width//2
+            y = analysis['position'][1]
+            
+            # Ensure text stays within image bounds
+            x = max(20, min(x, img.width - text_width - 20))
+            y = max(20, min(y, img.height - analysis['font_size'] - 20))
+            
+            draw.text((x, y), text, font=font, fill=tuple(analysis['text_color']))
     
     # Add wish text with same effect as main text
     if settings['show_wish']:
@@ -407,15 +446,15 @@ with st.sidebar:
     
     show_text = st.checkbox("Show Greeting", value=True)
     if show_text:
-        main_size = st.slider("Main Text Size", 10, 200, 80)
+        main_size = st.slider("Main Text Size", 40, 200, 80)  # Minimum size increased to 40
     
     show_wish = st.checkbox("Show Wish", value=True)
     if show_wish:
-        wish_size = st.slider("Wish Text Size", 10, 200, 50)
+        wish_size = st.slider("Wish Text Size", 20, 200, 50)
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
-        date_size = st.slider("Date Text Size", 10, 200, 30)
+        date_size = st.slider("Date Text Size", 15, 200, 30)
         date_format = st.selectbox("Date Format", 
                                  ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
                                  index=0)
@@ -481,7 +520,7 @@ if st.button("✨ Generate Photos", key="generate"):
             settings = {
                 'greeting_type': greeting_type,
                 'show_text': show_text,
-                'main_size': main_size if show_text else 80,
+                'main_size': main_size if show_text else 60,  # Default increased to 60
                 'show_wish': show_wish,
                 'wish_size': wish_size if show_wish else 50,
                 'show_date': show_date,
