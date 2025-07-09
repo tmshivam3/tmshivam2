@@ -51,15 +51,6 @@ st.markdown("""
     .variant-item {
         flex: 0 0 auto;
     }
-    .coffee-pet-section {
-        position: fixed;
-        bottom: 0;
-        right: 0;
-        background: #000;
-        padding: 10px;
-        border: 1px solid #ffff00;
-        z-index: 1000;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -428,20 +419,20 @@ with st.sidebar:
             overlay_files = random.sample(["1.png", "2.png", "3.png", "4.png", "5.png"], 2)
         
         overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
-
-# Coffee & Pet PNG Section (Fixed at bottom)
-coffee_pet_expander = st.expander("☕🐾 Coffee & Pet PNG", expanded=False)
-with coffee_pet_expander:
-    use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
-    if use_coffee_pet:
-        pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
         
-        # Get available pet PNGs
-        pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
-        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
-        
-        if selected_pet == "Random":
-            selected_pet = random.choice(pet_files) if pet_files else None
+        # Coffee & Pet PNG Section (Moved under overlay settings)
+        st.markdown("---")
+        st.markdown("### ☕🐾 Coffee & Pet PNG")
+        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
+        if use_coffee_pet:
+            pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
+            
+            # Get available pet PNGs from assets/pets folder
+            pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
+            selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
+            
+            if selected_pet == "Random":
+                selected_pet = random.choice(pet_files) if pet_files else None
 
 # Process button at the top
 if st.button("✨ Generate Photos", key="generate"):
@@ -467,9 +458,9 @@ if st.button("✨ Generate Photos", key="generate"):
                 'overlay_files': overlay_files if use_overlay else [],
                 'overlay_theme': overlay_theme if use_overlay else "",
                 'overlay_size': overlay_size if use_overlay else 0.5,
-                'use_coffee_pet': use_coffee_pet,
-                'pet_size': pet_size if use_coffee_pet else 0.3,
-                'selected_pet': selected_pet if use_coffee_pet else None
+                'use_coffee_pet': use_coffee_pet if 'use_coffee_pet' in locals() else False,
+                'pet_size': pet_size if 'pet_size' in locals() else 0.3,
+                'selected_pet': selected_pet if 'selected_pet' in locals() else None
             }
             
             for uploaded_file in uploaded_images:
@@ -489,12 +480,13 @@ if st.button("✨ Generate Photos", key="generate"):
                             img = apply_overlay(img, overlay_path, overlay_size)
                     
                     # Apply Coffee & Pet PNG if enabled
-                    if use_coffee_pet and selected_pet:
-                        pet_path = os.path.join("assets/pets", selected_pet)
+                    if settings['use_coffee_pet'] and settings['selected_pet']:
+                        pet_path = os.path.join("assets/pets", settings['selected_pet'])
                         if os.path.exists(pet_path):
                             pet_img = Image.open(pet_path).convert("RGBA")
                             pet_img = pet_img.resize(
-                                (int(img.width * pet_size), int(img.height * pet_size * (pet_img.height/pet_img.width))),
+                                (int(img.width * settings['pet_size']), 
+                                int(img.height * settings['pet_size'] * (pet_img.height/pet_img.width))),
                                 Image.LANCZOS
                             )
                             # Position at bottom right
@@ -639,7 +631,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 all_images = processed_images + variant_images
                 for i, (filename, img) in enumerate(all_images[:9]):  # Show max 9 previews
                     with cols[i % 3]:
-                        st.image(img, use_column_width=True)
+                        st.image(img, use_container_width=True)  # Changed from use_column_width to use_container_width
                         st.caption(filename)
             else:
                 st.warning("No images were processed successfully.")
