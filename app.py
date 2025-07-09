@@ -149,7 +149,6 @@ def format_date(date_format="%d %B %Y"):
 def apply_overlay(image, overlay_path, size=0.5):
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
-        # Upscale overlay to HD quality
         overlay = overlay.resize((1080, 1349), Image.LANCZOS)
         new_size = (int(image.width * size), int(image.height * size))
         overlay = overlay.resize(new_size, Image.LANCZOS)
@@ -165,13 +164,13 @@ def apply_overlay(image, overlay_path, size=0.5):
     return image
 
 def generate_filename(base_time, index=None):
-    # Add time gap between photos (2-4 minutes)
-    time_gap = random.randint(120, 240)  # 2-4 minutes in seconds
+    # Add random time gap between 2-4 minutes (120-240 seconds)
+    time_gap = random.randint(120, 240)
     new_time = base_time + datetime.timedelta(seconds=time_gap)
     
     if index is not None:
-        return f"Picsart_{new_time.strftime('%y-%m-%d_%H-%M-%S-%f')[:-3]}_v{index+1}.png"
-    return f"Picsart_{new_time.strftime('%y-%m-%d_%H-%M-%S-%f')[:-3]}.png"
+        return f"Picsart_{new_time.strftime('%y-%m-%d_%H-%M-%S')}_v{index+1}.png"
+    return f"Picsart_{new_time.strftime('%y-%m-%d_%H-%M-%S')}.png"
 
 def get_watermark_position(img, watermark):
     if random.random() < 0.7:
@@ -190,11 +189,10 @@ def create_variant(original_img, settings, base_time):
     font = get_random_font()
     text_color = get_random_color()
     
-    # Enhance text quality
-    font = ImageFont.truetype(font.path, font.size * 2)  # Double font size for HD
+    font = ImageFont.truetype(font.path, font.size * 2)  # HD scaling
     
     if settings['show_text']:
-        font_main = font.font_variant(size=settings['main_size']*2)  # HD scaling
+        font_main = font.font_variant(size=settings['main_size']*2)
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
@@ -204,7 +202,7 @@ def create_variant(original_img, settings, base_time):
         apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
     
     if settings['show_wish']:
-        font_wish = font.font_variant(size=settings['wish_size']*2)  # HD scaling
+        font_wish = font.font_variant(size=settings['wish_size']*2)
         wish_text = get_random_wish(settings['greeting_type'])
         wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
         
@@ -218,7 +216,7 @@ def create_variant(original_img, settings, base_time):
         apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color)
     
     if settings['show_date']:
-        font_date = font.font_variant(size=settings['date_size']*2)  # HD scaling
+        font_date = font.font_variant(size=settings['date_size']*2)
         
         if settings['date_format'] == "8 July 2025":
             date_text = format_date("%d %B %Y")
@@ -304,7 +302,19 @@ with st.sidebar:
         watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
         
         if watermark_option == "Pre-made":
-            # Include all available watermarks dynamically
+            # Create assets/logos directory if not exists
+            os.makedirs("assets/logos", exist_ok=True)
+            
+            # Add default watermarks if directory is empty
+            default_watermarks = ["Nature Vibes.png", "Think Tank TV.png", "Wishful Vibes.png"]
+            for wm in default_watermarks:
+                if not os.path.exists(f"assets/logos/{wm}"):
+                    try:
+                        # Create empty placeholder
+                        open(f"assets/logos/{wm}", 'wb').close()
+                    except:
+                        pass
+            
             available_watermarks = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
             if not available_watermarks:
                 st.warning("No watermarks found in assets/logos folder")
@@ -312,14 +322,17 @@ with st.sidebar:
                 selected_watermark = st.selectbox("Select Watermark", available_watermarks)
                 watermark_path = os.path.join("assets/logos", selected_watermark)
                 if os.path.exists(watermark_path):
-                    watermark_image = Image.open(watermark_path).convert("RGBA")
+                    try:
+                        watermark_image = Image.open(watermark_path).convert("RGBA")
+                    except:
+                        st.error(f"Could not load watermark: {selected_watermark}")
         else:
             uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
             if uploaded_watermark:
                 watermark_image = Image.open(uploaded_watermark).convert("RGBA")
-                # Save uploaded watermark for future use
                 os.makedirs("assets/logos", exist_ok=True)
                 watermark_image.save(f"assets/logos/{uploaded_watermark.name}")
+                st.success(f"Watermark {uploaded_watermark.name} saved!")
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
     
@@ -380,11 +393,9 @@ if st.button("✨ Generate Ultra HD Photos", key="generate"):
                 try:
                     img = Image.open(uploaded_file).convert("RGBA")
                     
-                    # Upscale original image to HD
+                    # HD processing
                     img = img.resize((1080, 1349), Image.LANCZOS)
                     img = smart_crop(img)
-                    
-                    # Ultra HD enhancement
                     img = ImageEnhance.Contrast(img).enhance(1.2)
                     img = ImageEnhance.Sharpness(img).enhance(2.0)
                     img = ImageEnhance.Color(img).enhance(1.1)
@@ -399,12 +410,14 @@ if st.button("✨ Generate Ultra HD Photos", key="generate"):
                         for i in range(3):
                             variant = create_variant(img, settings, base_time)
                             variants.append((generate_filename(base_time, i), variant))
+                            # Update base time for next variant
                             base_time += datetime.timedelta(seconds=random.randint(120, 240))
                         variant_images.extend(variants)
+                        # Update base time for next image
+                        base_time += datetime.timedelta(seconds=random.randint(120, 240))
                     else:
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
-                        # HD font scaling
                         font = ImageFont.truetype(font.path, font.size * 2)
                         text_color = get_random_color()
                         
@@ -482,6 +495,7 @@ if st.button("✨ Generate Ultra HD Photos", key="generate"):
                             img.paste(watermark, pos, watermark)
                         
                         processed_images.append((generate_filename(base_time), img.convert("RGB")))
+                        # Update base time for next image
                         base_time += datetime.timedelta(seconds=random.randint(120, 240))
                 
                 except Exception as e:
@@ -570,4 +584,4 @@ elif 'variant_images' in st.session_state and st.session_state.variant_images:
         data=zip_buffer.getvalue(),
         file_name="Ultra_HD_Variants.zip",
         mime="application/zip"
-                       )
+        )
