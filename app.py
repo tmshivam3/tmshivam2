@@ -106,16 +106,34 @@ def get_random_color():
     ]
     return random.choice(colors)
 
-def apply_text_effects(draw, position, text, font, color, effect_type="both"):
-    if effect_type in ["shadow", "both"]:
+def get_random_text_effect():
+    # 40% chance of normal text, 60% chance of effect
+    if random.random() < 0.4:
+        return "none"
+    else:
+        return random.choice(["shadow", "outline", "both"])
+
+def apply_text_effects(draw, position, text, font, color):
+    effect = get_random_text_effect()
+    
+    if effect == "shadow":
         shadow_offset = 3
         draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
                  text, font=font, fill=(0,0,0,128))
-    if effect_type in ["outline", "both"]:
+    elif effect == "outline":
         outline_size = 2
         for x in range(-outline_size, outline_size+1):
             for y in range(-outline_size, outline_size+1):
                 if x != 0 or y != 0:  # Skip the center position
+                    draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
+    elif effect == "both":
+        shadow_offset = 3
+        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
+                 text, font=font, fill=(0,0,0,128))
+        outline_size = 2
+        for x in range(-outline_size, outline_size+1):
+            for y in range(-outline_size, outline_size+1):
+                if x != 0 or y != 0:
                     draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
     
     draw.text(position, text, font=font, fill=color)
@@ -145,6 +163,24 @@ def generate_filename():
     now = datetime.datetime.now()
     return f"Picsart_{now.strftime('%d-%m-%y_%H-%M-%S-%f')[:-3]}.jpg"
 
+def get_watermark_position(img, watermark):
+    # 70% chance to be at bottom, 30% chance to be random
+    if random.random() < 0.7:
+        # Bottom position (random left/right)
+        x = random.choice([
+            20,  # left
+            img.width - watermark.width - 20  # right
+        ])
+        y = img.height - watermark.height - 20
+    else:
+        # Random position (avoid center)
+        max_x = img.width - watermark.width - 20
+        max_y = img.height - watermark.height - 20
+        x = random.randint(20, max_x)
+        y = random.randint(20, max_y)
+    
+    return (x, y)
+
 # =================== MAIN APP ===================
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -159,17 +195,14 @@ with st.sidebar:
     show_text = st.checkbox("Show Greeting", value=True)
     if show_text:
         main_size = st.slider("Main Text Size", 10, 200, 80)  # Default 80, range 10-200
-        main_effect = st.selectbox("Main Text Effect", ["shadow", "outline", "both"])
     
     show_wish = st.checkbox("Show Wish", value=True)
     if show_wish:
         wish_size = st.slider("Wish Text Size", 10, 200, 50)  # Default 50, range 10-200
-        wish_effect = st.selectbox("Wish Text Effect", ["shadow", "outline", "both", "none"])
     
     show_date = st.checkbox("Show Date", value=False)  # Default unchecked
     if show_date:
         date_size = st.slider("Date Text Size", 10, 200, 30)  # Range 10-200
-        date_effect = st.selectbox("Date Text Effect", ["shadow", "outline", "both"])
         date_format = st.selectbox("Date Format", 
                                  ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
                                  index=0)
@@ -179,16 +212,23 @@ with st.sidebar:
     watermark_image = None
     
     if use_watermark:
-        available_watermarks = [
-            "Think Tank TV.png",
-            "Wishful Vibes.png",
-            "Travellar Bharat.png",
-            "Good Vibes.png"
-        ]
-        selected_watermark = st.selectbox("Select Watermark", available_watermarks)
-        watermark_path = os.path.join("assets/logos", selected_watermark)
-        if os.path.exists(watermark_path):
-            watermark_image = Image.open(watermark_path).convert("RGBA")
+        watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
+        
+        if watermark_option == "Pre-made":
+            available_watermarks = [
+                "Think Tank TV.png",
+                "Wishful Vibes.png",
+                "Travellar Bharat.png",
+                "Good Vibes.png"
+            ]
+            selected_watermark = st.selectbox("Select Watermark", available_watermarks)
+            watermark_path = os.path.join("assets/logos", selected_watermark)
+            if os.path.exists(watermark_path):
+                watermark_image = Image.open(watermark_path).convert("RGBA")
+        else:
+            uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
+            if uploaded_watermark:
+                watermark_image = Image.open(uploaded_watermark).convert("RGBA")
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
     
@@ -250,7 +290,7 @@ if st.button("✨ Generate Photos", key="generate"):
                         text_x = (img.width - text_width) // 2
                         text_y = 20  # Top position
                         
-                        apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, main_effect)
+                        apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
                     
                     # Add wish text
                     if show_wish:
@@ -262,7 +302,7 @@ if st.button("✨ Generate Photos", key="generate"):
                         wish_x = (img.width - wish_width) // 2
                         wish_y = text_y + main_size + 20 if show_text else 20
                         
-                        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, wish_effect)
+                        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color)
                     
                     # Add date text
                     if show_date:
@@ -283,9 +323,9 @@ if st.button("✨ Generate Photos", key="generate"):
                         date_x = (img.width - date_width) // 2
                         date_y = img.height - date_height - 20  # Bottom position
                         
-                        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, date_effect)
+                        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
                     
-                    # Add watermark if enabled (top position)
+                    # Add watermark if enabled
                     if use_watermark and watermark_image:
                         watermark = watermark_image.copy()
                         
@@ -298,8 +338,31 @@ if st.button("✨ Generate Photos", key="generate"):
                         # Resize proportionally
                         watermark.thumbnail((img.width//4, img.height//4))
                         
-                        # Position at top center
-                        pos = ((img.width - watermark.width) // 2, 20)
+                        # Get position (70% bottom, 30% random)
+                        pos = get_watermark_position(img, watermark)
+                        
+                        # Check for text overlap and adjust if needed
+                        text_areas = []
+                        if show_text:
+                            text_areas.append((text_x, text_y, text_x + text_width, text_y + text_height))
+                        if show_wish:
+                            text_areas.append((wish_x, wish_y, wish_x + wish_width, wish_y + wish_height))
+                        if show_date:
+                            text_areas.append((date_x, date_y, date_x + date_width, date_y + date_height))
+                        
+                        # Simple overlap avoidance
+                        for _ in range(3):  # Try 3 times to find non-overlapping position
+                            overlap = False
+                            for (x1, y1, x2, y2) in text_areas:
+                                if (pos[0] < x2 and pos[0] + watermark.width > x1 and
+                                    pos[1] < y2 and pos[1] + watermark.height > y1):
+                                    overlap = True
+                                    break
+                            
+                            if not overlap:
+                                break
+                            else:
+                                pos = get_watermark_position(img, watermark)
                         
                         img.paste(watermark, pos, watermark)
                     
@@ -340,4 +403,4 @@ if 'processed_images' in st.session_state and st.session_state.processed_images:
         data=zip_buffer.getvalue(),
         file_name="Generated_Photos.zip",
         mime="application/zip"
-    )
+        )
