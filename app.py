@@ -79,7 +79,7 @@ def get_random_font():
         return ImageFont.load_default()
     font_path = os.path.join("assets/fonts", random.choice(fonts))
     try:
-        return ImageFont.truetype(font_path, 60)
+        return ImageFont.truetype(font_path, 80)  # Default size 80
     except:
         return ImageFont.load_default()
 
@@ -92,31 +92,31 @@ def get_random_wish(greeting_type):
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
-def get_main_color():
-    # Consistent bright colors that work well with outline/shadow
+def get_random_color():
+    # Bright colors that work well with effects
     colors = [
         (255, 255, 0),   # Yellow
         (255, 255, 255), # White
         (0, 255, 255),   # Cyan
         (255, 0, 255),   # Magenta
-        (255, 165, 0),    # Orange
+        (255, 165, 0),   # Orange
+        (0, 255, 0),     # Green
+        (255, 0, 0),     # Red
+        (0, 0, 255)      # Blue
     ]
     return random.choice(colors)
 
-def apply_text_effects(draw, position, text, font, color, effect_type="all"):
-    effects = ["shadow", "outline"] if effect_type == "all" else [effect_type]
-    
-    for effect in effects:
-        if effect == "shadow":
-            shadow_offset = 3
-            draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
-                     text, font=font, fill=(0,0,0,128))
-        elif effect == "outline":
-            outline_size = 2
-            for x in range(-outline_size, outline_size+1):
-                for y in range(-outline_size, outline_size+1):
-                    if x != 0 or y != 0:  # Skip the center position
-                        draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
+def apply_text_effects(draw, position, text, font, color, effect_type="both"):
+    if effect_type in ["shadow", "both"]:
+        shadow_offset = 3
+        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
+                 text, font=font, fill=(0,0,0,128))
+    if effect_type in ["outline", "both"]:
+        outline_size = 2
+        for x in range(-outline_size, outline_size+1):
+            for y in range(-outline_size, outline_size+1):
+                if x != 0 or y != 0:  # Skip the center position
+                    draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
     
     draw.text(position, text, font=font, fill=color)
 
@@ -158,18 +158,17 @@ with st.sidebar:
     # Text settings
     show_text = st.checkbox("Show Greeting", value=True)
     if show_text:
-        main_size = st.slider("Main Text Size", 20, 100, 60)
+        main_size = st.slider("Main Text Size", 10, 200, 80)  # Default 80, range 10-200
         main_effect = st.selectbox("Main Text Effect", ["shadow", "outline", "both"])
-        main_color = st.color_picker("Main Text Color", "#FFFF00")
     
     show_wish = st.checkbox("Show Wish", value=True)
     if show_wish:
-        wish_size = st.slider("Wish Text Size", 10, 60, 30)
+        wish_size = st.slider("Wish Text Size", 10, 200, 50)  # Default 50, range 10-200
         wish_effect = st.selectbox("Wish Text Effect", ["shadow", "outline", "both", "none"])
     
-    show_date = st.checkbox("Show Date", value=True)
+    show_date = st.checkbox("Show Date", value=False)  # Default unchecked
     if show_date:
-        date_size = st.slider("Date Text Size", 10, 60, 30)
+        date_size = st.slider("Date Text Size", 10, 200, 30)  # Range 10-200
         date_effect = st.selectbox("Date Text Effect", ["shadow", "outline", "both"])
         date_format = st.selectbox("Date Format", 
                                  ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
@@ -238,8 +237,8 @@ if st.button("✨ Generate Photos", key="generate"):
                     draw = ImageDraw.Draw(img)
                     font = get_random_font()
                     
-                    # Convert hex color to RGB
-                    main_rgb = tuple(int(main_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+                    # Get random color for this image (same for all text elements)
+                    text_color = get_random_color()
                     
                     # Add main text
                     if show_text:
@@ -247,11 +246,11 @@ if st.button("✨ Generate Photos", key="generate"):
                         text = greeting_type
                         text_width, text_height = get_text_size(draw, text, font_main)
                         
-                        # Smart positioning
-                        text_x = random.randint(20, img.width - text_width - 20)
-                        text_y = random.randint(20, img.height - text_height - 50)
+                        # Smart positioning (top center)
+                        text_x = (img.width - text_width) // 2
+                        text_y = 20  # Top position
                         
-                        apply_text_effects(draw, (text_x, text_y), text, font_main, main_rgb, main_effect)
+                        apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, main_effect)
                     
                     # Add wish text
                     if show_wish:
@@ -259,11 +258,11 @@ if st.button("✨ Generate Photos", key="generate"):
                         wish_text = get_random_wish(greeting_type)
                         wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                         
-                        wish_x = random.randint(20, img.width - wish_width - 20)
-                        wish_y = text_y + main_size + 10 if show_text else random.randint(20, img.height - wish_height - 20)
+                        # Position below main text
+                        wish_x = (img.width - wish_width) // 2
+                        wish_y = text_y + main_size + 20 if show_text else 20
                         
-                        wish_color = get_main_color()
-                        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, wish_color, wish_effect)
+                        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, wish_effect)
                     
                     # Add date text
                     if show_date:
@@ -281,13 +280,12 @@ if st.button("✨ Generate Photos", key="generate"):
                             
                         date_width, date_height = get_text_size(draw, date_text, font_date)
                         
-                        date_x = random.randint(20, img.width - date_width - 20)
+                        date_x = (img.width - date_width) // 2
                         date_y = img.height - date_height - 20  # Bottom position
                         
-                        date_color = (255, 255, 255)  # White for date
-                        apply_text_effects(draw, (date_x, date_y), date_text, font_date, date_color, date_effect)
+                        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, date_effect)
                     
-                    # Add watermark if enabled
+                    # Add watermark if enabled (top position)
                     if use_watermark and watermark_image:
                         watermark = watermark_image.copy()
                         
@@ -300,14 +298,8 @@ if st.button("✨ Generate Photos", key="generate"):
                         # Resize proportionally
                         watermark.thumbnail((img.width//4, img.height//4))
                         
-                        # Position in one of the corners
-                        positions = [
-                            (20, 20),  # top-left
-                            (img.width - watermark.width - 20, 20),  # top-right
-                            (20, img.height - watermark.height - 20),  # bottom-left
-                            (img.width - watermark.width - 20, img.height - watermark.height - 20)  # bottom-right
-                        ]
-                        pos = random.choice(positions)
+                        # Position at top center
+                        pos = ((img.width - watermark.width) // 2, 20)
                         
                         img.paste(watermark, pos, watermark)
                     
@@ -348,4 +340,4 @@ if 'processed_images' in st.session_state and st.session_state.processed_images:
         data=zip_buffer.getvalue(),
         file_name="Generated_Photos.zip",
         mime="application/zip"
-        )
+    )
