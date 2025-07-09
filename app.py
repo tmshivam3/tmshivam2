@@ -51,6 +51,11 @@ st.markdown("""
     .variant-item {
         flex: 0 0 auto;
     }
+    .download-btn {
+        display: block;
+        margin-top: 5px;
+        text-align: center;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -170,10 +175,10 @@ def apply_overlay(image, overlay_path, size=0.5):
         overlay = overlay.resize(new_size)
         
         # Random position but within bounds
-        max_x = image.width - overlay.width - 20
-        max_y = image.height - overlay.height - 20
-        x = random.randint(20, max_x)
-        y = random.randint(20, max_y)
+        max_x = max(20, image.width - overlay.width - 20)  # Ensure max_x >= 20
+        max_y = max(20, image.height - overlay.height - 20)  # Ensure max_y >= 20
+        x = random.randint(20, max_x) if max_x > 20 else 20
+        y = random.randint(20, max_y) if max_y > 20 else 20
         
         image.paste(overlay, (x, y), overlay)
     except Exception as e:
@@ -193,15 +198,15 @@ def get_watermark_position(img, watermark):
         # Bottom position (random left/right)
         x = random.choice([
             20,  # left
-            img.width - watermark.width - 20  # right
+            max(20, img.width - watermark.width - 20)  # right (ensure >= 20)
         ])
-        y = img.height - watermark.height - 20
+        y = max(20, img.height - watermark.height - 20)  # ensure >= 20
     else:
         # Random position (avoid center)
-        max_x = img.width - watermark.width - 20
-        max_y = img.height - watermark.height - 20
-        x = random.randint(20, max_x)
-        y = random.randint(20, max_y)
+        max_x = max(20, img.width - watermark.width - 20)  # ensure >= 20
+        max_y = max(20, img.height - watermark.height - 20)  # ensure >= 20
+        x = random.randint(20, max_x) if max_x > 20 else 20
+        y = random.randint(20, max_y) if max_y > 20 else 20
     
     return (x, y)
 
@@ -249,9 +254,11 @@ def create_variant(original_img, settings):
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
-        # Varied positioning
-        text_x = random.randint(20, img.width - text_width - 20)
-        text_y = random.randint(20, img.height // 3)
+        # Varied positioning with bounds checking
+        max_text_x = max(20, img.width - text_width - 20)
+        text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
+        max_text_y = max(20, img.height // 3)
+        text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
         apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
     
@@ -263,11 +270,14 @@ def create_variant(original_img, settings):
         
         # Position relative to main text or random
         if settings['show_text']:
-            wish_x = random.randint(20, img.width - wish_width - 20)
+            max_wish_x = max(20, img.width - wish_width - 20)
+            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
             wish_y = text_y + settings['main_size'] + random.randint(10, 30)
         else:
-            wish_x = random.randint(20, img.width - wish_width - 20)
-            wish_y = random.randint(20, img.height // 2)
+            max_wish_x = max(20, img.width - wish_width - 20)
+            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
+            max_wish_y = max(20, img.height // 2)
+            wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
         
         apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color)
     
@@ -287,8 +297,9 @@ def create_variant(original_img, settings):
             
         date_width, date_height = get_text_size(draw, date_text, font_date)
         
-        date_x = random.randint(20, img.width - date_width - 20)
-        date_y = img.height - date_height - 20  # Bottom position
+        max_date_x = max(20, img.width - date_width - 20)
+        date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
+        date_y = max(20, img.height - date_height - 20)  # Bottom position
         
         # Ensure day text doesn't overlap
         if settings['show_day'] and "(" in date_text:
@@ -338,6 +349,21 @@ def create_variant(original_img, settings):
         
         img.paste(watermark, pos, watermark)
     
+    # Apply Coffee & Pet PNG if enabled
+    if settings['use_coffee_pet'] and settings['selected_pet']:
+        pet_path = os.path.join("assets/pets", settings['selected_pet'])
+        if os.path.exists(pet_path):
+            pet_img = Image.open(pet_path).convert("RGBA")
+            pet_img = pet_img.resize(
+                (int(img.width * settings['pet_size']), 
+                int(img.height * settings['pet_size'] * (pet_img.height/pet_img.width))),
+                Image.LANCZOS
+            )
+            # Position at bottom right
+            x = img.width - pet_img.width - 20
+            y = img.height - pet_img.height - 20
+            img.paste(pet_img, (x, y), pet_img)
+    
     # Apply quality enhancements
     img = enhance_image_quality(img)
     
@@ -377,7 +403,7 @@ with st.sidebar:
         show_day = st.checkbox("Show Day", value=False)  # Default unchecked
     
     # Watermark settings
-    use_watermark = st.checkbox("Add Watermark", value=False)
+    use_watermark = st.checkbox("Add Watermark", value=True)  # Default checked now
     watermark_image = None
     
     if use_watermark:
@@ -386,11 +412,12 @@ with st.sidebar:
         if watermark_option == "Pre-made":
             available_watermarks = [
                 "Think Tank TV.png",
-                "Wishful Vibes.png",
+                "Wishful Vibes.png",  # This will be selected by default
                 "Travellar Bharat.png",
-                "Good Vibes.png"
+                "Good Vibes.png",
+                "naturevibes.png"  # Added new logo
             ]
-            selected_watermark = st.selectbox("Select Watermark", available_watermarks)
+            selected_watermark = st.selectbox("Select Watermark", available_watermarks, index=1)  # Wishful Vibes selected by default
             watermark_path = os.path.join("assets/logos", selected_watermark)
             if os.path.exists(watermark_path):
                 watermark_image = Image.open(watermark_path).convert("RGBA")
@@ -419,20 +446,20 @@ with st.sidebar:
             overlay_files = random.sample(["1.png", "2.png", "3.png", "4.png", "5.png"], 2)
         
         overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
+    
+    # Coffee & Pet PNG Section
+    st.markdown("---")
+    st.markdown("### ☕🐾 Coffee & Pet PNG")
+    use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
+    if use_coffee_pet:
+        pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
         
-        # Coffee & Pet PNG Section (Moved under overlay settings)
-        st.markdown("---")
-        st.markdown("### ☕🐾 Coffee & Pet PNG")
-        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
-        if use_coffee_pet:
-            pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
-            
-            # Get available pet PNGs from assets/pets folder
-            pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
-            selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
-            
-            if selected_pet == "Random":
-                selected_pet = random.choice(pet_files) if pet_files else None
+        # Get available pet PNGs from assets/pets folder
+        pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
+        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
+        
+        if selected_pet == "Random":
+            selected_pet = random.choice(pet_files) if pet_files else None
 
 # Process button at the top
 if st.button("✨ Generate Photos", key="generate"):
@@ -458,9 +485,9 @@ if st.button("✨ Generate Photos", key="generate"):
                 'overlay_files': overlay_files if use_overlay else [],
                 'overlay_theme': overlay_theme if use_overlay else "",
                 'overlay_size': overlay_size if use_overlay else 0.5,
-                'use_coffee_pet': use_coffee_pet if 'use_coffee_pet' in locals() else False,
-                'pet_size': pet_size if 'pet_size' in locals() else 0.3,
-                'selected_pet': selected_pet if 'selected_pet' in locals() else None
+                'use_coffee_pet': use_coffee_pet,
+                'pet_size': pet_size if use_coffee_pet else 0.3,
+                'selected_pet': selected_pet if use_coffee_pet else None
             }
             
             for uploaded_file in uploaded_images:
@@ -478,21 +505,6 @@ if st.button("✨ Generate Photos", key="generate"):
                         for overlay_file in overlay_files:
                             overlay_path = os.path.join("assets/overlays", overlay_theme, overlay_file)
                             img = apply_overlay(img, overlay_path, overlay_size)
-                    
-                    # Apply Coffee & Pet PNG if enabled
-                    if settings['use_coffee_pet'] and settings['selected_pet']:
-                        pet_path = os.path.join("assets/pets", settings['selected_pet'])
-                        if os.path.exists(pet_path):
-                            pet_img = Image.open(pet_path).convert("RGBA")
-                            pet_img = pet_img.resize(
-                                (int(img.width * settings['pet_size']), 
-                                int(img.height * settings['pet_size'] * (pet_img.height/pet_img.width))),
-                                Image.LANCZOS
-                            )
-                            # Position at bottom right
-                            x = img.width - pet_img.width - 20
-                            y = img.height - pet_img.height - 20
-                            img.paste(pet_img, (x, y), pet_img)
                     
                     if generate_variants:
                         # Create 3 variants
@@ -592,6 +604,21 @@ if st.button("✨ Generate Photos", key="generate"):
                             
                             img.paste(watermark, pos, watermark)
                         
+                        # Apply Coffee & Pet PNG if enabled
+                        if use_coffee_pet and selected_pet:
+                            pet_path = os.path.join("assets/pets", selected_pet)
+                            if os.path.exists(pet_path):
+                                pet_img = Image.open(pet_path).convert("RGBA")
+                                pet_img = pet_img.resize(
+                                    (int(img.width * pet_size), 
+                                    int(img.height * pet_size * (pet_img.height/pet_img.width))),
+                                    Image.LANCZOS
+                                )
+                                # Position at bottom right
+                                x = img.width - pet_img.width - 20
+                                y = img.height - pet_img.height - 20
+                                img.paste(pet_img, (x, y), pet_img)
+                        
                         # Final quality enhancements
                         img = enhance_image_quality(img)
                         img = upscale_text_elements(img, scale_factor=2)
@@ -616,7 +643,7 @@ if st.button("✨ Generate Photos", key="generate"):
                             img.save(img_bytes, format='JPEG', quality=95)
                             zip_file.writestr(filename, img_bytes.getvalue())
                     
-                    # Download button
+                    # Download button for all
                     st.download_button(
                         label="⬇️ Download All Photos",
                         data=zip_buffer.getvalue(),
@@ -624,15 +651,26 @@ if st.button("✨ Generate Photos", key="generate"):
                         mime="application/zip"
                     )
                 
-                # Show previews
+                # Show previews with individual download options
                 st.markdown("### 📸 Preview")
                 cols = st.columns(3)
                 
                 all_images = processed_images + variant_images
                 for i, (filename, img) in enumerate(all_images[:9]):  # Show max 9 previews
                     with cols[i % 3]:
-                        st.image(img, use_container_width=True)  # Changed from use_column_width to use_container_width
+                        st.image(img, use_container_width=True)
                         st.caption(filename)
+                        
+                        # Individual download button
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format='JPEG', quality=95)
+                        st.download_button(
+                            label="⬇️ Download",
+                            data=img_bytes.getvalue(),
+                            file_name=filename,
+                            mime="image/jpeg",
+                            key=f"download_{i}"
+                        )
             else:
                 st.warning("No images were processed successfully.")
     else:
