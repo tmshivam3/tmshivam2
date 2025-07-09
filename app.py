@@ -94,7 +94,7 @@ def get_random_font():
         return ImageFont.load_default()
     font_path = os.path.join("assets/fonts", random.choice(fonts))
     try:
-        return ImageFont.truetype(font_path, 80)
+        return ImageFont.truetype(font_path, 100)  # Increased default size from 80 to 100
     except:
         return ImageFont.load_default()
 
@@ -126,20 +126,20 @@ def apply_text_effects(draw, position, text, font, color, effect=None):
         effect = get_random_text_effect()
     
     if effect == "shadow":
-        shadow_offset = 3
+        shadow_offset = 5  # Increased from 3 to 5 for better visibility
         draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
                  text, font=font, fill=(0,0,0,128))
     elif effect == "outline":
-        outline_size = 2
+        outline_size = 3  # Increased from 2 to 3 for better visibility
         for x in range(-outline_size, outline_size+1):
             for y in range(-outline_size, outline_size+1):
                 if x != 0 or y != 0:
                     draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
     elif effect == "both":
-        shadow_offset = 3
+        shadow_offset = 5  # Increased from 3 to 5
         draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
                  text, font=font, fill=(0,0,0,128))
-        outline_size = 2
+        outline_size = 3  # Increased from 2 to 3
         for x in range(-outline_size, outline_size+1):
             for y in range(-outline_size, outline_size+1):
                 if x != 0 or y != 0:
@@ -220,7 +220,7 @@ def analyze_image_for_text(img):
     """Improved image analysis for better text placement and sizing"""
     img_np = np.array(img.convert('RGB'))
     
-    # 1. Better background color detection (using dominant color)
+    # Get dominant color
     pixels = np.float32(img_np.reshape(-1, 3))
     n_colors = 3
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 0.1)
@@ -232,40 +232,35 @@ def analyze_image_for_text(img):
     brightness = np.dot(dominant_color, [0.299, 0.587, 0.114])
     text_color = (0, 0, 0) if brightness > 127 else (255, 255, 255)
     
-    # 2. Find empty space using saliency detection
-    saliency = cv2.saliency.StaticSaliencyFineGrained_create()
-    (success, saliency_map) = saliency.computeSaliency(img_np)
+    # Use centered position instead of saliency detection
+    text_position = (img.width // 2, img.height // 3)  # Centered horizontally, 1/3 from top
     
-    # Find least salient region (most empty space)
-    min_val, _, min_loc, _ = cv2.minMaxLoc(saliency_map)
-    text_position = (min_loc[0], min_loc[1])
-    
-    # 3. Dynamic font sizing based on image dimensions and empty space
+    # Dynamic font sizing - larger than before
     img_height, img_width = img_np.shape[:2]
-    base_size = min(img_width, img_height) // 5  # More reasonable base size
+    base_size = min(img_width, img_height) // 3  # Increased from //5 to //3
     
     return {
         'text_color': text_color,
         'position': text_position,
-        'font_size': min(max(base_size, 40), 120)  # Limit between 40-120px
+        'font_size': min(max(base_size, 80), 150)  # Increased range from 40-120 to 80-150
     }
 
 def draw_stacked_text(draw, text, position, font_size, color, img_width):
-    """Improved stacked text drawing with better positioning"""
+    """Improved stacked text drawing with better positioning and larger size"""
     words = text.split()
     if len(words) != 2:
         return False
     
     try:
-        # Use a bold font for better visibility
+        # Use a bold font for better visibility with larger size
         font_path = os.path.join("assets/fonts", "arialbd.ttf")
-        font = ImageFont.truetype(font_path, font_size)
+        font = ImageFont.truetype(font_path, int(font_size * 1.2))  # Increased size multiplier
     except:
         try:
-            font = ImageFont.truetype("arial.ttf", font_size)
+            font = ImageFont.truetype("arial.ttf", int(font_size * 1.2))
         except:
             font = ImageFont.load_default()
-            font.size = font_size
+            font.size = int(font_size * 1.2)
     
     x, y = position
     
@@ -298,7 +293,7 @@ def create_variant(original_img, settings, text_effect=None):
         analysis = analyze_image_for_text(img)
         
         # Ensure minimum font size from settings
-        analysis['font_size'] = max(analysis['font_size'], settings.get('main_size', 60))
+        analysis['font_size'] = max(analysis['font_size'], settings.get('main_size', 100))  # Increased from 60 to 100
         
         # Try stacked text first
         if not draw_stacked_text(draw, settings['greeting_type'], 
@@ -332,7 +327,7 @@ def create_variant(original_img, settings, text_effect=None):
         if settings['show_text']:
             max_wish_x = max(20, img.width - wish_width - 20)
             wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            wish_y = analysis['position'][1] + analysis['font_size'] + 20
+            wish_y = analysis['position'][1] + analysis['font_size'] + 30  # Increased spacing from 20 to 30
         else:
             max_wish_x = max(20, img.width - wish_width - 20)
             wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
@@ -358,7 +353,7 @@ def create_variant(original_img, settings, text_effect=None):
         
         max_date_x = max(20, img.width - date_width - 20)
         date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
-        date_y = max(20, img.height - date_height - 20)
+        date_y = max(20, img.height - date_height - 30)  # Increased from 20 to 30 for better spacing
         
         if settings['show_day'] and "(" in date_text:
             day_part = date_text[date_text.index("("):]
@@ -446,15 +441,15 @@ with st.sidebar:
     
     show_text = st.checkbox("Show Greeting", value=True)
     if show_text:
-        main_size = st.slider("Main Text Size", 40, 200, 80)  # Minimum size increased to 40
+        main_size = st.slider("Main Text Size", 60, 200, 120)  # Increased default from 40-200-80 to 60-200-120
     
     show_wish = st.checkbox("Show Wish", value=True)
     if show_wish:
-        wish_size = st.slider("Wish Text Size", 20, 200, 50)
+        wish_size = st.slider("Wish Text Size", 40, 200, 80)  # Increased default from 20-200-50 to 40-200-80
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
-        date_size = st.slider("Date Text Size", 15, 200, 30)
+        date_size = st.slider("Date Text Size", 30, 200, 50)  # Increased default from 15-200-30 to 30-200-50
         date_format = st.selectbox("Date Format", 
                                  ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
                                  index=0)
@@ -520,12 +515,12 @@ if st.button("✨ Generate Photos", key="generate"):
             settings = {
                 'greeting_type': greeting_type,
                 'show_text': show_text,
-                'main_size': main_size if show_text else 60,  # Default increased to 60
+                'main_size': main_size if show_text else 100,  # Increased default from 60 to 100
                 'show_wish': show_wish,
-                'wish_size': wish_size if show_wish else 50,
+                'wish_size': wish_size if show_wish else 80,  # Increased default from 50 to 80
                 'show_date': show_date,
                 'show_day': show_day if show_date else False,
-                'date_size': date_size if show_date else 30,
+                'date_size': date_size if show_date else 50,  # Increased default from 30 to 50
                 'date_format': date_format if show_date else "8 July 2025",
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
@@ -594,7 +589,7 @@ if st.session_state.generated_images:
     
     for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):
         with cols[i % 3]:
-            st.image(img, use_container_width=True)
+            st.image(img, use_column_width=True)
             st.caption(filename)
             
             img_bytes = io.BytesIO()
