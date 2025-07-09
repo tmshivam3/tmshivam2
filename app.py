@@ -54,12 +54,11 @@ st.markdown("""
     .coffee-pet-section {
         position: fixed;
         bottom: 0;
-        left: 0;
         right: 0;
-        background-color: #000000;
+        background: #000;
         padding: 10px;
-        border-top: 1px solid #ffff00;
-        z-index: 100;
+        border: 1px solid #ffff00;
+        z-index: 1000;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -157,20 +156,21 @@ def apply_text_effects(draw, position, text, font, color):
     
     draw.text(position, text, font=font, fill=color)
 
-def format_date(date_format="%d %B %Y", include_day=False):
+def format_date(date_format="%d %B %Y", show_day=False):
     today = datetime.datetime.now()
+    formatted_date = today.strftime(date_format)
     
-    # Check if we're within 4-5 hours of next day (for "Advance" feature)
-    next_day = today + datetime.timedelta(days=1)
-    time_to_next_day = (next_day.replace(hour=0, minute=0, second=0) - today.replace(hour=0, minute=0, second=0)
-    show_advance_day = time_to_next_day.total_seconds() <= 5 * 3600  # 5 hours
+    if show_day:
+        # Check if within 4-5 hours of next day (19:00-23:59)
+        if today.hour >= 19:
+            next_day = today + datetime.timedelta(days=1)
+            day_name = next_day.strftime("%A")
+            formatted_date += f" (Advance {day_name})"
+        else:
+            day_name = today.strftime("%A")
+            formatted_date += f" ({day_name})"
     
-    if include_day:
-        day_format = "%A"  # Full weekday name
-        if show_advance_day:
-            return today.strftime(date_format), f"Advance {next_day.strftime(day_format)}"
-        return today.strftime(date_format), today.strftime(day_format)
-    return today.strftime(date_format)
+    return formatted_date
 
 def apply_overlay(image, overlay_path, size=0.5):
     try:
@@ -189,14 +189,11 @@ def apply_overlay(image, overlay_path, size=0.5):
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-def generate_filename(index=None):
+def generate_filename():
     now = datetime.datetime.now()
-    # Generate future time (current time + 2-10 minutes)
-    future_minutes = random.randint(2, 10)
+    # Use future time (current minute + random 1-10 minutes)
+    future_minutes = random.randint(1, 10)
     future_time = now + datetime.timedelta(minutes=future_minutes)
-    
-    if index is not None:
-        return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}_v{index+1}.jpg"
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img, watermark):
@@ -218,39 +215,34 @@ def get_watermark_position(img, watermark):
     return (x, y)
 
 def enhance_image_quality(img):
-    """Enhance image quality with multiple techniques"""
+    """Enhance image quality with multiple filters"""
     # Convert to RGB if not already
     if img.mode != 'RGB':
         img = img.convert('RGB')
     
-    # Enhance contrast
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(1.2)
+    # Apply sharpness
+    img = ImageEnhance.Sharpness(img).enhance(1.5)
     
-    # Enhance sharpness
-    enhancer = ImageEnhance.Sharpness(img)
-    img = enhancer.enhance(1.5)
+    # Apply contrast
+    img = ImageEnhance.Contrast(img).enhance(1.1)
     
-    # Enhance color
-    enhancer = ImageEnhance.Color(img)
-    img = enhancer.enhance(1.1)
+    # Apply brightness if needed
+    hist = img.histogram()
+    if sum(hist[:100]) > sum(hist[-100:]):  # More dark pixels than light
+        img = ImageEnhance.Brightness(img).enhance(1.1)
     
     return img
 
-def scale_text_for_sharpness(img, scale_factor=2):
-    """Scale up text elements for better sharpness"""
-    # This would be applied to text layers in the image
-    # In a real implementation, we'd need to identify text regions
-    # For now, we'll just scale up the whole image and then downscale
-    original_size = img.size
-    scaled_size = (img.width * scale_factor, img.height * scale_factor)
-    
-    # Scale up with high-quality resampling
-    img = img.resize(scaled_size, Image.LANCZOS)
-    
-    # Scale back down with anti-aliasing
-    img = img.resize(original_size, Image.LANCZOS)
-    
+def upscale_text_elements(img, scale_factor=2):
+    """Upscale text elements in the image"""
+    # This is a placeholder - in a real implementation you would:
+    # 1. Detect text regions
+    # 2. Upscale them separately
+    # 3. Blend back into the image
+    # For now we'll just upscale the whole image
+    if scale_factor > 1:
+        new_size = (img.width * scale_factor, img.height * scale_factor)
+        img = img.resize(new_size, Image.LANCZOS)
     return img
 
 def create_variant(original_img, settings):
@@ -294,49 +286,27 @@ def create_variant(original_img, settings):
         
         # Format date based on selection
         if settings['date_format'] == "8 July 2025":
-            date_text, day_text = format_date("%d %B %Y", settings['show_day'])
+            date_text = format_date("%d %B %Y", settings['show_day'])
         elif settings['date_format'] == "28 January 2025":
-            date_text, day_text = format_date("%d %B %Y", settings['show_day'])
+            date_text = format_date("%d %B %Y", settings['show_day'])
         elif settings['date_format'] == "07/08/2025":
-            date_text, day_text = format_date("%m/%d/%Y", settings['show_day'])
+            date_text = format_date("%m/%d/%Y", settings['show_day'])
         else:
-            date_text, day_text = format_date("%Y-%m-%d", settings['show_day'])
+            date_text = format_date("%Y-%m-%d", settings['show_day'])
             
         date_width, date_height = get_text_size(draw, date_text, font_date)
         
-        # Position date at bottom
         date_x = random.randint(20, img.width - date_width - 20)
         date_y = img.height - date_height - 20  # Bottom position
         
-        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
+        # Ensure day text doesn't overlap
+        if settings['show_day'] and "(" in date_text:
+            day_part = date_text[date_text.index("("):]
+            day_width, _ = get_text_size(draw, day_part, font_date)
+            if date_x + day_width > img.width - 20:
+                date_x = img.width - day_width - 25
         
-        # Add day text if enabled
-        if settings['show_day']:
-            font_day = font.font_variant(size=settings['date_size'] + 10)  # Slightly larger than date
-            day_width, day_height = get_text_size(draw, day_text, font_day)
-            
-            # Position day above date, not centered
-            day_x = random.randint(20, img.width - day_width - 20)
-            day_y = date_y - day_height - 10
-            
-            # Ensure day doesn't overlap with other elements
-            for _ in range(5):  # Try 5 positions
-                overlap = False
-                if settings['show_text'] and (day_x < text_x + text_width and day_x + day_width > text_x and
-                                           day_y < text_y + text_height and day_y + day_height > text_y):
-                    overlap = True
-                if not overlap and settings['show_wish']:
-                    if (day_x < wish_x + wish_width and day_x + day_width > wish_x and
-                        day_y < wish_y + wish_height and day_y + day_height > wish_y):
-                        overlap = True
-                
-                if not overlap:
-                    break
-                else:
-                    day_x = random.randint(20, img.width - day_width - 20)
-                    day_y = date_y - day_height - 10
-            
-            apply_text_effects(draw, (day_x, day_y), day_text, font_day, text_color)
+        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
     
     # Add watermark if enabled
     if settings['use_watermark'] and settings['watermark_image']:
@@ -377,22 +347,11 @@ def create_variant(original_img, settings):
         
         img.paste(watermark, pos, watermark)
     
-    # Apply Coffee & Pet PNG if enabled
-    if settings['use_coffee_pet'] and settings['coffee_pet_image']:
-        pet_img = settings['coffee_pet_image'].copy()
-        
-        # Resize based on slider
-        pet_size = int(min(img.width, img.height) * settings['coffee_pet_size'])
-        pet_img = pet_img.resize((pet_size, pet_size))
-        
-        # Position at bottom (random left/right)
-        pet_x = random.choice([
-            20,  # left
-            img.width - pet_size - 20  # right
-        ])
-        pet_y = img.height - pet_size - 20
-        
-        img.paste(pet_img, (pet_x, pet_y), pet_img)
+    # Apply quality enhancements
+    img = enhance_image_quality(img)
+    
+    # Upscale text elements
+    img = upscale_text_elements(img, scale_factor=2)
     
     return img.convert("RGB")
 
@@ -424,7 +383,7 @@ with st.sidebar:
         date_format = st.selectbox("Date Format", 
                                  ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
                                  index=0)
-        show_day = st.checkbox("Show Day", value=False)  # Day checkbox
+        show_day = st.checkbox("Show Day", value=False)  # Default unchecked
     
     # Watermark settings
     use_watermark = st.checkbox("Add Watermark", value=False)
@@ -470,35 +429,19 @@ with st.sidebar:
         
         overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
 
-# Coffee & Pet PNG section (fixed at bottom)
-with st.container():
-    st.markdown('<div class="coffee-pet-section">', unsafe_allow_html=True)
-    use_coffee_pet = st.checkbox("Coffee&Pet PNG", value=False, key="coffee_pet_checkbox")
-    
-    coffee_pet_image = None
+# Coffee & Pet PNG Section (Fixed at bottom)
+coffee_pet_expander = st.expander("☕🐾 Coffee & Pet PNG", expanded=False)
+with coffee_pet_expander:
+    use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
     if use_coffee_pet:
-        # Load available pet PNGs
+        pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
+        
+        # Get available pet PNGs
         pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
+        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            coffee_pet_size = st.slider("Pet Size", 0.1, 0.5, 0.2, key="pet_size_slider")
-        
-        with col2:
-            if pet_files:
-                selected_pet = st.selectbox("Select Pet", pet_files, key="pet_select")
-                if selected_pet:
-                    pet_path = os.path.join("assets/pets", selected_pet)
-                    coffee_pet_image = Image.open(pet_path).convert("RGBA")
-                
-                if st.button("Random Select", key="random_pet"):
-                    selected_pet = random.choice(pet_files)
-                    pet_path = os.path.join("assets/pets", selected_pet)
-                    coffee_pet_image = Image.open(pet_path).convert("RGBA")
-            else:
-                st.warning("No pet PNGs found in assets/pets folder")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        if selected_pet == "Random":
+            selected_pet = random.choice(pet_files) if pet_files else None
 
 # Process button at the top
 if st.button("✨ Generate Photos", key="generate"):
@@ -510,13 +453,13 @@ if st.button("✨ Generate Photos", key="generate"):
             settings = {
                 'greeting_type': greeting_type,
                 'show_text': show_text,
-                'main_size': main_size,
+                'main_size': main_size if show_text else 80,
                 'show_wish': show_wish,
-                'wish_size': wish_size,
+                'wish_size': wish_size if show_wish else 50,
                 'show_date': show_date,
+                'show_day': show_day if show_date else False,
                 'date_size': date_size if show_date else 30,
                 'date_format': date_format if show_date else "8 July 2025",
-                'show_day': show_day if show_date else False,
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
                 'watermark_opacity': watermark_opacity if use_watermark else 0.7,
@@ -525,8 +468,8 @@ if st.button("✨ Generate Photos", key="generate"):
                 'overlay_theme': overlay_theme if use_overlay else "",
                 'overlay_size': overlay_size if use_overlay else 0.5,
                 'use_coffee_pet': use_coffee_pet,
-                'coffee_pet_image': coffee_pet_image,
-                'coffee_pet_size': coffee_pet_size if use_coffee_pet else 0.2
+                'pet_size': pet_size if use_coffee_pet else 0.3,
+                'selected_pet': selected_pet if use_coffee_pet else None
             }
             
             for uploaded_file in uploaded_images:
@@ -536,7 +479,7 @@ if st.button("✨ Generate Photos", key="generate"):
                     # Auto crop to 3:4 ratio
                     img = smart_crop(img)
                     
-                    # Enhance image quality
+                    # Auto enhance
                     img = enhance_image_quality(img)
                     
                     # Apply overlays if enabled
@@ -545,14 +488,26 @@ if st.button("✨ Generate Photos", key="generate"):
                             overlay_path = os.path.join("assets/overlays", overlay_theme, overlay_file)
                             img = apply_overlay(img, overlay_path, overlay_size)
                     
+                    # Apply Coffee & Pet PNG if enabled
+                    if use_coffee_pet and selected_pet:
+                        pet_path = os.path.join("assets/pets", selected_pet)
+                        if os.path.exists(pet_path):
+                            pet_img = Image.open(pet_path).convert("RGBA")
+                            pet_img = pet_img.resize(
+                                (int(img.width * pet_size), int(img.height * pet_size * (pet_img.height/pet_img.width))),
+                                Image.LANCZOS
+                            )
+                            # Position at bottom right
+                            x = img.width - pet_img.width - 20
+                            y = img.height - pet_img.height - 20
+                            img.paste(pet_img, (x, y), pet_img)
+                    
                     if generate_variants:
                         # Create 3 variants
                         variants = []
                         for i in range(3):
                             variant = create_variant(img, settings)
-                            # Scale text for sharpness
-                            variant = scale_text_for_sharpness(variant, 2)
-                            variants.append((generate_filename(i), variant))
+                            variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
                         # Create single version
@@ -587,31 +542,27 @@ if st.button("✨ Generate Photos", key="generate"):
                             font_date = font.font_variant(size=date_size)
                             
                             if date_format == "8 July 2025":
-                                date_text, day_text = format_date("%d %B %Y", show_day)
+                                date_text = format_date("%d %B %Y", show_day)
                             elif date_format == "28 January 2025":
-                                date_text, day_text = format_date("%d %B %Y", show_day)
+                                date_text = format_date("%d %B %Y", show_day)
                             elif date_format == "07/08/2025":
-                                date_text, day_text = format_date("%m/%d/%Y", show_day)
+                                date_text = format_date("%m/%d/%Y", show_day)
                             else:
-                                date_text, day_text = format_date("%Y-%m-%d", show_day)
+                                date_text = format_date("%Y-%m-%d", show_day)
                                 
                             date_width, date_height = get_text_size(draw, date_text, font_date)
                             
                             date_x = (img.width - date_width) // 2
                             date_y = img.height - date_height - 20  # Bottom position
                             
-                            apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
+                            # Adjust position if day text is too long
+                            if show_day and "(" in date_text:
+                                day_part = date_text[date_text.index("("):]
+                                day_width, _ = get_text_size(draw, day_part, font_date)
+                                if date_x + day_width > img.width - 20:
+                                    date_x = img.width - day_width - 25
                             
-                            # Add day text if enabled
-                            if show_day:
-                                font_day = font.font_variant(size=date_size + 10)
-                                day_width, day_height = get_text_size(draw, day_text, font_day)
-                                
-                                # Position day above date, not centered
-                                day_x = random.randint(20, img.width - day_width - 20)
-                                day_y = date_y - day_height - 10
-                                
-                                apply_text_effects(draw, (day_x, day_y), day_text, font_day, text_color)
+                            apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color)
                         
                         # Add watermark if enabled
                         if use_watermark and watermark_image:
@@ -640,6 +591,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                     if (pos[0] < x2 and pos[0] + watermark.width > x1 and
                                         pos[1] < y2 and pos[1] + watermark.height > y1):
                                         overlap = True
+                                        break
                                 
                                 if not overlap:
                                     break
@@ -648,91 +600,48 @@ if st.button("✨ Generate Photos", key="generate"):
                             
                             img.paste(watermark, pos, watermark)
                         
-                        # Add Coffee & Pet PNG if enabled
-                        if use_coffee_pet and coffee_pet_image:
-                            pet_img = coffee_pet_image.copy()
-                            
-                            # Resize based on slider
-                            pet_size = int(min(img.width, img.height) * coffee_pet_size)
-                            pet_img = pet_img.resize((pet_size, pet_size))
-                            
-                            # Position at bottom (random left/right)
-                            pet_x = random.choice([
-                                20,  # left
-                                img.width - pet_size - 20  # right
-                            ])
-                            pet_y = img.height - pet_size - 20
-                            
-                            img.paste(pet_img, (pet_x, pet_y), pet_img)
+                        # Final quality enhancements
+                        img = enhance_image_quality(img)
+                        img = upscale_text_elements(img, scale_factor=2)
                         
-                        # Scale text for sharpness
-                        img = scale_text_for_sharpness(img, 2)
-                        
-                        processed_images.append((generate_filename(), img.convert("RGB")))
+                        processed_images.append((generate_filename(), img))
                 
                 except Exception as e:
                     st.error(f"Error processing {uploaded_file.name}: {str(e)}")
                     continue
-            
-            # Display and download results
-            if generate_variants and variant_images:
-                st.success(f"Generated {len(variant_images)} variants!")
+
+            # Display results
+            if processed_images or variant_images:
+                st.success(f"Successfully processed {len(processed_images) + len(variant_images)} images!")
                 
-                # Group variants by original image
-                variant_groups = {}
-                for name, img in variant_images:
-                    base_name = name.split('_v')[0]
-                    if base_name not in variant_groups:
-                        variant_groups[base_name] = []
-                    variant_groups[base_name].append((name, img))
+                # Create download buttons
+                if processed_images or variant_images:
+                    # Create zip file
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
+                        for filename, img in processed_images + variant_images:
+                            img_bytes = io.BytesIO()
+                            img.save(img_bytes, format='JPEG', quality=95)
+                            zip_file.writestr(filename, img_bytes.getvalue())
+                    
+                    # Download button
+                    st.download_button(
+                        label="⬇️ Download All Photos",
+                        data=zip_buffer.getvalue(),
+                        file_name="generated_photos.zip",
+                        mime="application/zip"
+                    )
                 
-                # Display each group
-                for base_name, variants in variant_groups.items():
-                    st.markdown(f"**Variants for {base_name}**")
-                    cols = st.columns(len(variants))
-                    for idx, (name, img) in enumerate(variants):
-                        with cols[idx]:
-                            st.image(img, use_column_width=True)
-                            st.caption(name)
+                # Show previews
+                st.markdown("### 📸 Preview")
+                cols = st.columns(3)
                 
-                # Download all button
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-                    for name, img in variant_images:
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format='JPEG', quality=95)
-                        zip_file.writestr(name, img_bytes.getvalue())
-                
-                st.download_button(
-                    label="📥 Download All Variants",
-                    data=zip_buffer.getvalue(),
-                    file_name="generated_variants.zip",
-                    mime="application/zip"
-                )
-            
-            elif processed_images:
-                st.success(f"Processed {len(processed_images)} images!")
-                
-                # Display images
-                cols = st.columns(min(3, len(processed_images)))
-                for idx, (name, img) in enumerate(processed_images):
-                    with cols[idx % 3]:
+                all_images = processed_images + variant_images
+                for i, (filename, img) in enumerate(all_images[:9]):  # Show max 9 previews
+                    with cols[i % 3]:
                         st.image(img, use_column_width=True)
-                        st.caption(name)
-                
-                # Download all button
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-                    for name, img in processed_images:
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format='JPEG', quality=95)
-                        zip_file.writestr(name, img_bytes.getvalue())
-                
-                st.download_button(
-                    label="📥 Download All",
-                    data=zip_buffer.getvalue(),
-                    file_name="generated_images.zip",
-                    mime="application/zip"
-                )
+                        st.caption(filename)
+            else:
+                st.warning("No images were processed successfully.")
     else:
-        st.warning("Please upload at least one image")
+        st.warning("Please upload at least one image.")
