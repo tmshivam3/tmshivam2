@@ -140,21 +140,18 @@ def get_random_wish(greeting_type):
 
 def get_random_color():
     # Generate random color
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
-def apply_text_effect(draw, position, text, font, effect_type=None, use_texture=False, texture_img=None):
+def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
-    
-    # Determine text style based on effect_type
-    if effect_type is None:
-        effect_type = random.choices(
-            ["white_only", "white_black_outline", "glowing", "random_all"],
-            weights=[0.25, 0.25, 0.25, 0.25],
-            k=1
-        )[0]
+    effect_type = effect_settings['type']
+    main_color = effect_settings.get('main_color', (255, 255, 255))
+    outline_color = effect_settings.get('outline_color', (0, 0, 0))
+    shadow_color = effect_settings.get('shadow_color', (0, 0, 0, 128))
+    glow_color = effect_settings.get('glow_color', get_random_color())
     
     # Apply texture if enabled
-    if use_texture and texture_img:
+    if effect_settings.get('use_texture', False) and texture_img:
         # Create text mask
         mask = Image.new("L", (font.getsize(text)[0], font.getsize(text)[1]))
         mask_draw = ImageDraw.Draw(mask)
@@ -169,26 +166,25 @@ def apply_text_effect(draw, position, text, font, effect_type=None, use_texture=
         
         # Paste textured text onto image
         draw.bitmap((x, y), textured_text.convert("L"), fill=(255, 255, 255))
-        return "textured"
+        return effect_settings
     
     # Apply different text effects
     if effect_type == "white_only":
-        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        draw.text((x, y), text, font=font, fill=main_color)
     elif effect_type == "white_black_outline":
         # Black outline
         outline_size = 2
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         # Black shadow
         shadow_offset = 3
-        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(0, 0, 0, 128))
-        # White text
-        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=shadow_color)
+        # Main text
+        draw.text((x, y), text, font=font, fill=main_color)
     elif effect_type == "glowing":
-        # Glowing effect with random color
-        glow_color = get_random_color()
+        # Glowing effect
         for i in range(1, 4):
             outline_size = i
             for ox in range(-outline_size, outline_size+1):
@@ -199,18 +195,14 @@ def apply_text_effect(draw, position, text, font, effect_type=None, use_texture=
         shadow_offset = 3
         draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=glow_color + (128,))
         # White text
-        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        draw.text((x, y), text, font=font, fill=main_color)
     elif effect_type == "random_all":
         # Random text color
-        text_color = get_random_color()
+        text_color = effect_settings.get('main_color', get_random_color())
         # Random outline color
-        outline_color = get_random_color()
-        while outline_color == text_color:  # Ensure outline is different
-            outline_color = get_random_color()
+        outline_color = effect_settings.get('outline_color', get_random_color())
         # Random shadow color
-        shadow_color = get_random_color()
-        while shadow_color == text_color:  # Ensure shadow is different
-            shadow_color = get_random_color()
+        shadow_color = effect_settings.get('shadow_color', get_random_color())
         
         # Outline
         outline_size = 2
@@ -224,7 +216,7 @@ def apply_text_effect(draw, position, text, font, effect_type=None, use_texture=
         # Main text
         draw.text((x, y), text, font=font, fill=text_color)
     
-    return effect_type
+    return effect_settings
 
 def format_date(date_format="%d %B %Y", show_day=False):
     today = datetime.datetime.now()
@@ -352,6 +344,20 @@ def create_variant(original_img, settings, use_advanced=False):
     if settings.get('use_texture', False) and settings.get('texture_image', None):
         texture_img = settings['texture_image']
     
+    # Generate consistent effect settings for all text in this image
+    effect_settings = {
+        'type': settings.get('text_effect', None),
+        'use_texture': settings.get('use_texture', False)
+    }
+    
+    # If random effect, generate consistent colors for all text elements
+    if effect_settings['type'] == 'random_all':
+        effect_settings['main_color'] = get_random_color()
+        effect_settings['outline_color'] = get_random_color()
+        effect_settings['shadow_color'] = get_random_color()
+    elif effect_settings['type'] == 'glowing':
+        effect_settings['glow_color'] = get_random_color()
+    
     if settings['show_text']:
         font_main = font.font_variant(size=settings['main_size'])
         text = settings['greeting_type']
@@ -366,13 +372,12 @@ def create_variant(original_img, settings, use_advanced=False):
             max_text_y = max(20, img.height // 3)
             text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
-        apply_text_effect(
+        effect_settings = apply_text_effect(
             draw, 
             (text_x, text_y), 
             text, 
             font_main,
-            effect_type=settings.get('text_effect', None),
-            use_texture=settings.get('use_texture', False),
+            effect_settings,
             texture_img=texture_img
         )
     
@@ -404,8 +409,7 @@ def create_variant(original_img, settings, use_advanced=False):
             (wish_x, wish_y), 
             wish_text, 
             font_wish,
-            effect_type=settings.get('text_effect', None),
-            use_texture=settings.get('use_texture', False),
+            effect_settings,
             texture_img=texture_img
         )
     
@@ -442,8 +446,7 @@ def create_variant(original_img, settings, use_advanced=False):
             (date_x, date_y), 
             date_text, 
             font_date,
-            effect_type=settings.get('text_effect', None),
-            use_texture=settings.get('use_texture', False),
+            effect_settings,
             texture_img=texture_img
         )
     
@@ -689,6 +692,20 @@ if st.button("✨ Generate Photos", key="generate"):
                         font = get_random_font()
                         blank_space = analyze_blank_space(img) if use_advanced_analysis else None
                         
+                        # Generate consistent effect settings for all text in this image
+                        effect_settings = {
+                            'type': selected_effect,
+                            'use_texture': use_texture
+                        }
+                        
+                        # If random effect, generate consistent colors for all text elements
+                        if selected_effect == 'random_all':
+                            effect_settings['main_color'] = get_random_color()
+                            effect_settings['outline_color'] = get_random_color()
+                            effect_settings['shadow_color'] = get_random_color()
+                        elif selected_effect == 'glowing':
+                            effect_settings['glow_color'] = get_random_color()
+                        
                         if show_text:
                             font_main = font.font_variant(size=main_size)
                             text = greeting_type
@@ -705,13 +722,12 @@ if st.button("✨ Generate Photos", key="generate"):
                                 text_x = (img.width - text_width) // 2
                                 text_y = 20
                             
-                            apply_text_effect(
+                            effect_settings = apply_text_effect(
                                 draw, 
                                 (text_x, text_y), 
                                 text, 
                                 font_main,
-                                effect_type=selected_effect,
-                                use_texture=use_texture,
+                                effect_settings,
                                 texture_img=texture_image
                             )
                         
@@ -736,8 +752,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 (wish_x, wish_y), 
                                 wish_text, 
                                 font_wish,
-                                effect_type=selected_effect,
-                                use_texture=use_texture,
+                                effect_settings,
                                 texture_img=texture_image
                             )
                         
@@ -777,8 +792,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 (date_x, date_y), 
                                 date_text, 
                                 font_date,
-                                effect_type=selected_effect,
-                                use_texture=use_texture,
+                                effect_settings,
                                 texture_img=texture_image
                             )
                         
