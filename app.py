@@ -836,7 +836,7 @@ if st.button("✨ Generate Photos", key="generate"):
             else:
                 st.warning("No images were processed successfully.")
     else:
-        st.warning("Please upload at least one image.")
+        st.warning("Phootuiya upload hoye da 🥲.")
 
 if st.session_state.generated_images:
     zip_buffer = io.BytesIO()
