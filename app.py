@@ -71,7 +71,7 @@ def list_files(folder, exts):
     if not os.path.exists(folder):
         return []
     return [f for f in os.listdir(folder) 
-            if any(f.lower().endswith(ext) for ext in exts]
+            .endswith(ext) for ext in exts]
 
 def smart_crop(img, target_ratio=3/4):
     w, h = img.size
