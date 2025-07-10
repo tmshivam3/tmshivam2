@@ -1,4 +1,34 @@
 import streamlit as st
+
+# 1. First set page config
+st.set_page_config(page_title="⚡ EDIT 100+ IMAGE IN ONE CLICK", layout="wide")
+
+# 2. Then import other modules
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
+import os
+import io
+import random
+import datetime
+import zipfile
+import numpy as np
+import logging
+
+# 3. Then define your functions
+def list_files(folder, exts):
+    # function implementation
+    ...
+
+def smart_crop(img, target_ratio=3/4):
+    # function implementation
+    ...
+
+# [Rest of your functions]
+
+# 4. Then your main app code
+if 'generated_images' not in st.session_state:
+    st.session_state.generated_images = []
+
+# [Rest of your app code]
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
 import io
