@@ -690,25 +690,31 @@ if st.button("✨ Generate Photos", key="generate"):
         st.warning("Please upload at least one image.")
 
 if st.session_state.generated_images:
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-        for filename, img in st.session_state.generated_images:
+    # ... [previous code remains the same]
+    
+    st.markdown("### 📸 Preview")
+    cols = st.columns(3)
+    
+    for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):
+        with cols[i % 3]:
             try:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 img_bytes = io.BytesIO()
                 img.save(img_bytes, format='JPEG', quality=95)
-                zip_file.writestr(filename, img_bytes.getvalue())
+                img_bytes.seek(0)
+                st.image(img_bytes, use_column_width=True)  # Fixed parameter
+                st.caption(filename)
+                
+                st.download_button(
+                    label="⬇️ Download",
+                    data=img_bytes.getvalue(),
+                    file_name=filename,
+                    mime="image/jpeg",
+                    key=f"download_{i}"
+                )
             except Exception as e:
-                st.error(f"Error adding {filename} to zip: {str(e)}")
-                continue
-    
-    st.download_button(
-        label="⬇️ Download All Photos",
-        data=zip_buffer.getvalue(),
-        file_name="generated_photos.zip",
-        mime="application/zip"
-    )
+                st.error(f"Error displaying {filename}: {str(e)}")
     
     st.markdown("### 📸 Preview")
     cols = st.columns(3)
