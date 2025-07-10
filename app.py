@@ -27,7 +27,8 @@ def initialize_keyauth():
 
 # ==================== AUTHENTICATION FUNCTIONS ====================
 def show_auth_screen():
-    st.title("🔐 Authentication")
+    st.title("🔐 Authentication Required")
+    st.warning("You must login to use this tool")
     
     auth_method = st.radio("Login Method:", ["License Key", "Username & Password"])
     
@@ -99,6 +100,9 @@ def show_auth_screen():
     
     st.markdown("---")
     st.markdown("**Having trouble?** Contact developer on WhatsApp: [+91 9140588751](https://wa.me/919140588751)")
+    
+    # Prevent access to tool without login
+    st.stop()
 
 # ==================== MAIN APP ====================
 def main_app():
