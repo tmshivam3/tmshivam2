@@ -169,66 +169,57 @@ def get_random_quote():
     ]
     return random.choice(quotes)
 
-def get_random_color():
-    return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
-# Replace these functions in your code:
-
-def get_text_size(draw, text, font):
-    # More precise text measurement
-    bbox = draw.textbbox((0, 0), text, font=font, anchor="lt")
-    return bbox[2] - bbox[0], bbox[3] - bbox[1]
-
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
     main_color = effect_settings.get('main_color', (255, 255, 255))
     outline_color = effect_settings.get('outline_color', (0, 0, 0))
     
-    # Render at 10x resolution then downscale for anti-aliasing
+    # Render at 10x resolution
     scale_factor = 10
-    temp_size = (font.size * scale_factor, font.size * scale_factor)
-    
+    text_width, text_height = get_text_size(draw, text, font)
+    temp_size = (text_width * scale_factor, text_height * scale_factor)
+
     if effect_settings.get('use_texture', False) and texture_img:
-        # High-res texture rendering
         temp_texture = texture_img.resize(
             (int(texture_img.width * scale_factor), 
             (int(texture_img.height * scale_factor)),
             Image.LANCZOS
         )
-        mask = Image.new("L", (font.getsize(text)[0] * scale_factor, 
-                             font.getsize(text)[1] * scale_factor))
+        mask = Image.new("L", temp_size)
         mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text((0, 0), text, font=font.font_variant(size=font.size*scale_factor), fill=255)
-        textured_text = Image.new("RGBA", mask.size)
+        temp_font = font.font_variant(size=font.size*scale_factor)
+        mask_draw.text((0, 0), text, font=temp_font, fill=255)
+        textured_text = Image.new("RGBA", temp_size)
         textured_text.paste(temp_texture, (0, 0), mask)
-        textured_text = textured_text.resize(font.getsize(text), Image.LANCZOS)
+        textured_text = textured_text.resize((text_width, text_height), Image.LANCZOS)
         draw.bitmap((x, y), textured_text.convert("L"), fill=main_color)
         return effect_settings
 
-    # High-resolution rendering for crisp text
-    temp_img = Image.new("RGBA", (font.getsize(text)[0] * scale_factor, 
-                                font.getsize(text)[1] * scale_factor))
+    # Create high-res canvas
+    temp_img = Image.new("RGBA", temp_size)
     temp_draw = ImageDraw.Draw(temp_img)
-    
-    if effect_type == "white_black_outline":
+    temp_font = font.font_variant(size=font.size*scale_factor)
+
+    if effect_type in ["white_black_outline", "full_random"]:
         outline_size = 2 * scale_factor
-        temp_font = font.font_variant(size=font.size*scale_factor)
-        for ox in range(-outline_size, outline_size+1, scale_factor):
-            for oy in range(-outline_size, outline_size+1, scale_factor):
+        for ox in range(-outline_size, outline_size+1, scale_factor//2):
+            for oy in range(-outline_size, outline_size+1, scale_factor//2):
                 if ox != 0 or oy != 0:
-                    temp_draw.text((outline_size+ox, outline_size+oy), 
-                                 text, font=temp_font, fill=outline_color)
+                    temp_draw.text(
+                        (outline_size+ox, outline_size+oy), 
+                        text, 
+                        font=temp_font, 
+                        fill=outline_color
+                    )
+
+    temp_draw.text((outline_size, outline_size), text, font=temp_font, fill=main_color)
     
-    temp_draw.text((outline_size, outline_size), text, 
-                  font=font.font_variant(size=font.size*scale_factor), 
-                  fill=main_color)
-    
-    # Downscale with LANCZOS (best for downscaling)
-    temp_img = temp_img.resize(font.getsize(text), Image.LANCZOS)
+    # Downscale with perfect anti-aliasing
+    temp_img = temp_img.resize((text_width, text_height), Image.LANCZOS)
     draw.bitmap((x, y), temp_img.convert("L"), fill=main_color)
     
     return effect_settings
-
 # Add this new function for ultra-sharp font loading:
 def get_random_font():
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
