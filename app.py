@@ -1,3 +1,11 @@
+import keyauth
+
+# ✅ KeyAuth API Initialize
+KeyAuthApp = keyauth.api(
+    name = "Skbindjnp9's Application",  # App name tumhare dashboard ka
+    ownerid = "jPmvngHsy3",             # Tumhara ownerid
+    version = "1.0"                     # Tumhara app version
+)
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
@@ -9,6 +17,26 @@ import numpy as np
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
+# ✅ License Key Check UI
+st.markdown("""
+    <div style='background-color: #000000; padding: 10px; border-radius: 8px; border: 2px solid #ffff00;'>
+        <h2 style='text-align: center; color: #ffff00; margin: 0;'>🔑 Enter Your License Key</h2>
+    </div>
+""", unsafe_allow_html=True)
+
+license_key = st.text_input("Enter your License Key:", type="password")
+
+if not license_key:
+    st.warning("⚠️ Please enter your license key to continue.")
+    st.stop()
+
+try:
+    KeyAuthApp.license(license_key)
+    st.success("✅ License Verified. You can use the tool now!")
+except:
+    st.error("❌ Invalid or Expired License Key. Contact Admin.")
+    st.stop()
+
 
 # Custom CSS for black/white/yellow theme
 st.markdown("""
@@ -709,4 +737,4 @@ if st.session_state.generated_images:
                 file_name=filename,
                 mime="image/jpeg",
                 key=f"download_{i}"
-        )
+                )
