@@ -145,114 +145,26 @@ def get_random_wish(greeting_type):
 
 def get_random_quote():
     quotes = [
-        "Every morning is a new opportunity to rise and shine.",
-        "Wake up with determination, go to bed with satisfaction.",
-        "Morning is the perfect time to start something new.",
-        "The early morning has gold in its mouth.",
-        "A new day is a new chance to be better than yesterday.",
-        "Morning is wonderful. Its only drawback is that it comes at such an inconvenient time of day.",
-        "The sun is a daily reminder that we too can rise again from the darkness.",
-        "Today's morning brings new strength, new thoughts, and new possibilities.",
-        "Morning is the time when the whole world starts anew.",
-        "Every sunrise is an invitation for us to arise and brighten someone's day.",
-        "The first hour of the morning is the rudder of the day.",
-        "Morning is the time to plan your day and make it count.",
-        "Wake up with a smile and chase your dreams with passion.",
-        "Morning is the best time to be thankful for all you have.",
-        "A beautiful morning begins with a beautiful mindset.",
-        "The morning breeze has secrets to tell you.",
-        "Morning is the time when everything is possible again.",
-        "Each morning we are born again. What we do today matters most.",
-        "Morning is the key to the day and the secret to productivity.",
-        "The morning sun inspires confidence and optimism.",
-        "Start your day with a grateful heart and positive thoughts.",
-        "Morning is the perfect time to reflect and set intentions.",
-        "The morning light fills the world with hope and possibilities.",
-        "A good morning starts the night before with gratitude.",
-        "Morning is the time to plant the seeds of a productive day.",
-        "The morning is the mother of every successful day.",
-        "Wake up with hope, go to bed with satisfaction.",
-        "Morning is the time to fuel your body and soul.",
-        "The morning hour has gold in its hand.",
-        "Every morning is a fresh start, a new chance to get it right.",
-        "Morning is the time to set the tone for the rest of the day.",
-        "The morning sun is nature's way of saying 'one more chance'.",
-        "Morning is the time to be inspired and take action.",
-        "A positive morning leads to a productive day.",
-        "Morning is the perfect time to focus on your goals.",
-        "The morning light brings clarity and new perspectives.",
-        "Morning is the best time to connect with yourself.",
-        "Start your morning with purpose and watch your day transform.",
-        "Morning is the time to nourish your mind, body and spirit.",
-        "The morning is the most important part of the day.",
-        "Morning is the time to be grateful for another day of life.",
-        "A disciplined morning routine creates a successful life.",
-        "Morning is the time to set your intentions and make them happen.",
-        "The morning is when the magic happens for successful people.",
-        "Morning is the perfect time to work on your dreams.",
-        "Morning is the time to build the life you want to live.",
-        "The morning is the foundation of a productive day.",
-        "Morning is the time to focus on what truly matters.",
-        "A mindful morning leads to a meaningful day.",
-        "Morning is the best time to invest in yourself.",
-        "The morning is your opportunity to create the day you want.",
-        "Morning is the time to align your actions with your goals.",
-        "A peaceful morning leads to a productive day.",
-        "Morning is the perfect time to practice gratitude.",
-        "The morning is when champions are made.",
-        "Morning is the time to take control of your day.",
-        "A strong morning routine builds a strong life.",
-        "Morning is the time to focus on progress, not perfection.",
-        "The morning is your chance to start fresh every day.",
-        "Morning is the best time to work on your most important goals.",
-        "Morning is the time to fuel your success for the day.",
-        "A powerful morning creates a powerful day.",
-        "Morning is the perfect time to visualize your success.",
-        "The morning is when the seeds of success are planted.",
-        "Morning is the time to build momentum for your day.",
-        "A focused morning leads to a fulfilled day.",
-        "Morning is the best time to work on your personal growth.",
-        "The morning is your opportunity to design your perfect day.",
-        "Morning is the time to take action toward your dreams.",
-        "A productive morning leads to a productive life.",
-        "Morning is the perfect time to strengthen your mindset.",
-        "The morning is when you set the tone for your entire day.",
-        "Morning is the time to make progress on what matters most.",
-        "A successful morning leads to a successful day.",
-        "Morning is the best time to invest in your future self.",
-        "The morning is your chance to create the life you want.",
-        "Morning is the time to build habits that lead to success.",
-        "A motivated morning leads to an accomplished day.",
-        "Morning is the perfect time to work on your priorities.",
-        "The morning is when legends are made through daily discipline.",
-        "Morning is the time to take steps toward your goals.",
-        "A consistent morning routine builds an extraordinary life.",
-        "Morning is the best time to develop your skills and talents.",
-        "The morning is your opportunity to become your best self.",
-        "Morning is the time to create the day you desire.",
-        "A purposeful morning leads to a purposeful life.",
-        "Morning is the perfect time to work on your vision.",
-        "The morning is when successful people do their most important work.",
-        "Morning is the time to build the foundation for your success.",
-        "A dedicated morning routine creates an exceptional life.",
-        "Morning is the best time to focus on self-improvement.",
-        "The morning is your chance to make progress every single day.",
-        "Morning is the time to develop the discipline of success.",
-        "A winning morning leads to a winning day.",
-        "Morning is the perfect time to practice the habits of excellence.",
-        "The morning is when ordinary people do extraordinary things.",
-        "Morning is the time to take massive action toward your dreams.",
-        "A strong morning creates a strong character.",
-        "Morning is the best time to work on your personal development.",
-        "The morning is your opportunity to become the person you want to be.",
-        "Morning is the time to build the life of your dreams.",
-        "A disciplined morning leads to a disciplined life.",
-        "Morning is the perfect time to focus on your long-term goals.",
-        "The morning is when champions are made through daily effort.",
-        "Morning is the time to take control of your destiny.",
-        "A productive morning routine leads to a productive life.",
-        "Morning is the best time to work on your most important projects.",
-        "The morning is your chance to make today better than yesterday."
+        "Every morning is a new opportunity\nto rise and shine.",
+        "Wake up with determination,\ngo to bed with satisfaction.",
+        "Morning is the perfect time\nto start something new.",
+        "The early morning\nhas gold in its mouth.",
+        "A new day is a new chance\nto be better than yesterday.",
+        "Morning is wonderful.\nIts only drawback is that it comes\nat such an inconvenient time of day.",
+        "The sun is a daily reminder\nthat we too can rise again\nfrom the darkness.",
+        "Today's morning brings\nnew strength, new thoughts,\nand new possibilities.",
+        "Morning is the time\nwhen the whole world\nstarts anew.",
+        "Every sunrise is an invitation\nfor us to arise\nand brighten someone's day.",
+        "The first hour of the morning\nis the rudder of the day.",
+        "Morning is the time\nto plan your day\nand make it count.",
+        "Wake up with a smile\nand chase your dreams\nwith passion.",
+        "Morning is the best time\nto be thankful\nfor all you have.",
+        "A beautiful morning begins\nwith a beautiful mindset.",
+        "The morning breeze\nhas secrets to tell you.",
+        "Morning is the time\nwhen everything\nis possible again.",
+        "Each morning we are born again.\nWhat we do today\nmatters most.",
+        "Morning is the key to the day\nand the secret to productivity.",
+        "The morning sun\ninspires confidence\nand optimism."
     ]
     return random.choice(quotes)
 
@@ -479,20 +391,36 @@ def create_variant(original_img, settings):
     if settings['show_quote']:
         font_quote = font.font_variant(size=settings['quote_size'])
         quote_text = settings['quote_text']
-        quote_width, quote_height = get_text_size(draw, quote_text, font_quote)
         
-        max_quote_x = max(20, img.width - quote_width - 20)
-        quote_x = random.randint(20, max_quote_x) if max_quote_x > 20 else 20
-        quote_y = img.height // 2  # Center vertically
+        # Split the quote into lines
+        lines = quote_text.split('\n')
         
-        apply_text_effect(
-            draw, 
-            (quote_x, quote_y), 
-            quote_text, 
-            font_quote,
-            effect_settings,
-            texture_img=texture_img
-        )
+        # Calculate total height needed
+        total_height = 0
+        line_heights = []
+        for line in lines:
+            _, line_height = get_text_size(draw, line, font_quote)
+            line_heights.append(line_height)
+            total_height += line_height
+        
+        # Calculate starting y position to center vertically
+        quote_y = (img.height - total_height) // 2
+        
+        # Render each line
+        for i, line in enumerate(lines):
+            line_width, _ = get_text_size(draw, line, font_quote)
+            max_quote_x = max(20, img.width - line_width - 20)
+            quote_x = random.randint(20, max_quote_x) if max_quote_x > 20 else 20
+            
+            apply_text_effect(
+                draw, 
+                (quote_x, quote_y), 
+                line, 
+                font_quote,
+                effect_settings,
+                texture_img=texture_img
+            )
+            quote_y += line_heights[i] + 5  # Add small spacing between lines
     
     if settings['use_watermark'] and settings['watermark_image']:
         watermark = settings['watermark_image'].copy()
@@ -593,7 +521,7 @@ with st.sidebar:
     show_quote = st.checkbox("Add Quote", value=False)
     if show_quote:
         quote_text = get_random_quote()
-        quote_size = st.slider("Quote Text Size", 10, 100, 30)
+        quote_size = st.slider("Quote Text Size", 10, 100, 40)  # Changed default from 30 to 40
     
     use_watermark = st.checkbox("Add Watermark", value=True)
     watermark_image = None
@@ -676,7 +604,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 'date_format': date_format if show_date else "8 July 2025",
                 'show_quote': show_quote,
                 'quote_text': quote_text if show_quote else "",
-                'quote_size': quote_size if show_quote else 30,
+                'quote_size': quote_size if show_quote else 40,  # Changed default from 30 to 40
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
                 'watermark_opacity': watermark_opacity if use_watermark else 1.0,
@@ -820,23 +748,40 @@ if st.button("✨ Generate Photos", key="generate"):
                         if show_quote:
                             font_quote = font.font_variant(size=quote_size)
                             quote_text = settings['quote_text']
-                            quote_width, quote_height = get_text_size(draw, quote_text, font_quote)
                             
-                            if quote_width > img.width - 40:
-                                font_quote = adjust_font_size_to_fit(draw, quote_text, img.width - 40, img.height//3, quote_size)
-                                quote_width, quote_height = get_text_size(draw, quote_text, font_quote)
+                            # Split the quote into lines
+                            lines = quote_text.split('\n')
                             
-                            quote_x = random.randint(20, max(20, img.width - quote_width - 20))
-                            quote_y = img.height // 2  # Center vertically
+                            # Calculate total height needed
+                            total_height = 0
+                            line_heights = []
+                            for line in lines:
+                                _, line_height = get_text_size(draw, line, font_quote)
+                                line_heights.append(line_height)
+                                total_height += line_height
                             
-                            apply_text_effect(
-                                draw, 
-                                (quote_x, quote_y), 
-                                quote_text, 
-                                font_quote,
-                                effect_settings,
-                                texture_img=texture_image
-                            )
+                            # Calculate starting y position to center vertically
+                            quote_y = (img.height - total_height) // 2
+                            
+                            # Render each line
+                            for i, line in enumerate(lines):
+                                line_width, _ = get_text_size(draw, line, font_quote)
+                                
+                                if line_width > img.width - 40:
+                                    font_quote = adjust_font_size_to_fit(draw, line, img.width - 40, img.height//3, quote_size)
+                                    line_width, line_height = get_text_size(draw, line, font_quote)
+                                
+                                quote_x = random.randint(20, max(20, img.width - line_width - 20))
+                                
+                                apply_text_effect(
+                                    draw, 
+                                    (quote_x, quote_y), 
+                                    line, 
+                                    font_quote,
+                                    effect_settings,
+                                    texture_img=texture_image
+                                )
+                                quote_y += line_heights[i] + 5  # Add small spacing between lines
                         
                         if use_watermark and watermark_image:
                             watermark = watermark_image.copy()
