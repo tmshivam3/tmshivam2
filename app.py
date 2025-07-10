@@ -748,13 +748,13 @@ if st.button("✨ Generate Photos", key="generate"):
                             'use_texture': use_texture
                         }
                         
-                        if selected_effect == 'full_random':
-                            effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
-                            effect_settings['out texture_img=texture_image
-                                )
+                       elif effect_type == 'full_random':
+    # For full random, we'll use the same color for all text in the image
+    effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
+    effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
                                 quote_y += line_heights[i] + 5  # Add small spacing between lines
                         
-                        if use_watermark and watermark_image:
+                    if use_watermark and watermark_image:
                             watermark = watermark_image.copy()
                             
                             if watermark_opacity < 1.0:
