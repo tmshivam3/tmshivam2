@@ -11,61 +11,26 @@ import zipfile
 import cv2
 import sys
 
-# ==================== KEYAUTH CONFIGURATION ====================
+# ==================== FIXED KEYAUTH CONFIGURATION ====================
 def initialize_keyauth():
     try:
         KeyAuthApp = keyauth.api(
             name="Skbindjnp9's Application",
             ownerid="jPmvngHsy3",
             version="1.0",
-            hash_to_check="",
-            api_url="https://keyauth.win/api/1.2/"
+            secret="",  # Add your secret key if you have one
+            hash_to_check=""  # Keep this empty unless you're using hash checking
         )
         return KeyAuthApp
     except Exception as e:
-        st.error(f"KeyAuth initialization failed: {str(e)}")
+        st.error(f"KeyAuth initialization error: {str(e)}")
         return None
 
-# ==================== STRICT AUTHENTICATION CHECK ====================
+# ==================== STRICT AUTHENTICATION ====================
 def verify_authentication():
-    # If not authenticated, show login and STOP the app completely
     if 'authenticated' not in st.session_state or not st.session_state['authenticated']:
         show_auth_screen()
-        st.stop()  # This will completely stop execution
-        
-    # If authenticated but using license key, verify it
-    if st.session_state.get('auth_method') == "license":
-        KeyAuthApp = initialize_keyauth()
-        if not KeyAuthApp:
-            st.error("Authentication system error")
-            st.stop()
-            
-        try:
-            KeyAuthApp.license(st.session_state['license_key'])
-            if not KeyAuthApp.verify() or KeyAuthApp.checkblacklist():
-                st.error("❌ License invalid or banned")
-                del st.session_state['authenticated']
-                st.experimental_rerun()
-        except:
-            del st.session_state['authenticated']
-            st.experimental_rerun()
-    
-    # If authenticated but using username/password, verify it
-    elif st.session_state.get('auth_method') == "login":
-        KeyAuthApp = initialize_keyauth()
-        if not KeyAuthApp:
-            st.error("Authentication system error")
-            st.stop()
-            
-        try:
-            KeyAuthApp.login(st.session_state['username'], "dummy")  # We don't store password, just check session
-            if not KeyAuthApp.verify() or KeyAuthApp.checkblacklist():
-                st.error("❌ Session expired or banned")
-                del st.session_state['authenticated']
-                st.experimental_rerun()
-        except:
-            del st.session_state['authenticated']
-            st.experimental_rerun()
+        st.stop()  # Complete block if not authenticated
 
 # ==================== AUTHENTICATION SCREEN ====================
 def show_auth_screen():
@@ -75,11 +40,11 @@ def show_auth_screen():
     auth_method = st.radio("Login Method:", ["License Key", "Username & Password"])
     
     if auth_method == "License Key":
-        license_key = st.text_input("Enter License Key:", type="password")
+        license_key = st.text_input("Enter License Key:", type="password", value="")
         
         if st.button("Verify License"):
-            if not license_key:
-                st.warning("Please enter license key")
+            if not license_key.strip():
+                st.warning("Please enter a valid license key")
                 return
                 
             KeyAuthApp = initialize_keyauth()
@@ -90,19 +55,20 @@ def show_auth_screen():
                 KeyAuthApp.license(license_key)
                 
                 if KeyAuthApp.checkblacklist():
-                    st.error("License banned. Contact support")
+                    st.error("❌ License banned. Contact support")
                     return
                     
-                if KeyAuthApp.verify():
+                if KeyAuthApp.response.message == "success":
                     st.session_state['authenticated'] = True
                     st.session_state['auth_method'] = "license"
                     st.session_state['license_key'] = license_key
-                    st.success("✅ Access granted!")
+                    st.success("✅ Access granted! Loading tool...")
                     st.experimental_rerun()
                 else:
-                    st.error("❌ Invalid license")
+                    st.error(f"❌ {KeyAuthApp.response.message}")
             except Exception as e:
                 st.error(f"Error: {str(e)}")
+                st.error("Contact developer if problem persists")
     
     else:  # Username & Password
         col1, col2 = st.columns(2)
@@ -112,8 +78,8 @@ def show_auth_screen():
             password = st.text_input("Password", type="password")
         
         if st.button("Login"):
-            if not username or not password:
-                st.warning("Enter both fields")
+            if not username.strip() or not password.strip():
+                st.warning("Please enter both username and password")
                 return
                 
             KeyAuthApp = initialize_keyauth()
@@ -124,33 +90,32 @@ def show_auth_screen():
                 KeyAuthApp.login(username, password)
                 
                 if KeyAuthApp.checkblacklist():
-                    st.error("Account banned. Contact support")
+                    st.error("❌ Account banned. Contact support")
                     return
                     
-                if KeyAuthApp.verify():
+                if KeyAuthApp.response.message == "success":
                     st.session_state['authenticated'] = True
                     st.session_state['auth_method'] = "login"
                     st.session_state['username'] = username
-                    st.success("✅ Login successful!")
+                    st.success("✅ Login successful! Loading tool...")
                     st.experimental_rerun()
                 else:
-                    st.error("❌ Invalid credentials")
+                    st.error(f"❌ {KeyAuthApp.response.message}")
             except Exception as e:
                 st.error(f"Error: {str(e)}")
+                st.error("Contact developer if problem persists")
     
     st.markdown("---")
     st.markdown("**Contact support:** [WhatsApp](https://wa.me/919140588751)")
-    
-    # BLOCK ALL ACCESS if not authenticated
-    st.stop()
+    st.stop()  # Block all access if not authenticated
 
 # ==================== MAIN APP ====================
 def main_app():
-    # Your tool's code goes here
-    st.title("Your Premium Tool")
-    st.write("Welcome authenticated user!")
+    # Your tool's main functionality goes here
+    st.title("🔧 Your Premium Tool")
+    st.success("Welcome! Authentication successful.")
     
-    # Add your existing tool functionality here
+    # Add your existing tool code here
     # ...
 
 # ==================== APP FLOW ====================
