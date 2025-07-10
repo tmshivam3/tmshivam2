@@ -171,34 +171,78 @@ def get_random_quote():
 
 def get_random_color():
     return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+# Replace these functions in your code:
+
+def get_text_size(draw, text, font):
+    # More precise text measurement
+    bbox = draw.textbbox((0, 0), text, font=font, anchor="lt")
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
+    main_color = effect_settings.get('main_color', (255, 255, 255))
+    outline_color = effect_settings.get('outline_color', (0, 0, 0))
     
-    if effect_type == 'colorful':
-        main_color = effect_settings.get('main_color', get_random_color())
-        outline_color = (0, 0, 0)  # Always black for outline in colorful mode
-        shadow_color = (25, 25, 25)  # 90% black shadow
-    elif effect_type == 'full_random':
-        # For full random, we'll use the same color for all text in the image
-        main_color = effect_settings.get('main_color', (255, 255, 255))  # Always white for main text
-        outline_color = effect_settings.get('outline_color', (0, 0, 0))  # Always black for outline
-        shadow_color = (25, 25, 25)  # 90% black shadow
-    else:
-        main_color = effect_settings.get('main_color', (255, 255, 255))
-        outline_color = effect_settings.get('outline_color', (0, 0, 0))
-        shadow_color = (25, 25, 25)  # 90% black shadow
+    # Render at 10x resolution then downscale for anti-aliasing
+    scale_factor = 10
+    temp_size = (font.size * scale_factor, font.size * scale_factor)
     
     if effect_settings.get('use_texture', False) and texture_img:
-        mask = Image.new("L", (font.getsize(text)[0], font.getsize(text)[1]))
+        # High-res texture rendering
+        temp_texture = texture_img.resize(
+            (int(texture_img.width * scale_factor), 
+            (int(texture_img.height * scale_factor)),
+            Image.LANCZOS
+        )
+        mask = Image.new("L", (font.getsize(text)[0] * scale_factor, 
+                             font.getsize(text)[1] * scale_factor))
         mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text((0, 0), text, font=font, fill=255)
-        texture = texture_img.resize(mask.size)
+        mask_draw.text((0, 0), text, font=font.font_variant(size=font.size*scale_factor), fill=255)
         textured_text = Image.new("RGBA", mask.size)
-        textured_text.paste(texture, (0, 0), mask)
-        draw.bitmap((x, y), textured_text.convert("L"), fill=(255, 255, 255))
+        textured_text.paste(temp_texture, (0, 0), mask)
+        textured_text = textured_text.resize(font.getsize(text), Image.LANCZOS)
+        draw.bitmap((x, y), textured_text.convert("L"), fill=main_color)
         return effect_settings
+
+    # High-resolution rendering for crisp text
+    temp_img = Image.new("RGBA", (font.getsize(text)[0] * scale_factor, 
+                                font.getsize(text)[1] * scale_factor))
+    temp_draw = ImageDraw.Draw(temp_img)
+    
+    if effect_type == "white_black_outline":
+        outline_size = 2 * scale_factor
+        temp_font = font.font_variant(size=font.size*scale_factor)
+        for ox in range(-outline_size, outline_size+1, scale_factor):
+            for oy in range(-outline_size, outline_size+1, scale_factor):
+                if ox != 0 or oy != 0:
+                    temp_draw.text((outline_size+ox, outline_size+oy), 
+                                 text, font=temp_font, fill=outline_color)
+    
+    temp_draw.text((outline_size, outline_size), text, 
+                  font=font.font_variant(size=font.size*scale_factor), 
+                  fill=main_color)
+    
+    # Downscale with LANCZOS (best for downscaling)
+    temp_img = temp_img.resize(font.getsize(text), Image.LANCZOS)
+    draw.bitmap((x, y), temp_img.convert("L"), fill=main_color)
+    
+    return effect_settings
+
+# Add this new function for ultra-sharp font loading:
+def get_random_font():
+    fonts = list_files("assets/fonts", [".ttf", ".otf"])
+    if not fonts:
+        return ImageFont.load_default().font_variant(size=80)
+    
+    try:
+        font_path = os.path.join("assets/fonts", random.choice(fonts))
+        # Load font at 10x size then scale down
+        base_size = 80
+        font = ImageFont.truetype(font_path, base_size * 10)
+        return font.font_variant(size=base_size)  # Returns scaled-down but ultra-crisp font
+    except:
+        return ImageFont.load_default().font_variant(size=80)
     
     # Apply shadow (90% black)
     shadow_offset = 3
