@@ -1,34 +1,4 @@
 import streamlit as st
-
-# 1. First set page config
-st.set_page_config(page_title="⚡ EDIT 100+ IMAGE IN ONE CLICK", layout="wide")
-
-# 2. Then import other modules
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
-import os
-import io
-import random
-import datetime
-import zipfile
-import numpy as np
-import logging
-
-# 3. Then define your functions
-def list_files(folder, exts):
-    # function implementation
-    ...
-
-def smart_crop(img, target_ratio=3/4):
-    # function implementation
-    ...
-
-# [Rest of your functions]
-
-# 4. Then your main app code
-if 'generated_images' not in st.session_state:
-    st.session_state.generated_images = []
-
-# [Rest of your app code]
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
 import io
@@ -535,6 +505,7 @@ with st.sidebar:
     
     show_quote = st.checkbox("Add Quote", value=False)
     if show_quote:
+        quote_text = get_random_quote()
         quote_size = st.slider("Quote Text Size", 10, 100, 40)
     
     use_watermark = st.checkbox("Add Watermark", value=True)
@@ -601,7 +572,7 @@ if st.button("✨ Generate Photos", key="generate"):
             }
             selected_effect = effect_mapping[text_effect]
             
-            base_settings = {
+            settings = {
                 'greeting_type': greeting_type,
                 'show_text': show_text,
                 'main_size': main_size if show_text else 90,
@@ -612,6 +583,8 @@ if st.button("✨ Generate Photos", key="generate"):
                 'date_size': date_size if show_date else 30,
                 'date_format': date_format if show_date else "8 July 2025",
                 'show_quote': show_quote,
+                'quote_text': quote_text if show_quote else "",
+                'quote_size': quote_size if show_quote else 40,
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
                 'watermark_opacity': watermark_opacity if use_watermark else 1.0,
@@ -649,19 +622,11 @@ if st.button("✨ Generate Photos", key="generate"):
                     if generate_variants:
                         variants = []
                         for i in range(3):
-                            settings = {
-                                **base_settings,
-                                'quote_text': get_random_quote() if show_quote else ""
-                            }
                             variant = create_variant(img, settings)
                             if variant is not None:
                                 variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
-                        settings = {
-                            **base_settings,
-                            'quote_text': get_random_quote() if show_quote else ""
-                        }
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
                         if font is None:
