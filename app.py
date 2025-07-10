@@ -1,4 +1,3 @@
-
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
@@ -114,28 +113,18 @@ def get_text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font(font_size=80, max_attempts=3):
-    """
-    Returns a random truetype font from the assets/fonts directory.
-    Falls back to the default font if loading fails.
-    """
+def get_random_font(attempt=0):
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
         return ImageFont.load_default()
-
-    random.shuffle(fonts)
-    attempts = 0
-    for font_file in fonts:
-        if attempts >= max_attempts:
-            break
-        font_path = os.path.join("assets/fonts", font_file)
+    
+    # Try to get a working font with max 3 attempts
+    for _ in range(3):
         try:
-            return ImageFont.truetype(font_path, font_size)
-        except OSError:
-            attempts += 1
-            continue  # Try the next font
-
-    return ImageFont.load_default()
+            font_path = os.path.join("assets/fonts", random.choice(fonts))
+            return ImageFont.truetype(font_path, 80)
+        except:
+            continue
     
     # If all attempts fail, use default font
     return ImageFont.load_default()
@@ -148,9 +137,11 @@ def get_random_wish(greeting_type):
         "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!"]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
+
 def get_random_color():
     # Generate random color
     return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
@@ -538,12 +529,28 @@ with st.sidebar:
     generate_variants = st.checkbox("Generate 3 Variants per Photo", value=False)
     use_advanced_analysis = st.checkbox("Use Advanced Text Placement", value=False)
     
-    # Text effect selection
+    # Text effect selection (removed font selection)
     text_effect = st.selectbox(
         "Text Style",
         ["Random (Recommended)", "White Only", "White with Black Outline", "Glowing Effect", "Full Random"],
         index=0
     )
+    
+    # Font upload option
+    st.markdown("### 🔠 Font Options")
+    upload_font = st.checkbox("Upload Custom Font", value=False)
+    custom_font = None
+    
+    if upload_font:
+        uploaded_font = st.file_uploader("Upload Font (TTF/OTF)", type=["ttf", "otf"])
+        if uploaded_font:
+            try:
+                # Save the uploaded font temporarily
+                font_bytes = uploaded_font.read()
+                custom_font = ImageFont.truetype(io.BytesIO(font_bytes), size=80)
+            except Exception as e:
+                st.warning(f"Couldn't load uploaded font: {str(e)}")
+                custom_font = None
     
     # Texture option
     st.markdown("### 🎨 Texture Options")
@@ -669,7 +676,8 @@ if st.button("✨ Generate Photos", key="generate"):
                 'selected_pet': selected_pet if use_coffee_pet else None,
                 'text_effect': selected_effect,
                 'use_texture': use_texture,
-                'texture_image': texture_image
+                'texture_image': texture_image,
+                'custom_font': custom_font
             }
             
             for uploaded_file in uploaded_images:
@@ -698,7 +706,7 @@ if st.button("✨ Generate Photos", key="generate"):
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
-                        font = get_random_font()
+                        font = custom_font if custom_font else get_random_font()
                         blank_space = analyze_blank_space(img) if use_advanced_analysis else None
                         
                         # Generate consistent effect settings for all text in this image
