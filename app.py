@@ -1,25 +1,20 @@
+# ==================== KEYAUTH LICENSE SCREEN ====================
+import streamlit as st
 import keyauth
 
-# ✅ KeyAuth API Initialize
+# KeyAuth setup
 KeyAuthApp = keyauth.api(
-    name = "Skbindjnp9's Application",  # App name tumhare dashboard ka
-    ownerid = "jPmvngHsy3",             # Tumhara ownerid
-    version = "1.0"                     # Tumhara app version
+    name = "Skbindjnp9's Application",  # Your App Name
+    ownerid = "jPmvngHsy3",             # Your Owner ID
+    version = "1.0"                     # Your Version
 )
-import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
-import os
-import io
-import random
-import datetime
-import zipfile
-import numpy as np
 
-# =================== CONFIG ===================
+# Page config
 st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
-# ✅ License Key Check UI
+
+# License input
 st.markdown("""
-    <div style='background-color: #000000; padding: 10px; border-radius: 8px; border: 2px solid #ffff00;'>
+    <div style='background-color: #000000; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ffff00;'>
         <h2 style='text-align: center; color: #ffff00; margin: 0;'>🔑 Enter Your License Key</h2>
     </div>
 """, unsafe_allow_html=True)
@@ -33,10 +28,23 @@ if not license_key:
 try:
     KeyAuthApp.license(license_key)
     st.success("✅ License Verified. You can use the tool now!")
-except:
+except Exception as e:
     st.error("❌ Invalid or Expired License Key. Contact Admin.")
     st.stop()
 
+# ================================================================
+
+import streamlit as st
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
+import os
+import io
+import random
+import datetime
+import zipfile
+import numpy as np
+
+# =================== CONFIG ===================
+st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
 
 # Custom CSS for black/white/yellow theme
 st.markdown("""
