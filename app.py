@@ -1,4 +1,3 @@
-
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
@@ -71,7 +70,7 @@ st.markdown("""
 def list_files(folder, exts):
     if not os.path.exists(folder):
         return []
-    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts]
 
 def smart_crop(img, target_ratio=3/4):
     w, h = img.size
@@ -88,15 +87,21 @@ def get_text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font():
+def get_random_font(attempt=0):
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
         return ImageFont.load_default()
-    font_path = os.path.join("assets/fonts", random.choice(fonts))
-    try:
-        return ImageFont.truetype(font_path, 80)  # Default size 80
-    except:
-        return ImageFont.load_default()
+    
+    # Try to get a working font with max 3 attempts
+    for _ in range(3):
+        try:
+            font_path = os.path.join("assets/fonts", random.choice(fonts))
+            return ImageFont.truetype(font_path, 80)
+        except:
+            continue
+    
+    # If all attempts fail, use default font
+    return ImageFont.load_default()
 
 def get_random_wish(greeting_type):
     wishes = {
@@ -239,12 +244,69 @@ def upscale_text_elements(img, scale_factor=2):
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def create_variant(original_img, settings, text_effect=None):
+def analyze_blank_space(img):
+    """Analyze image to find best blank space for text"""
+    # Convert to grayscale
+    gray = img.convert('L')
+    
+    # Threshold to find bright areas (potential blank space)
+    threshold = 200  # Brightness threshold
+    mask = gray.point(lambda p: p > threshold and 255)
+    
+    # Find contours of bright areas
+    contours = []
+    try:
+        # This is a simplified approach - for better results consider using OpenCV
+        for y in range(img.height):
+            for x in range(img.width):
+                if mask.getpixel((x, y)) == 255:
+                    # Simple region growing
+                    area = [(x, y)]
+                    mask.putpixel((x, y), 0)  # Mark as visited
+                    i = 0
+                    while i < len(area):
+                        cx, cy = area[i]
+                        for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
+                            nx, ny = cx+dx, cy+dy
+                            if 0 <= nx < img.width and 0 <= ny < img.height:
+                                if mask.getpixel((nx, ny)) == 255:
+                                    area.append((nx, ny))
+                                    mask.putpixel((nx, ny), 0)
+                        i += 1
+                    if len(area) > 100:  # Minimum area size
+                        contours.append(area)
+    except:
+        pass
+    
+    if not contours:
+        return None
+    
+    # Find largest bright area
+    largest = max(contours, key=len)
+    x_coords = [p[0] for p in largest]
+    y_coords = [p[1] for p in largest]
+    
+    min_x, max_x = min(x_coords), max(x_coords)
+    min_y, max_y = min(y_coords), max(y_coords)
+    
+    return {
+        'x': min_x,
+        'y': min_y,
+        'width': max_x - min_x,
+        'height': max_y - min_y,
+        'center_x': (min_x + max_x) // 2,
+        'center_y': (min_y + max_y) // 2
+    }
+
+def create_variant(original_img, settings, text_effect=None, use_advanced=False):
     """Create a variant of the original image with different text positions/effects"""
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
     font = get_random_font()
     text_color = get_random_color()
+    
+    # Analyze blank space if advanced mode is on
+    blank_space = analyze_blank_space(img) if use_advanced else None
     
     # Add main text
     if settings['show_text']:
@@ -252,11 +314,16 @@ def create_variant(original_img, settings, text_effect=None):
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
-        # Varied positioning with bounds checking
-        max_text_x = max(20, img.width - text_width - 20)
-        text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-        max_text_y = max(20, img.height // 3)
-        text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
+        if blank_space and blank_space['width'] > text_width and blank_space['height'] > text_height:
+            # Place text in blank space
+            text_x = blank_space['center_x'] - text_width // 2
+            text_y = blank_space['center_y'] - text_height // 2
+        else:
+            # Varied positioning with bounds checking
+            max_text_x = max(20, img.width - text_width - 20)
+            text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
+            max_text_y = max(20, img.height // 3)
+            text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
         effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, text_effect)
     
@@ -268,14 +335,22 @@ def create_variant(original_img, settings, text_effect=None):
         
         # Position relative to main text or random
         if settings['show_text']:
-            max_wish_x = max(20, img.width - wish_width - 20)
-            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            wish_y = text_y + settings['main_size'] + random.randint(10, 30)
+            if blank_space and blank_space['width'] > wish_width and blank_space['height'] > wish_height:
+                wish_x = blank_space['center_x'] - wish_width // 2
+                wish_y = text_y + settings['main_size'] + random.randint(10, 30)
+            else:
+                max_wish_x = max(20, img.width - wish_width - 20)
+                wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
+                wish_y = text_y + settings['main_size'] + random.randint(10, 30)
         else:
-            max_wish_x = max(20, img.width - wish_width - 20)
-            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            max_wish_y = max(20, img.height // 2)
-            wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
+            if blank_space and blank_space['width'] > wish_width and blank_space['height'] > wish_height:
+                wish_x = blank_space['center_x'] - wish_width // 2
+                wish_y = blank_space['center_y'] - wish_height // 2
+            else:
+                max_wish_x = max(20, img.width - wish_width - 20)
+                wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
+                max_wish_y = max(20, img.height // 2)
+                wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
         
         apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
     
@@ -295,9 +370,13 @@ def create_variant(original_img, settings, text_effect=None):
             
         date_width, date_height = get_text_size(draw, date_text, font_date)
         
-        max_date_x = max(20, img.width - date_width - 20)
-        date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
-        date_y = max(20, img.height - date_height - 20)  # Bottom position
+        if blank_space and blank_space['width'] > date_width and blank_space['height'] > date_height:
+            date_x = blank_space['center_x'] - date_width // 2
+            date_y = blank_space['y'] + blank_space['height'] - date_height - 10
+        else:
+            max_date_x = max(20, img.width - date_width - 20)
+            date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
+            date_y = max(20, img.height - date_height - 20)  # Bottom position
         
         # Ensure day text doesn't overlap
         if settings['show_day'] and "(" in date_text:
@@ -402,6 +481,10 @@ with st.sidebar:
     
     # Variant option
     generate_variants = st.checkbox("Generate 3 Variants per Photo", value=False)
+    
+    # Advanced analysis checkbox
+    use_advanced_analysis = st.checkbox("Use Advanced Text Placement", value=False, 
+                                      help="Analyzes image to find best blank space for text")
     
     # Text settings
     show_text = st.checkbox("Show Greeting", value=True)
@@ -529,7 +612,7 @@ if st.button("✨ Generate Photos", key="generate"):
                         text_effect = get_random_text_effect()
                         variants = []
                         for i in range(3):
-                            variant = create_variant(img, settings, text_effect)
+                            variant = create_variant(img, settings, text_effect, use_advanced_analysis)
                             variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
@@ -537,6 +620,9 @@ if st.button("✨ Generate Photos", key="generate"):
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
                         text_color = get_random_color()
+                        
+                        # Analyze blank space if advanced mode is on
+                        blank_space = analyze_blank_space(img) if use_advanced_analysis else None
                         
                         # Add main text with consistent effect
                         if show_text:
@@ -549,8 +635,12 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
                                 text_width, text_height = get_text_size(draw, text, font_main)
                             
-                            text_x = (img.width - text_width) // 2
-                            text_y = 20  # Top position
+                            if blank_space and blank_space['width'] > text_width and blank_space['height'] > text_height:
+                                text_x = blank_space['center_x'] - text_width // 2
+                                text_y = blank_space['center_y'] - text_height // 2
+                            else:
+                                text_x = (img.width - text_width) // 2
+                                text_y = 20  # Top position
                             
                             effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
                         
@@ -565,8 +655,12 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
                                 wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
-                            wish_x = (img.width - wish_width) // 2
-                            wish_y = text_y + main_size + 20 if show_text else 20
+                            if blank_space and blank_space['width'] > wish_width and blank_space['height'] > wish_height:
+                                wish_x = blank_space['center_x'] - wish_width // 2
+                                wish_y = text_y + main_size + 20 if show_text else blank_space['center_y'] - wish_height // 2
+                            else:
+                                wish_x = (img.width - wish_width) // 2
+                                wish_y = text_y + main_size + 20 if show_text else 20
                             
                             apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
                         
@@ -590,8 +684,12 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_date = adjust_font_size_to_fit(draw, date_text, img.width - 40, img.height//3, date_size)
                                 date_width, date_height = get_text_size(draw, date_text, font_date)
                             
-                            date_x = (img.width - date_width) // 2
-                            date_y = img.height - date_height - 20  # Bottom position
+                            if blank_space and blank_space['width'] > date_width and blank_space['height'] > date_height:
+                                date_x = blank_space['center_x'] - date_width // 2
+                                date_y = blank_space['y'] + blank_space['height'] - date_height - 10
+                            else:
+                                date_x = (img.width - date_width) // 2
+                                date_y = img.height - date_height - 20  # Bottom position
                             
                             # Adjust position if day text is too long
                             if show_day and "(" in date_text:
@@ -710,4 +808,4 @@ if st.session_state.generated_images:
                 file_name=filename,
                 mime="image/jpeg",
                 key=f"download_{i}"
-                )
+            )
