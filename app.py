@@ -148,8 +148,6 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     effect_type = effect_settings['type']
     main_color = effect_settings.get('main_color', (255, 255, 255))
     outline_color = effect_settings.get('outline_color', (0, 0, 0))
-    shadow_color = effect_settings.get('shadow_color', (0, 0, 0, 128))
-    glow_color = effect_settings.get('glow_color', get_random_color())
     
     if effect_settings.get('use_texture', False) and texture_img:
         mask = Image.new("L", (font.getsize(text)[0], font.getsize(text)[1]))
@@ -169,32 +167,18 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        shadow_offset = 3
-        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=shadow_color)
         draw.text((x, y), text, font=font, fill=main_color)
-    elif effect_type == "glowing":
-        for i in range(1, 4):
-            outline_size = i
+    elif effect_type == "full_random":
+        # 50% chance for white or white with black outline
+        if random.random() < 0.5:
+            draw.text((x, y), text, font=font, fill=main_color)
+        else:
+            outline_size = 2
             for ox in range(-outline_size, outline_size+1):
                 for oy in range(-outline_size, outline_size+1):
                     if ox != 0 or oy != 0:
-                        draw.text((x+ox, y+oy), text, font=font, fill=glow_color + (200,))
-        shadow_offset = 3
-        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=glow_color + (128,))
-        draw.text((x, y), text, font=font, fill=main_color)
-    elif effect_type == "random_all":
-        text_color = effect_settings.get('main_color', get_random_color())
-        outline_color = effect_settings.get('outline_color', get_random_color())
-        shadow_color = effect_settings.get('shadow_color', get_random_color())
-        
-        outline_size = 2
-        for ox in range(-outline_size, outline_size+1):
-            for oy in range(-outline_size, outline_size+1):
-                if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        shadow_offset = 3
-        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=shadow_color + (128,))
-        draw.text((x, y), text, font=font, fill=text_color)
+                        draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+            draw.text((x, y), text, font=font, fill=main_color)
     
     return effect_settings
 
@@ -312,12 +296,10 @@ def analyze_blank_space(img):
         'center_y': (min_y + max_y) // 2
     }
 
-def create_variant(original_img, settings, use_advanced=False):
+def create_variant(original_img, settings):
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
     font = get_random_font()
-    
-    blank_space = analyze_blank_space(img) if use_advanced else None
     
     texture_img = None
     if settings.get('use_texture', False) and settings.get('texture_image', None):
@@ -325,29 +307,19 @@ def create_variant(original_img, settings, use_advanced=False):
     
     effect_settings = {
         'type': settings.get('text_effect', None),
-        'use_texture': settings.get('use_texture', False)
+        'use_texture': settings.get('use_texture', False),
+        'main_color': (255, 255, 255)  # Always white text
     }
     
-    if effect_settings['type'] == 'random_all':
-        effect_settings['main_color'] = get_random_color()
-        effect_settings['outline_color'] = get_random_color()
-        effect_settings['shadow_color'] = get_random_color()
-    elif effect_settings['type'] == 'glowing':
-        effect_settings['glow_color'] = get_random_color()
-    
     if settings['show_text']:
-        font_main = font.font_variant(size=settings['main_size'])
+        font_main = font.font_variant(size=90)  # Default size 90 for main text
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
-        if blank_space and blank_space['width'] > text_width and blank_space['height'] > text_height:
-            text_x = blank_space['center_x'] - text_width // 2
-            text_y = blank_space['center_y'] - text_height // 2
-        else:
-            max_text_x = max(20, img.width - text_width - 20)
-            text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-            max_text_y = max(20, img.height // 3)
-            text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
+        max_text_x = max(20, img.width - text_width - 20)
+        text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
+        max_text_y = max(20, img.height // 3)
+        text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
         effect_settings = apply_text_effect(
             draw, 
@@ -359,27 +331,19 @@ def create_variant(original_img, settings, use_advanced=False):
         )
     
     if settings['show_wish']:
-        font_wish = font.font_variant(size=settings['wish_size'])
+        font_wish = font.font_variant(size=60)  # Default size 60 for wish text
         wish_text = get_random_wish(settings['greeting_type'])
         wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
         
         if settings['show_text']:
-            if blank_space and blank_space['width'] > wish_width and blank_space['height'] > wish_height:
-                wish_x = blank_space['center_x'] - wish_width // 2
-                wish_y = text_y + settings['main_size'] + random.randint(10, 30)
-            else:
-                max_wish_x = max(20, img.width - wish_width - 20)
-                wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-                wish_y = text_y + settings['main_size'] + random.randint(10, 30)
+            max_wish_x = max(20, img.width - wish_width - 20)
+            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
+            wish_y = text_y + 90 + random.randint(10, 30)  # 90 is main text size
         else:
-            if blank_space and blank_space['width'] > wish_width and blank_space['height'] > wish_height:
-                wish_x = blank_space['center_x'] - wish_width // 2
-                wish_y = blank_space['center_y'] - wish_height // 2
-            else:
-                max_wish_x = max(20, img.width - wish_width - 20)
-                wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-                max_wish_y = max(20, img.height // 2)
-                wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
+            max_wish_x = max(20, img.width - wish_width - 20)
+            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
+            max_wish_y = max(20, img.height // 2)
+            wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
         
         apply_text_effect(
             draw, 
@@ -404,13 +368,9 @@ def create_variant(original_img, settings, use_advanced=False):
             
         date_width, date_height = get_text_size(draw, date_text, font_date)
         
-        if blank_space and blank_space['width'] > date_width and blank_space['height'] > date_height:
-            date_x = blank_space['center_x'] - date_width // 2
-            date_y = blank_space['y'] + blank_space['height'] - date_height - 10
-        else:
-            max_date_x = max(20, img.width - date_width - 20)
-            date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
-            date_y = max(20, img.height - date_height - 20)
+        max_date_x = max(20, img.width - date_width - 20)
+        date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
+        date_y = max(20, img.height - date_height - 20)
         
         if settings['show_day'] and "(" in date_text:
             day_part = date_text[date_text.index("("):]
@@ -504,11 +464,10 @@ with st.sidebar:
     
     greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Afternoon", "Good Evening", "Good Night"])
     generate_variants = st.checkbox("Generate 3 Variants per Photo", value=False)
-    use_advanced_analysis = st.checkbox("Use Advanced Text Placement", value=False)
     
     text_effect = st.selectbox(
         "Text Style",
-        ["Random (Recommended)", "White Only", "White with Black Outline", "Glowing Effect", "Full Random"],
+        ["White Only", "White with Black Outline", "Full Random"],
         index=0
     )
     
@@ -530,12 +489,7 @@ with st.sidebar:
                     texture_image = Image.open(texture_path).convert("RGBA")
     
     show_text = st.checkbox("Show Greeting", value=True)
-    if show_text:
-        main_size = st.slider("Main Text Size", 10, 200, 80)
-    
     show_wish = st.checkbox("Show Wish", value=True)
-    if show_wish:
-        wish_size = st.slider("Wish Text Size", 10, 200, 50)
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
@@ -549,23 +503,20 @@ with st.sidebar:
     watermark_image = None
     
     if use_watermark:
-        watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
-        
-        if watermark_option == "Pre-made":
-            watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
-            if watermark_files:
-                selected_watermark = st.selectbox("Select Watermark", watermark_files, index=0)
-                watermark_path = os.path.join("assets/logos", selected_watermark)
-                if os.path.exists(watermark_path):
-                    watermark_image = Image.open(watermark_path).convert("RGBA")
-                else:
-                    st.error(f"Watermark file not found: {watermark_path}")
+        watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
+        if watermark_files:
+            # Default to "wishful vibes.png" if available
+            default_index = 0
+            if "wishful vibes.png" in watermark_files:
+                default_index = watermark_files.index("wishful vibes.png")
+            selected_watermark = st.selectbox("Select Watermark", watermark_files, index=default_index)
+            watermark_path = os.path.join("assets/logos", selected_watermark)
+            if os.path.exists(watermark_path):
+                watermark_image = Image.open(watermark_path).convert("RGBA")
             else:
-                st.warning("No watermarks found in assets/logos folder")
+                st.error(f"Watermark file not found: {watermark_path}")
         else:
-            uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
-            if uploaded_watermark:
-                watermark_image = Image.open(uploaded_watermark).convert("RGBA")
+            st.warning("No watermarks found in assets/logos folder")
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
@@ -603,20 +554,16 @@ if st.button("✨ Generate Photos", key="generate"):
             variant_images = []
             
             effect_mapping = {
-                "Random (Recommended)": None,
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
-                "Glowing Effect": "glowing",
-                "Full Random": "random_all"
+                "Full Random": "full_random"
             }
             selected_effect = effect_mapping[text_effect]
             
             settings = {
                 'greeting_type': greeting_type,
                 'show_text': show_text,
-                'main_size': main_size if show_text else 80,
                 'show_wish': show_wish,
-                'wish_size': wish_size if show_wish else 50,
                 'show_date': show_date,
                 'show_day': show_day if show_date else False,
                 'date_size': date_size if show_date else 30,
@@ -660,41 +607,30 @@ if st.button("✨ Generate Photos", key="generate"):
                     if generate_variants:
                         variants = []
                         for i in range(3):
-                            variant = create_variant(img, settings, use_advanced=use_advanced_analysis)
+                            variant = create_variant(img, settings)
                             variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
-                        blank_space = analyze_blank_space(img) if use_advanced_analysis else None
                         
                         effect_settings = {
                             'type': selected_effect,
-                            'use_texture': use_texture
+                            'use_texture': use_texture,
+                            'main_color': (255, 255, 255)  # Always white text
                         }
                         
-                        if selected_effect == 'random_all':
-                            effect_settings['main_color'] = get_random_color()
-                            effect_settings['outline_color'] = get_random_color()
-                            effect_settings['shadow_color'] = get_random_color()
-                        elif selected_effect == 'glowing':
-                            effect_settings['glow_color'] = get_random_color()
-                        
                         if show_text:
-                            font_main = font.font_variant(size=main_size)
+                            font_main = font.font_variant(size=90)  # Default size 90 for main text
                             text = greeting_type
                             text_width, text_height = get_text_size(draw, text, font_main)
                             
                             if text_width > img.width - 40:
-                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
+                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, 90)
                                 text_width, text_height = get_text_size(draw, text, font_main)
                             
-                            if blank_space and blank_space['width'] > text_width and blank_space['height'] > text_height:
-                                text_x = blank_space['center_x'] - text_width // 2
-                                text_y = blank_space['center_y'] - text_height // 2
-                            else:
-                                text_x = (img.width - text_width) // 2
-                                text_y = 20
+                            text_x = (img.width - text_width) // 2
+                            text_y = 20
                             
                             effect_settings = apply_text_effect(
                                 draw, 
@@ -706,20 +642,16 @@ if st.button("✨ Generate Photos", key="generate"):
                             )
                         
                         if show_wish:
-                            font_wish = font.font_variant(size=wish_size)
+                            font_wish = font.font_variant(size=60)  # Default size 60 for wish text
                             wish_text = get_random_wish(greeting_type)
                             wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
                             if wish_width > img.width - 40:
-                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
+                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, 60)
                                 wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
-                            if blank_space and blank_space['width'] > wish_width and blank_space['height'] > wish_height:
-                                wish_x = blank_space['center_x'] - wish_width // 2
-                                wish_y = text_y + main_size + 20 if show_text else blank_space['center_y'] - wish_height // 2
-                            else:
-                                wish_x = (img.width - wish_width) // 2
-                                wish_y = text_y + main_size + 20 if show_text else 20
+                            wish_x = (img.width - wish_width) // 2
+                            wish_y = text_y + 90 + 20 if show_text else 20  # 90 is main text size
                             
                             apply_text_effect(
                                 draw, 
@@ -748,12 +680,8 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_date = adjust_font_size_to_fit(draw, date_text, img.width - 40, img.height//3, date_size)
                                 date_width, date_height = get_text_size(draw, date_text, font_date)
                             
-                            if blank_space and blank_space['width'] > date_width and blank_space['height'] > date_height:
-                                date_x = blank_space['center_x'] - date_width // 2
-                                date_y = blank_space['y'] + blank_space['height'] - date_height - 10
-                            else:
-                                date_x = (img.width - date_width) // 2
-                                date_y = img.height - date_height - 20
+                            date_x = (img.width - date_width) // 2
+                            date_y = img.height - date_height - 20
                             
                             if show_day and "(" in date_text:
                                 day_part = date_text[date_text.index("("):]
