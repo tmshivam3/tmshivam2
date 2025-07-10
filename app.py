@@ -183,7 +183,7 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     if effect_settings.get('use_texture', False) and texture_img:
         temp_texture = texture_img.resize(
             (int(texture_img.width * scale_factor), 
-            (int(texture_img.height * scale_factor)),
+             int(texture_img.height * scale_factor)),
             Image.LANCZOS
         )
         mask = Image.new("L", temp_size)
@@ -201,8 +201,9 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     temp_draw = ImageDraw.Draw(temp_img)
     temp_font = font.font_variant(size=font.size*scale_factor)
 
+    outline_size = 2 * scale_factor if effect_type in ["white_black_outline", "full_random"] else 0
+    
     if effect_type in ["white_black_outline", "full_random"]:
-        outline_size = 2 * scale_factor
         for ox in range(-outline_size, outline_size+1, scale_factor//2):
             for oy in range(-outline_size, outline_size+1, scale_factor//2):
                 if ox != 0 or oy != 0:
@@ -220,6 +221,7 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     draw.bitmap((x, y), temp_img.convert("L"), fill=main_color)
     
     return effect_settings
+
 # Add this new function for ultra-sharp font loading:
 def get_random_font():
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
