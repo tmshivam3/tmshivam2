@@ -547,8 +547,7 @@ def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
         try:
             font = ImageFont.truetype("assets/fonts/default.ttf", size)
             text_width, text_height = get_text_size(draw, text, font)
-            if text_width <= max_width and text_height <= max_height:
-                break
+            if text_width <= max_width and text_height <= max_height
         except:
             font = ImageFont.load_default()
             break
