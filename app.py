@@ -1,141 +1,189 @@
 # ==================== IMPORTS ====================
 import streamlit as st
 import keyauth
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
-import os
-import io
-import random
-import datetime
-import numpy as np
-import zipfile
-import cv2
-import sys
+import time
+
+# ==================== USER CREDENTIALS ====================
+VALID_CREDENTIALS = {
+    "admin": "admin123",
+    "user1": "password1",
+    "premium": "premium123"
+}
+PREMIUM_USERS = ["admin", "premium"]
 
 # ==================== KEYAUTH CONFIGURATION ====================
 def initialize_keyauth():
     try:
-        # Minimal required KeyAuth initialization
         KeyAuthApp = keyauth.api(
-            name="Skbindjnp9's Application",
-            ownerid="jPmvngHsy3",
+            name="YOUR_APP_NAME",            # <=== PUT YOUR KEYAUTH APP NAME HERE
+            ownerid="YOUR_OWNER_ID",         # <=== PUT YOUR KEYAUTH OWNER ID HERE
             version="1.0",
-            hash_to_check=""  # Required parameter but can be empty
+            hash_to_check="",
+            api_url="https://keyauth.win/api/1.2/"
         )
         return KeyAuthApp
     except Exception as e:
-        st.error(f"Authentication system error: {str(e)}")
+        st.error(f"KeyAuth initialization failed: {str(e)}")
         return None
 
-# ==================== AUTHENTICATION FLOW ====================
-def verify_authentication():
-    if 'authenticated' not in st.session_state or not st.session_state['authenticated']:
-        show_auth_screen()
-        # Clear the entire page and show only auth screen
-        st.stop()
+# ==================== LOGIN PAGE ====================
+def show_login_page():
+    # Page styling
+    st.set_page_config(page_title="🔐 Login | Premium Photo Tool", layout="centered")
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background-color: #111;
+        }
+        h1, h2, h3, h4, h5, h6, p, div {
+            color: #f1f1f1;
+        }
+        .stButton>button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .error-text {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        .success-text {
+            color: #28a745;
+            font-weight: bold;
+        }
+        </style>
+        """, unsafe_allow_html=True
+    )
 
-# ==================== AUTHENTICATION SCREEN ====================
-def show_auth_screen():
-    st.title("🔐 Authentication Required")
-    st.warning("You must login to use this tool")
-    
-    # Initialize error message
-    if 'auth_error' not in st.session_state:
-        st.session_state.auth_error = None
-    
-    # Display error if exists
-    if st.session_state.auth_error:
-        st.error(st.session_state.auth_error)
-    
-    auth_method = st.radio("Login Method:", ["License Key", "Username & Password"])
-    
-    if auth_method == "License Key":
-        license_key = st.text_input("Enter License Key:", type="password", key="license_key_input")
-        
-        if st.button("Verify License", key="verify_license_btn"):
-            st.session_state.auth_error = None  # Clear previous errors
-            
-            if not license_key.strip():
-                st.session_state.auth_error = "Please enter your license key"
-                st.rerun()
-            
+    # Logo / Header
+    st.title("🔐 Premium Photo Tool Login")
+    st.caption("Secure login to access the premium editor")
+
+    tab1, tab2 = st.tabs(["👤 ID/Password Login", "🔑 License Key Login"])
+
+    # -------------------- ID / PASSWORD LOGIN --------------------
+    with tab1:
+        st.subheader("👤 ID/Password Login")
+        username = st.text_input("Username", placeholder="Enter your username")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+
+        if st.button("Login with ID/Password"):
+            if not username or not password:
+                st.warning("⚠️ Please enter both username and password.")
+            elif username in VALID_CREDENTIALS and VALID_CREDENTIALS[username] == password:
+                st.session_state['authenticated'] = True
+                st.session_state['login_method'] = "idpass"
+                st.session_state['username'] = username
+                st.session_state['is_premium'] = username in PREMIUM_USERS
+                st.success(f"✅ Welcome, {username}!")
+                time.sleep(1)
+                st.experimental_rerun()
+            else:
+                st.error(
+                    "❌ Invalid Username or Password.\n\n"
+                    "📞 *Purchase subscription on WhatsApp: 9140588751*"
+                )
+                st.stop()
+
+    # -------------------- LICENSE KEY LOGIN --------------------
+    with tab2:
+        st.subheader("🔑 License Key Login")
+        license_key = st.text_input("License Key", type="password", placeholder="Enter your license key")
+
+        if st.button("Login with License Key"):
+            if not license_key:
+                st.warning("⚠️ Please enter your license key.")
+                return
+
             KeyAuthApp = initialize_keyauth()
             if not KeyAuthApp:
-                st.session_state.auth_error = "Authentication service unavailable"
-                st.rerun()
-            
-            try:
-                KeyAuthApp.license(license_key)
-                
-                # Check if license is valid
-                if KeyAuthApp.response.get('message') == "success":
-                    st.session_state['authenticated'] = True
-                    st.session_state['auth_method'] = "license"
-                    st.session_state['license_key'] = license_key
-                    st.rerun()
-                else:
-                    st.session_state.auth_error = KeyAuthApp.response.get('message', "Invalid license key")
-                    st.rerun()
-                    
-            except Exception as e:
-                st.session_state.auth_error = f"Authentication failed: {str(e)}"
-                st.rerun()
-    
-    else:  # Username & Password
-        username = st.text_input("Username", key="username_input")
-        password = st.text_input("Password", type="password", key="password_input")
-        
-        if st.button("Login", key="login_btn"):
-            st.session_state.auth_error = None  # Clear previous errors
-            
-            if not username.strip() or not password.strip():
-                st.session_state.auth_error = "Please enter both username and password"
-                st.rerun()
-            
-            KeyAuthApp = initialize_keyauth()
-            if not KeyAuthApp:
-                st.session_state.auth_error = "Authentication service unavailable"
-                st.rerun()
-            
-            try:
-                KeyAuthApp.login(username, password)
-                
-                # Check if login is valid
-                if KeyAuthApp.response.get('message') == "success":
-                    st.session_state['authenticated'] = True
-                    st.session_state['auth_method'] = "login"
-                    st.session_state['username'] = username
-                    st.rerun()
-                else:
-                    st.session_state.auth_error = KeyAuthApp.response.get('message', "Invalid credentials")
-                    st.rerun()
-                    
-            except Exception as e:
-                st.session_state.auth_error = f"Login failed: {str(e)}"
-                st.rerun()
-    
-    st.markdown("---")
-    st.markdown("**Need help?** Contact support: [WhatsApp](https://wa.me/919140588751)")
-    
-    # Prevent any further execution
-    st.stop()
+                return
 
-# ==================== MAIN APPLICATION ====================
+            try:
+                response = KeyAuthApp.license(license_key)
+                if not response:
+                    st.error(
+                        "❌ Invalid or expired license key.\n\n"
+                        "📞 *Purchase subscription on WhatsApp: 9140588751*"
+                    )
+                    return
+
+                if KeyAuthApp.checkblacklist():
+                    st.error(
+                        "❌ This license key has been banned.\n\n"
+                        "📞 *Purchase subscription on WhatsApp: 9140588751*"
+                    )
+                    return
+
+                st.success("✅ License Verified! Welcome.")
+                st.session_state['authenticated'] = True
+                st.session_state['license_key'] = license_key
+                st.session_state['login_method'] = "license"
+                st.session_state['is_premium'] = True
+                time.sleep(1)
+                st.experimental_rerun()
+
+            except Exception as e:
+                st.error(
+                    f"❌ Error: {str(e)}\n\n"
+                    "📞 *Purchase subscription on WhatsApp: 9140588751*"
+                )
+                st.stop()
+
+# ==================== MAIN APP ====================
 def main_app():
-    # Your tool's main content goes here
-    st.title("🛠️ Your Premium Tool")
-    st.success("Welcome! You're successfully authenticated.")
-    
-    # Add your existing tool functionality here
-    # ...
+    is_premium = st.session_state.get('is_premium', False)
 
-# ==================== APP ENTRY POINT ====================
+    # You can customize the theme here
+    if is_premium:
+        st.markdown("""
+            <style>
+            .main {
+                background-color: #000000;
+            }
+            .stButton>button {
+                background-color: #4CAF50;
+                color: white;
+                border: 2px solid #4CAF50;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                font-weight: bold;
+            }
+            .premium-badge {
+                background-color: gold;
+                color: black;
+                padding: 3px 10px;
+                border-radius: 12px;
+                font-weight: bold;
+                font-size: 0.8em;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+    st.title("⚡ Instant Photo Generator")
+    if is_premium:
+        st.markdown("✅ <span class='premium-badge'>PREMIUM USER</span>", unsafe_allow_html=True)
+    else:
+        st.markdown("✅ FREE USER")
+
+    st.success("You are logged in successfully. The full photo editing tool is unlocked below.")
+
+    # --------------- YOUR FULL 700+ LINES OF CODE GOES HERE ---------------
+    st.info("🖼️ Paste your entire photo generator tool code here inside main_app()")
+
+# ==================== APP FLOW ====================
 if __name__ == "__main__":
-    # Verify authentication first
-    verify_authentication()
-    
-    # Only show main app if authenticated
-    main_app()
-    
+    if 'authenticated' not in st.session_state:
+        st.session_state['authenticated'] = False
+
+    if not st.session_state['authenticated']:
+        show_login_page()
+    else:
+        main_app()
+
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
