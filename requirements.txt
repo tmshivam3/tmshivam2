@@ -3,3 +3,4 @@ pillow
 numpy>=1.20.0
 opencv-python-headless>=4.5.0
 qrcode
+discord-interactions
