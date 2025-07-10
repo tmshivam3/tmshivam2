@@ -1,33 +1,24 @@
 # ==================== IMPORTS ====================
 import streamlit as st
 import keyauth
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
-import os
-import io
-import random
-import datetime
-import numpy as np
-import zipfile
-import cv2
 
 # ==================== USER CREDENTIALS ====================
 VALID_CREDENTIALS = {
-    "admin": "admin123",  # Demo credentials - replace with your actual credentials
+    "admin": "admin123",   
     "user1": "password1",
     "premium": "premium123"
 }
-
-PREMIUM_USERS = ["premium"]  # Users who get premium access
+PREMIUM_USERS = ["premium", "admin"]
 
 # ==================== KEYAUTH CONFIGURATION ====================
 def initialize_keyauth():
     try:
         KeyAuthApp = keyauth.api(
-            name="Skbindjnp9's Application",  # App name
-            ownerid="jPmvngHsy3",             # Owner ID
-            version="1.0",                    # App version
-            hash_to_check="",                 # Add your hash here
-            api_url="https://keyauth.win/api/1.2/"  # API endpoint
+            name="YourAppNameHere",        # <-- Replace with your KeyAuth app name
+            ownerid="YOUR_OWNER_ID",       # <-- Replace with your KeyAuth owner ID
+            version="1.0",
+            hash_to_check="",
+            api_url="https://keyauth.win/api/1.2/"
         )
         return KeyAuthApp
     except Exception as e:
@@ -37,178 +28,64 @@ def initialize_keyauth():
 # ==================== LOGIN SCREEN ====================
 def show_login_screen():
     st.title("🔐 Login Options")
-    
-    # Create tabs for different login methods
+
     login_tab, license_tab = st.tabs(["ID/Password Login", "License Key Login"])
-    
+
+    # --- ID / Password Login ---
     with login_tab:
-        st.subheader("ID/Password Login")
+        st.subheader("Login with Username & Password")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         
-        if st.button("Login with ID/Password"):
+        if st.button("Login"):
             if not username or not password:
-                st.warning("⚠️ Please enter both username and password")
+                st.warning("⚠️ Please enter both username and password.")
             elif username in VALID_CREDENTIALS and VALID_CREDENTIALS[username] == password:
                 st.session_state['authenticated'] = True
                 st.session_state['login_method'] = "idpass"
                 st.session_state['username'] = username
                 st.session_state['is_premium'] = username in PREMIUM_USERS
-                st.success("✅ Login successful! Welcome!")
+                st.success("✅ Login successful!")
                 st.experimental_rerun()
             else:
-                st.error("❌ Invalid username or password")
-                st.error("Please contact developer at WhatsApp: 9140588751")
+                st.error("❌ Invalid username or password.\n\n📞 Contact Developer on WhatsApp: 9140588751")
                 st.stop()
-    
+
+    # --- License Key Login ---
     with license_tab:
-        st.subheader("License Key Login")
-        license_key = st.text_input("Enter your License Key:", type="password", key="license_key")
-        
-        if st.button("Login with License Key"):
+        st.subheader("Login with License Key")
+        license_key = st.text_input("License Key", type="password")
+
+        if st.button("Login with License"):
             if not license_key:
-                st.warning("⚠️ Please enter your license key to continue.")
-                return None
+                st.warning("⚠️ Please enter a license key.")
+                return
 
             KeyAuthApp = initialize_keyauth()
             if not KeyAuthApp:
-                return None
+                return
 
             try:
-                KeyAuthApp.license(license_key)
-                
-                if KeyAuthApp.checkblacklist():
-                    st.error("❌ This license key has been banned.")
-                    return None
-                    
-                response = KeyAuthApp.verify()
+                response = KeyAuthApp.license(license_key)
                 if not response:
-                    st.error("❌ License verification failed.")
-                    return None
-                    
-                st.success("✅ License Verified. Welcome!")
+                    st.error("❌ Invalid or expired license key.\n\n📞 Contact Developer on WhatsApp: 9140588751")
+                    return
+
+                if KeyAuthApp.checkblacklist():
+                    st.error("❌ This license key has been banned.\n\n📞 Contact Developer on WhatsApp: 9140588751")
+                    return
+
+                st.success("✅ License Verified! Welcome.")
                 st.session_state['authenticated'] = True
                 st.session_state['license_key'] = license_key
                 st.session_state['login_method'] = "license"
-                st.session_state['is_premium'] = True  # License users get premium access
+                st.session_state['is_premium'] = True
                 st.experimental_rerun()
+
             except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
-                st.error("Invalid or expired license key. Contact Admin.")
+                st.error(f"❌ Error: {str(e)}\n\n📞 Contact Developer on WhatsApp: 9140588751")
                 st.stop()
 
-# [Rest of your existing code remains the same...]
-# ==================== UTILITY FUNCTIONS ====================
-def list_files(folder, exts):
-    if not os.path.exists(folder):
-        return []
-    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in exts)]
-
-def smart_crop(img, target_ratio=3/4):
-    w, h = img.size
-    if w/h > target_ratio:
-        new_w = int(h * target_ratio)
-        left = (w - new_w) // 2
-        return img.crop((left, 0, left + new_w, h))
-    else:
-        new_h = int(w / target_ratio)
-        top = (h - new_h) // 2
-        return img.crop((0, top, w, top + new_h))
-
-# [Continue with all your existing functions...]
-
-# ==================== MAIN APP ====================
-def main_app():
-    # Check if user is premium
-    is_premium = st.session_state.get('is_premium', False)
-    
-    # Streamlit page config
-    st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
-
-    # Custom CSS with premium styling if applicable
-    if is_premium:
-        st.markdown("""
-            <style>
-            .main {
-                background-color: #000000;
-            }
-            .stButton>button {
-                background-color: #4CAF50;
-                color: white;
-                border: 2px solid #4CAF50;
-                padding: 0.5rem 1rem;
-                border-radius: 8px;
-                font-weight: bold;
-            }
-            .sidebar .sidebar-content {
-                background-color: #000000;
-                color: white;
-                border-right: 1px solid #4CAF50;
-            }
-            .stSlider>div>div>div>div {
-                background-color: #4CAF50;
-            }
-            .premium-badge {
-                background-color: gold;
-                color: black;
-                padding: 3px 10px;
-                border-radius: 12px;
-                font-weight: bold;
-                font-size: 0.8em;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-            <style>
-            .main {
-                background-color: #000000;
-            }
-            .stButton>button {
-                background-color: #000000;
-                color: #ffff00;
-                border: 2px solid #ffff00;
-                padding: 0.5rem 1rem;
-                border-radius: 8px;
-                font-weight: bold;
-            }
-            .sidebar .sidebar-content {
-                background-color: #000000;
-                color: white;
-                border-right: 1px solid #ffff00;
-            }
-            .stSlider>div>div>div>div {
-                background-color: #ffff00;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
-    # Main header with premium badge if applicable
-    header_html = """
-        <div style='background-color: #000000; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid {border_color};'>
-            <h1 style='text-align: center; color: {text_color}; margin: 0;'>⚡ Instant Photo Generator {premium_badge}</h1>
-        </div>
-    """.format(
-        border_color="#4CAF50" if is_premium else "#ffff00",
-        text_color="#4CAF50" if is_premium else "#ffff00",
-        premium_badge="<span class='premium-badge'>PREMIUM</span>" if is_premium else ""
-    )
-    st.markdown(header_html, unsafe_allow_html=True)
-
-    # [Rest of your existing main_app code...]
-
-# ==================== APP FLOW ====================
-if __name__ == "__main__":
-    if 'authenticated' not in st.session_state:
-        st.session_state['authenticated'] = False
-
-    if not st.session_state['authenticated']:
-        auth_result = show_login_screen()
-        if auth_result is None:
-            st.stop()
-    else:
-        main_app()
-        
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
