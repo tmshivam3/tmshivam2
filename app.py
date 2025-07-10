@@ -1,77 +1,7 @@
-# ================= IMPORTS =================
-import streamlit as st
-from keyauth import api
+from login import login_required
 
-# ================= KEYAUTH SETUP =================
-APP_NAME = "Skbindjnp9's Application"
-OWNER_ID = "jPmvngHsy3"
-APP_VERSION = "1.0"
-HASH_TO_CHECK = "abc123"   # Dummy - keep anything
-
-# Create KeyAuth instance
-KeyAuthApp = api(
-    name=APP_NAME,
-    ownerid=OWNER_ID,
-    version=APP_VERSION,
-    hash_to_check=HASH_TO_CHECK
-)
-
-# ================= LOGIN SCREEN =================
-def show_login_screen():
-    st.set_page_config(page_title="🔐 Secure Login", layout="centered")
-    st.title("🔐 Secure Login Page")
-    st.markdown("Please login to access the tool.")
-
-    tab1, tab2 = st.tabs(["🧑 ID & Password", "🔑 License Key"])
-
-    with tab1:
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
-        if st.button("Login with ID & Password"):
-            if not username or not password:
-                st.warning("Please enter both fields.")
-                st.stop()
-            try:
-                KeyAuthApp.init()
-                KeyAuthApp.login(username, password)
-                st.session_state['authenticated'] = True
-                st.success("✅ Login Successful!")
-                st.experimental_rerun()
-            except Exception as e:
-                st.error("❌ Invalid username or password.")
-                with st.expander("Purchase Subscription"):
-                    st.markdown(
-                        """
-                        **🛒 Contact to purchase access:**
-                        - 📱 WhatsApp: [9140588751](https://wa.me/9191405888751)
-                        """
-                    )
-                st.stop()
-
-    with tab2:
-        license_key = st.text_input("License Key", type="password")
-
-        if st.button("Login with License Key"):
-            if not license_key:
-                st.warning("Please enter your license key.")
-                st.stop()
-            try:
-                KeyAuthApp.init()
-                KeyAuthApp.license(license_key)
-                st.session_state['authenticated'] = True
-                st.success("✅ License Verified!")
-                st.experimental_rerun()
-            except Exception as e:
-                st.error("❌ Invalid or expired license key.")
-                with st.expander("Purchase Subscription"):
-                    st.markdown(
-                        """
-                        **🛒 Contact to purchase license:**
-                        - 📱 WhatsApp: [9140588751](https://wa.me/9191405888751)
-                        """
-                    )
-                st.stop()
+if not login_required():
+    st.stop()
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
@@ -785,20 +715,3 @@ if st.session_state.generated_images:
                 mime="image/jpeg",
                 key=f"download_{i}"
                 )
-# ================= MAIN APP =================
-def main_app():
-    st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
-    st.title("⚡ Welcome to Your Tool")
-    st.success("✅ You are logged in!")
-
-    # 👇👇👇 Paste your FULL 700+ lines BELOW THIS LINE
-
-    st.markdown("---")
-# ================= APP FLOW =================
-if 'authenticated' not in st.session_state:
-    st.session_state['authenticated'] = False
-
-if not st.session_state['authenticated']:
-    show_login_screen()
-else:
-    main_app()
