@@ -1,3 +1,4 @@
+
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
@@ -164,95 +165,7 @@ def get_random_quote():
         "Morning is the time\nwhen everything\nis possible again.",
         "Each morning we are born again.\nWhat we do today\nmatters most.",
         "Morning is the key to the day\nand the secret to productivity.",
-        "The morning sun\ninspires confidence\nand optimism.",
-        "Start your day\nwith a grateful heart\nand positive thoughts.",
-        "Morning is the perfect time\nto reflect and\nset intentions.",
-        "The morning light\nfills the world\nwith hope and possibilities.",
-        "A good morning starts\nthe night before\nwith gratitude.",
-        "Morning is the time\nto plant the seeds\nof a productive day.",
-        "The morning is the mother\nof every\nsuccessful day.",
-        "Wake up with hope,\ngo to bed\nwith satisfaction.",
-        "Morning is the time\nto fuel your\nbody and soul.",
-        "The morning hour\nhas gold\nin its hand.",
-        "Every morning is\na fresh start,\na new chance to get it right.",
-        "Morning is the time\nto set the tone\nfor the rest of the day.",
-        "The morning sun is\nnature's way of saying\n'one more chance'.",
-        "Morning is the time\nto be inspired\nand take action.",
-        "A positive morning\nleads to\na productive day.",
-        "Morning is the perfect time\nto focus\non your goals.",
-        "The morning light\nbrings clarity\nand new perspectives.",
-        "Morning is the best time\nto connect\nwith yourself.",
-        "Start your morning\nwith purpose and\nwatch your day transform.",
-        "Morning is the time\nto nourish your\nmind, body and spirit.",
-        "The morning is\nthe most important\npart of the day.",
-        "Morning is the time\nto be grateful\nfor another day of life.",
-        "A disciplined morning routine\ncreates a\nsuccessful life.",
-        "Morning is the time\nto set your intentions\nand make them happen.",
-        "The morning is when\nthe magic happens\nfor successful people.",
-        "Morning is the perfect time\nto work\non your dreams.",
-        "Morning is the time\nto build the life\nyou want to live.",
-        "The morning is\nthe foundation\nof a productive day.",
-        "Morning is the time\nto focus on\nwhat truly matters.",
-        "A mindful morning\nleads to\na meaningful day.",
-        "Morning is the best time\nto invest\nin yourself.",
-        "The morning is your opportunity\nto create\nthe day you want.",
-        "Morning is the time\nto align your actions\nwith your goals.",
-        "A peaceful morning\nleads to\na productive day.",
-        "Morning is the perfect time\nto practice\ngratitude.",
-        "The morning is when\nchampions\nare made.",
-        "Morning is the time\nto take control\nof your day.",
-        "A strong morning routine\nbuilds a\nstrong life.",
-        "Morning is the time\nto focus on progress,\nnot perfection.",
-        "The morning is your chance\nto start fresh\nevery day.",
-        "Morning is the best time\nto work on your\nmost important goals.",
-        "Morning is the time\nto fuel your success\nfor the day.",
-        "A powerful morning\ncreates a\npowerful day.",
-        "Morning is the perfect time\nto visualize\nyour success.",
-        "The morning is when\nthe seeds of success\nare planted.",
-        "Morning is the time\nto build momentum\nfor your day.",
-        "A focused morning\nleads to\na fulfilled day.",
-        "Morning is the best time\nto work on your\npersonal growth.",
-        "The morning is your opportunity\nto design your\nperfect day.",
-        "Morning is the time\nto take action\ntoward your dreams.",
-        "A productive morning\nleads to\na productive life.",
-        "Morning is the perfect time\nto strengthen\nyour mindset.",
-        "The morning is when\nyou set the tone\nfor your entire day.",
-        "Morning is the time\nto make progress\non what matters most.",
-        "A successful morning\nleads to\na successful day.",
-        "Morning is the best time\nto invest in\nyour future self.",
-        "The morning is your chance\nto create\nthe life you want.",
-        "Morning is the time\nto build habits\nthat lead to success.",
-        "A motivated morning\nleads to\nan accomplished day.",
-        "Morning is the perfect time\nto work on\nyour priorities.",
-        "The morning is when\nlegends are made\nthrough daily discipline.",
-        "Morning is the time\nto take steps\ntoward your goals.",
-        "A consistent morning routine\nbuilds an\nextraordinary life.",
-        "Morning is the best time\nto develop your\nskills and talents.",
-        "The morning is your opportunity\nto become\nyour best self.",
-        "Morning is the time\nto create\nthe day you desire.",
-        "A purposeful morning\nleads to\na purposeful life.",
-        "Morning is the perfect time\nto work on\nyour vision.",
-        "The morning is when\nsuccessful people do\ntheir most important work.",
-        "Morning is the time\nto build the foundation\nfor your success.",
-        "A dedicated morning routine\ncreates an\nexceptional life.",
-        "Morning is the best time\nto focus on\nself-improvement.",
-        "The morning is your chance\nto make progress\nevery single day.",
-        "Morning is the time\nto develop the discipline\nof success.",
-        "A winning morning\nleads to\na winning day.",
-        "Morning is the perfect time\nto practice the habits\nof excellence.",
-        "The morning is when\nordinary people do\nextraordinary things.",
-        "Morning is the time\nto take massive action\ntoward your dreams.",
-        "A strong morning\ncreates a\nstrong character.",
-        "Morning is the best time\nto work on your\npersonal development.",
-        "The morning is your opportunity\nto become the person\nyou want to be.",
-        "Morning is the time\nto build the life\nof your dreams.",
-        "A disciplined morning\nleads to\na disciplined life.",
-        "Morning is the perfect time\nto focus on your\nlong-term goals.",
-        "The morning is when\nchampions are made\nthrough daily effort.",
-        "Morning is the time\nto take control\nof your destiny.",
-        "A productive morning routine\nleads to\na productive life.",
-        "Morning is the best time\nto work on your\nmost important projects.",
-        "The morning is your chance\nto make today\nbetter than yesterday."
+        "The morning sun\ninspires confidence\nand optimism."
     ]
     return random.choice(quotes)
 
@@ -477,7 +390,7 @@ def create_variant(original_img, settings):
         )
     
     if settings['show_quote']:
-        font_quote = font.font_variant(size=settings['quote_size'])  # Same font as main text
+        font_quote = font.font_variant(size=settings['quote_size'])
         quote_text = settings['quote_text']
         
         # Split the quote into lines
@@ -750,7 +663,75 @@ if st.button("✨ Generate Photos", key="generate"):
                         
                         if selected_effect == 'full_random':
                             effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
-                            effect_settings['outline_color'](" in date_text:
+                            effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
+                        elif selected_effect == 'colorful':
+                            effect_settings['main_color'] = get_random_color()
+                            effect_settings['outline_color'] = (0, 0, 0)
+                        
+                        if show_text:
+                            font_main = font.font_variant(size=main_size)
+                            text = greeting_type
+                            text_width, text_height = get_text_size(draw, text, font_main)
+                            
+                            if text_width > img.width - 40:
+                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
+                                text_width, text_height = get_text_size(draw, text, font_main)
+                            
+                            text_x = random.randint(20, max(20, img.width - text_width - 20))
+                            text_y = 20  # Always at top
+                            
+                            effect_settings = apply_text_effect(
+                                draw, 
+                                (text_x, text_y), 
+                                text, 
+                                font_main,
+                                effect_settings,
+                                texture_img=texture_image
+                            )
+                        
+                        if show_wish:
+                            font_wish = font.font_variant(size=wish_size)
+                            wish_text = get_random_wish(greeting_type)
+                            wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+                            
+                            if wish_width > img.width - 40:
+                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
+                                wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+                            
+                            wish_x = random.randint(20, max(20, img.width - wish_width - 20))
+                            wish_y = text_y + main_size + 20 if show_text else 20
+                            
+                            apply_text_effect(
+                                draw, 
+                                (wish_x, wish_y), 
+                                wish_text, 
+                                font_wish,
+                                effect_settings,
+                                texture_img=texture_image
+                            )
+                        
+                        if show_date:
+                            font_date = font.font_variant(size=date_size)
+                            
+                            if date_format == "8 July 2025":
+                                date_text = format_date("%d %B %Y", show_day)
+                            elif date_format == "28 January 2025":
+                                date_text = format_date("%d %B %Y", show_day)
+                            elif date_format == "07/08/2025":
+                                date_text = format_date("%m/%d/%Y", show_day)
+                            else:
+                                date_text = format_date("%Y-%m-%d", show_day)
+                                
+                            date_width, date_height = get_text_size(draw, date_text, font_date)
+                            
+                            if date_width > img.width - 40:
+                                font_date = adjust_font_size_to_fit(draw, date_text, img.width - 40, img.height//3, date_size)
+                                date_width, date_height = get_text_size(draw, date_text, font_date)
+                            
+                            date_x = random.randint(20, max(20, img.width - date_width - 20))
+                            date_y = img.height - date_height - 20
+                            
+                            if show_day and "(" in date_text:
                                 day_part = date_text[date_text.index("("):]
                                 day_width, _ = get_text_size(draw, day_part, font_date)
                                 if date_x + day_width > img.width - 20:
@@ -765,8 +746,8 @@ if st.button("✨ Generate Photos", key="generate"):
                                 texture_img=texture_image
                             )
                         
-                        if settings['show_quote']:
-                            font_quote = font.font_variant(size=settings['quote_size'])  # Same font as main text
+                        if show_quote:
+                            font_quote = font.font_variant(size=quote_size)
                             quote_text = settings['quote_text']
                             
                             # Split the quote into lines
@@ -786,8 +767,12 @@ if st.button("✨ Generate Photos", key="generate"):
                             # Render each line
                             for i, line in enumerate(lines):
                                 line_width, _ = get_text_size(draw, line, font_quote)
-                                max_quote_x = max(20, img.width - line_width - 20)
-                                quote_x = random.randint(20, max_quote_x) if max_quote_x > 20 else 20
+                                
+                                if line_width > img.width - 40:
+                                    font_quote = adjust_font_size_to_fit(draw, line, img.width - 40, img.height//3, quote_size)
+                                    line_width, line_height = get_text_size(draw, line, font_quote)
+                                
+                                quote_x = random.randint(20, max(20, img.width - line_width - 20))
                                 
                                 apply_text_effect(
                                     draw, 
