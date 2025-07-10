@@ -1,103 +1,64 @@
-
-# ================================================
-# IMPORTS
-# ================================================
 import streamlit as st
 from keyauth import api
 import uuid
 
-# ================================================
-# CONFIGURE YOUR LOCAL USERS
-# ================================================
-VALID_USERS = {
-    "admin": "admin123",
-    "user1": "password1"
-}
+# ==================== KEYAUTH CONFIG ====================
+KeyAuthApp = api(
+    name="Skbindjnp9's Application",   # Your KeyAuth App Name
+    ownerid="jPmvngHsy3",              # Your Owner ID
+    version="1.0",                     # App Version
+    hash_to_check="abc123"            # REQUIRED: koi bhi random string daal sakte ho for now
+)
 
-PREMIUM_USERS = ["admin"]
-
-# ================================================
-# INITIALIZE KEYAUTH
-# ================================================
-def initialize_keyauth():
-    try:
-        # Simple enckey = random UUID (recommended by KeyAuth)
-        enckey = str(uuid.uuid4())
-        KeyAuthApp = api(
-            name = "Skbindjnp9's Application",
-            ownerid = "jPmvngHsy3",
-            version = "1.0",
-            hash_to_check = "",
-            enckey = enckey
-        )
-        KeyAuthApp.init()
-        return KeyAuthApp
-    except Exception as e:
-        st.error(f"❌ Failed to initialize KeyAuth: {str(e)}")
-        return None
-
-# ================================================
-# LOGIN SCREEN
-# ================================================
+# ==================== LOGIN SCREEN ====================
 def show_login_screen():
-    st.title("🔐 Secure Login")
+    st.set_page_config(page_title="🔐 Login Required", layout="centered")
+    st.title("🔒 Secure Login")
 
-    tabs = st.tabs(["🧑 ID/Password", "🔑 License Key"])
-
-    # ---------------------------
-    # Tab 1: ID/Password Login
-    # ---------------------------
-    with tabs[0]:
-        st.subheader("🧑 ID/Password Login")
+    login_method = st.radio("Choose Login Method:", ["Username & Password", "License Key"])
+    
+    if login_method == "Username & Password":
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
-
-        if st.button("Login with ID/Password"):
-            if not username or not password:
-                st.warning("⚠️ Please enter both username and password.")
-                st.stop()
-            if username in VALID_USERS and VALID_USERS[username] == password:
-                st.session_state['authenticated'] = True
-                st.session_state['login_method'] = 'idpass'
-                st.session_state['username'] = username
-                st.session_state['is_premium'] = username in PREMIUM_USERS
-                st.success(f"✅ Welcome, {username}!")
-                st.experimental_rerun()
-            else:
-                st.error("❌ Invalid username or password!")
-                st.info("💬 To purchase access, contact WhatsApp: 9140588751")
-                st.stop()
-
-    # ---------------------------
-    # Tab 2: License Key Login
-    # ---------------------------
-    with tabs[1]:
-        st.subheader("🔑 License Key Login")
-        license_key = st.text_input("Enter License Key", type="password")
-
-        if st.button("Login with License Key"):
-            if not license_key:
-                st.warning("⚠️ Please enter your license key.")
-                st.stop()
-
-            KeyAuthApp = initialize_keyauth()
-            if not KeyAuthApp:
-                st.stop()
-
+        if st.button("Login"):
             try:
-                KeyAuthApp.license(license_key)
-                st.success("✅ License Verified! Welcome!")
+                KeyAuthApp.init()
+                KeyAuthApp.login(username, password)
+                st.success(f"✅ Welcome, {username}")
                 st.session_state['authenticated'] = True
-                st.session_state['login_method'] = 'license'
-                st.session_state['license_key'] = license_key
-                st.session_state['is_premium'] = True
                 st.experimental_rerun()
             except Exception as e:
-                st.error(f"❌ Invalid or expired license key: {str(e)}")
-                st.info("💬 To purchase a license, contact WhatsApp: 9140588751")
+                st.error(f"❌ Login failed: {e}")
+                st.info("🛒 Contact WhatsApp: 9140588751 for help or subscription.")
                 st.stop()
 
-# ================================================
+    else:  # License Key Login
+        license = st.text_input("Enter License Key", type="password")
+        if st.button("Activate License"):
+            try:
+                KeyAuthApp.init()
+                KeyAuthApp.license(license)
+                st.success("✅ License activated successfully")
+                st.session_state['authenticated'] = True
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"❌ License activation failed: {e}")
+                st.info("🛒 Contact WhatsApp: 9140588751 for help or purchase.")
+                st.stop()
+
+# ==================== YOUR MAIN TOOL ====================
+def main_app():
+    st.title("⚡ Instant Photo Generator")
+    st.write("🔓 You are logged in. Paste your 700+ line code here.")
+
+# ==================== APP FLOW ====================
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+
+if not st.session_state['authenticated']:
+    show_login_screen()
+else:
+    main_app()
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
@@ -811,24 +772,3 @@ if st.session_state.generated_images:
                 mime="image/jpeg",
                 key=f"download_{i}"
                 )
-# MAIN APP (YOUR 700+ lines go here)
-# ================================================
-def main_app():
-    st.title("⚡ Instant Photo Generator Tool")
-    st.success("✅ You are logged in!")
-    
-    # Paste your entire 700+ lines here
-    st.info("👉 Paste your photo editing code here.")
-
-
-# ================================================
-# APP FLOW
-# ================================================
-if __name__ == "__main__":
-    if 'authenticated' not in st.session_state:
-        st.session_state['authenticated'] = False
-
-    if not st.session_state['authenticated']:
-        show_login_screen()
-    else:
-        main_app()
