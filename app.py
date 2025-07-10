@@ -1,24 +1,26 @@
-# ==================== KEYAUTH LICENSE SCREEN ====================
+# ==================== KEYAUTH LOGIN ====================
 import streamlit as st
 import keyauth
+from PIL import Image, ImageDraw, ImageFont
+import os
+import io
+import random
+import datetime
+import numpy as np
+import cv2
 
-# KeyAuth setup
+# KeyAuth App Info (yahi use karna jo tumhare KeyAuth Dashboard me diya hai)
 KeyAuthApp = keyauth.api(
-    name = "Skbindjnp9's Application",  # Your App Name
-    ownerid = "jPmvngHsy3",             # Your Owner ID
-    version = "1.0"                     # Your Version
+    name="Skbindjnp9's Application",  # App name
+    ownerid="jPmvngHsy3",             # Owner ID
+    version="1.0"                     # App version
 )
 
-# Page config
-st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
+# Streamlit page config
+st.set_page_config(page_title="My Photo App", layout="wide")
 
-# License input
-st.markdown("""
-    <div style='background-color: #000000; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ffff00;'>
-        <h2 style='text-align: center; color: #ffff00; margin: 0;'>🔑 Enter Your License Key</h2>
-    </div>
-""", unsafe_allow_html=True)
-
+# Show login screen
+st.title("🔐 Login - Enter License Key")
 license_key = st.text_input("Enter your License Key:", type="password")
 
 if not license_key:
@@ -27,12 +29,12 @@ if not license_key:
 
 try:
     KeyAuthApp.license(license_key)
-    st.success("✅ License Verified. You can use the tool now!")
+    st.success("✅ License Verified. Welcome!")
 except Exception as e:
-    st.error("❌ Invalid or Expired License Key. Contact Admin.")
+    st.error("❌ Invalid or expired license key. Contact Admin.")
     st.stop()
 
-# ================================================================
+# ==================== YOUR ORIGINAL CODE STARTS BELOW THIS ====================
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
