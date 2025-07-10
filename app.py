@@ -80,6 +80,9 @@ st.markdown("""
         background-color: #f0f0f0;
         border-radius: 5px;
     }
+    .quote-slider {
+        margin-top: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -140,6 +143,119 @@ def get_random_wish(greeting_type):
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
+def get_random_quote():
+    quotes = [
+        "Every morning is a new opportunity to rise and shine.",
+        "Wake up with determination, go to bed with satisfaction.",
+        "Morning is the perfect time to start something new.",
+        "The early morning has gold in its mouth.",
+        "A new day is a new chance to be better than yesterday.",
+        "Morning is wonderful. Its only drawback is that it comes at such an inconvenient time of day.",
+        "The sun is a daily reminder that we too can rise again from the darkness.",
+        "Today's morning brings new strength, new thoughts, and new possibilities.",
+        "Morning is the time when the whole world starts anew.",
+        "Every sunrise is an invitation for us to arise and brighten someone's day.",
+        "The first hour of the morning is the rudder of the day.",
+        "Morning is the time to plan your day and make it count.",
+        "Wake up with a smile and chase your dreams with passion.",
+        "Morning is the best time to be thankful for all you have.",
+        "A beautiful morning begins with a beautiful mindset.",
+        "The morning breeze has secrets to tell you.",
+        "Morning is the time when everything is possible again.",
+        "Each morning we are born again. What we do today matters most.",
+        "Morning is the key to the day and the secret to productivity.",
+        "The morning sun inspires confidence and optimism.",
+        "Start your day with a grateful heart and positive thoughts.",
+        "Morning is the perfect time to reflect and set intentions.",
+        "The morning light fills the world with hope and possibilities.",
+        "A good morning starts the night before with gratitude.",
+        "Morning is the time to plant the seeds of a productive day.",
+        "The morning is the mother of every successful day.",
+        "Wake up with hope, go to bed with satisfaction.",
+        "Morning is the time to fuel your body and soul.",
+        "The morning hour has gold in its hand.",
+        "Every morning is a fresh start, a new chance to get it right.",
+        "Morning is the time to set the tone for the rest of the day.",
+        "The morning sun is nature's way of saying 'one more chance'.",
+        "Morning is the time to be inspired and take action.",
+        "A positive morning leads to a productive day.",
+        "Morning is the perfect time to focus on your goals.",
+        "The morning light brings clarity and new perspectives.",
+        "Morning is the best time to connect with yourself.",
+        "Start your morning with purpose and watch your day transform.",
+        "Morning is the time to nourish your mind, body and spirit.",
+        "The morning is the most important part of the day.",
+        "Morning is the time to be grateful for another day of life.",
+        "A disciplined morning routine creates a successful life.",
+        "Morning is the time to set your intentions and make them happen.",
+        "The morning is when the magic happens for successful people.",
+        "Morning is the perfect time to work on your dreams.",
+        "Morning is the time to build the life you want to live.",
+        "The morning is the foundation of a productive day.",
+        "Morning is the time to focus on what truly matters.",
+        "A mindful morning leads to a meaningful day.",
+        "Morning is the best time to invest in yourself.",
+        "The morning is your opportunity to create the day you want.",
+        "Morning is the time to align your actions with your goals.",
+        "A peaceful morning leads to a productive day.",
+        "Morning is the perfect time to practice gratitude.",
+        "The morning is when champions are made.",
+        "Morning is the time to take control of your day.",
+        "A strong morning routine builds a strong life.",
+        "Morning is the time to focus on progress, not perfection.",
+        "The morning is your chance to start fresh every day.",
+        "Morning is the best time to work on your most important goals.",
+        "Morning is the time to fuel your success for the day.",
+        "A powerful morning creates a powerful day.",
+        "Morning is the perfect time to visualize your success.",
+        "The morning is when the seeds of success are planted.",
+        "Morning is the time to build momentum for your day.",
+        "A focused morning leads to a fulfilled day.",
+        "Morning is the best time to work on your personal growth.",
+        "The morning is your opportunity to design your perfect day.",
+        "Morning is the time to take action toward your dreams.",
+        "A productive morning leads to a productive life.",
+        "Morning is the perfect time to strengthen your mindset.",
+        "The morning is when you set the tone for your entire day.",
+        "Morning is the time to make progress on what matters most.",
+        "A successful morning leads to a successful day.",
+        "Morning is the best time to invest in your future self.",
+        "The morning is your chance to create the life you want.",
+        "Morning is the time to build habits that lead to success.",
+        "A motivated morning leads to an accomplished day.",
+        "Morning is the perfect time to work on your priorities.",
+        "The morning is when legends are made through daily discipline.",
+        "Morning is the time to take steps toward your goals.",
+        "A consistent morning routine builds an extraordinary life.",
+        "Morning is the best time to develop your skills and talents.",
+        "The morning is your opportunity to become your best self.",
+        "Morning is the time to create the day you desire.",
+        "A purposeful morning leads to a purposeful life.",
+        "Morning is the perfect time to work on your vision.",
+        "The morning is when successful people do their most important work.",
+        "Morning is the time to build the foundation for your success.",
+        "A dedicated morning routine creates an exceptional life.",
+        "Morning is the best time to focus on self-improvement.",
+        "The morning is your chance to make progress every single day.",
+        "Morning is the time to develop the discipline of success.",
+        "A winning morning leads to a winning day.",
+        "Morning is the perfect time to practice the habits of excellence.",
+        "The morning is when ordinary people do extraordinary things.",
+        "Morning is the time to take massive action toward your dreams.",
+        "A strong morning creates a strong character.",
+        "Morning is the best time to work on your personal development.",
+        "The morning is your opportunity to become the person you want to be.",
+        "Morning is the time to build the life of your dreams.",
+        "A disciplined morning leads to a disciplined life.",
+        "Morning is the perfect time to focus on your long-term goals.",
+        "The morning is when champions are made through daily effort.",
+        "Morning is the time to take control of your destiny.",
+        "A productive morning routine leads to a productive life.",
+        "Morning is the best time to work on your most important projects.",
+        "The morning is your chance to make today better than yesterday."
+    ]
+    return random.choice(quotes)
+
 def get_random_color():
     return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
@@ -147,13 +263,19 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     x, y = position
     effect_type = effect_settings['type']
     
-    # For full random, we'll use the same color for all text in the image
-    if effect_type == 'full_random':
-        main_color = effect_settings.get('main_color', (255, 255, 255))
-        outline_color = effect_settings.get('outline_color', (0, 0, 0))
+    if effect_type == 'colorful':
+        main_color = effect_settings.get('main_color', get_random_color())
+        outline_color = (0, 0, 0)  # Always black for outline in colorful mode
+        shadow_color = (25, 25, 25)  # 90% black shadow
+    elif effect_type == 'full_random':
+        # For full random, we'll use the same color for all text in the image
+        main_color = effect_settings.get('main_color', (255, 255, 255))  # Always white for main text
+        outline_color = effect_settings.get('outline_color', (0, 0, 0))  # Always black for outline
+        shadow_color = (25, 25, 25)  # 90% black shadow
     else:
         main_color = effect_settings.get('main_color', (255, 255, 255))
         outline_color = effect_settings.get('outline_color', (0, 0, 0))
+        shadow_color = (25, 25, 25)  # 90% black shadow
     
     if effect_settings.get('use_texture', False) and texture_img:
         mask = Image.new("L", (font.getsize(text)[0], font.getsize(text)[1]))
@@ -165,9 +287,13 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
         draw.bitmap((x, y), textured_text.convert("L"), fill=(255, 255, 255))
         return effect_settings
     
+    # Apply shadow (90% black)
+    shadow_offset = 3
+    draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=shadow_color)
+    
     if effect_type == "white_only":
         draw.text((x, y), text, font=font, fill=main_color)
-    elif effect_type == "white_black_outline":
+    elif effect_type == "white_black_outline" or effect_type == "colorful":
         outline_size = 2
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
@@ -226,15 +352,9 @@ def generate_filename():
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img, watermark):
-    if random.random() < 0.7:
-        x = random.choice([20, max(20, img.width - watermark.width - 20)])
-        y = max(20, img.height - watermark.height - 20)
-    else:
-        max_x = max(20, img.width - watermark.width - 20)
-        max_y = max(20, img.height - watermark.height - 20)
-        x = random.randint(20, max_x) if max_x > 20 else 20
-        y = random.randint(20, max_y) if max_y > 20 else 20
-    
+    # Always place watermark at top
+    x = random.choice([20, max(20, img.width - watermark.width - 20)])
+    y = 20
     return (x, y)
 
 def enhance_image_quality(img):
@@ -278,6 +398,9 @@ def create_variant(original_img, settings):
         # For full random, we'll use the same color for all text in the image
         effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
         effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
+    elif effect_settings['type'] == 'colorful':
+        effect_settings['main_color'] = get_random_color()
+        effect_settings['outline_color'] = (0, 0, 0)
     
     if settings['show_text']:
         font_main = font.font_variant(size=settings['main_size'])
@@ -286,8 +409,7 @@ def create_variant(original_img, settings):
         
         max_text_x = max(20, img.width - text_width - 20)
         text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-        max_text_y = max(20, img.height // 3)
-        text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
+        text_y = 20  # Always at top
         
         effect_settings = apply_text_effect(
             draw, 
@@ -310,8 +432,7 @@ def create_variant(original_img, settings):
         else:
             max_wish_x = max(20, img.width - wish_width - 20)
             wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            max_wish_y = max(20, img.height // 2)
-            wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
+            wish_y = 20  # Always at top if no main text
         
         apply_text_effect(
             draw, 
@@ -351,6 +472,24 @@ def create_variant(original_img, settings):
             (date_x, date_y), 
             date_text, 
             font_date,
+            effect_settings,
+            texture_img=texture_img
+        )
+    
+    if settings['show_quote']:
+        font_quote = font.font_variant(size=settings['quote_size'])
+        quote_text = settings['quote_text']
+        quote_width, quote_height = get_text_size(draw, quote_text, font_quote)
+        
+        max_quote_x = max(20, img.width - quote_width - 20)
+        quote_x = random.randint(20, max_quote_x) if max_quote_x > 20 else 20
+        quote_y = img.height // 2  # Center vertically
+        
+        apply_text_effect(
+            draw, 
+            (quote_x, quote_y), 
+            quote_text, 
+            font_quote,
             effect_settings,
             texture_img=texture_img
         )
@@ -414,7 +553,7 @@ with st.sidebar:
     
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Full Random"],
+        ["White Only", "White with Black Outline", "Full Random", "Colorful"],
         index=0
     )
     
@@ -450,6 +589,11 @@ with st.sidebar:
                                  ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
                                  index=0)
         show_day = st.checkbox("Show Day", value=False)
+    
+    show_quote = st.checkbox("Add Quote", value=False)
+    if show_quote:
+        quote_text = get_random_quote()
+        quote_size = st.slider("Quote Text Size", 10, 100, 30)
     
     use_watermark = st.checkbox("Add Watermark", value=True)
     watermark_image = None
@@ -515,7 +659,8 @@ if st.button("✨ Generate Photos", key="generate"):
             effect_mapping = {
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
-                "Full Random": "full_random"
+                "Full Random": "full_random",
+                "Colorful": "colorful"
             }
             selected_effect = effect_mapping[text_effect]
             
@@ -529,6 +674,9 @@ if st.button("✨ Generate Photos", key="generate"):
                 'show_day': show_day if show_date else False,
                 'date_size': date_size if show_date else 30,
                 'date_format': date_format if show_date else "8 July 2025",
+                'show_quote': show_quote,
+                'quote_text': quote_text if show_quote else "",
+                'quote_size': quote_size if show_quote else 30,
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
                 'watermark_opacity': watermark_opacity if use_watermark else 1.0,
@@ -587,6 +735,9 @@ if st.button("✨ Generate Photos", key="generate"):
                         if selected_effect == 'full_random':
                             effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
                             effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
+                        elif selected_effect == 'colorful':
+                            effect_settings['main_color'] = get_random_color()
+                            effect_settings['outline_color'] = (0, 0, 0)
                         
                         if show_text:
                             font_main = font.font_variant(size=main_size)
@@ -597,8 +748,8 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
                                 text_width, text_height = get_text_size(draw, text, font_main)
                             
-                            text_x = (img.width - text_width) // 2
-                            text_y = 20
+                            text_x = random.randint(20, max(20, img.width - text_width - 20))
+                            text_y = 20  # Always at top
                             
                             effect_settings = apply_text_effect(
                                 draw, 
@@ -618,7 +769,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
                                 wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
-                            wish_x = (img.width - wish_width) // 2
+                            wish_x = random.randint(20, max(20, img.width - wish_width - 20))
                             wish_y = text_y + main_size + 20 if show_text else 20
                             
                             apply_text_effect(
@@ -648,7 +799,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_date = adjust_font_size_to_fit(draw, date_text, img.width - 40, img.height//3, date_size)
                                 date_width, date_height = get_text_size(draw, date_text, font_date)
                             
-                            date_x = (img.width - date_width) // 2
+                            date_x = random.randint(20, max(20, img.width - date_width - 20))
                             date_y = img.height - date_height - 20
                             
                             if show_day and "(" in date_text:
@@ -662,6 +813,27 @@ if st.button("✨ Generate Photos", key="generate"):
                                 (date_x, date_y), 
                                 date_text, 
                                 font_date,
+                                effect_settings,
+                                texture_img=texture_image
+                            )
+                        
+                        if show_quote:
+                            font_quote = font.font_variant(size=quote_size)
+                            quote_text = settings['quote_text']
+                            quote_width, quote_height = get_text_size(draw, quote_text, font_quote)
+                            
+                            if quote_width > img.width - 40:
+                                font_quote = adjust_font_size_to_fit(draw, quote_text, img.width - 40, img.height//3, quote_size)
+                                quote_width, quote_height = get_text_size(draw, quote_text, font_quote)
+                            
+                            quote_x = random.randint(20, max(20, img.width - quote_width - 20))
+                            quote_y = img.height // 2  # Center vertically
+                            
+                            apply_text_effect(
+                                draw, 
+                                (quote_x, quote_y), 
+                                quote_text, 
+                                font_quote,
                                 effect_settings,
                                 texture_img=texture_image
                             )
