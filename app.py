@@ -1,3 +1,30 @@
+# KeyAuth Login System
+import keyauth
+import streamlit as st
+
+# Initialize KeyAuth
+auth = keyauth.api(
+    name="Skbindjnp9's Application",
+    ownerid="jPmvngHsy3",
+    secret="your_secret_key_here",  # ये KeyAuth डैशबोर्ड से मिलेगा
+    version="1.0"
+)
+
+# Login Form
+st.title("🔐 Premium Login Required")
+username = st.text_input("Username")
+password = st.text_input("Password", type="password")
+
+if st.button("Login"):
+    try:
+        auth.login(username, password)
+        st.success("Login Successful!") 
+        # यहाँ पर आपका मुख्य टूल का कोड आएगा
+    except:
+        st.error("Wrong ID/Password or Subscription Expired")
+        st.markdown("[👉 Purchase Subscription Here](https://keyauth.com/purchase/)")
+        st.stop()  # अगर लॉगिन फेल हो तो टूल रुक जाएगा
+
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
