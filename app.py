@@ -846,7 +846,7 @@ if st.session_state.generated_images:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=150)
+                img.save(img_bytes, format='JPEG', quality=100)
                 zip_file.writestr(filename, img_bytes.getvalue())
             except Exception as e:
                 st.error(f"Error adding {filename} to zip: {str(e)}")
@@ -861,7 +861,7 @@ if st.session_state.generated_images:
     
     st.markdown("""
         <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #ffff00; margin: 0;'>📸 Preview</h2>
+            <h2 style='text-align: center; color: #008000; margin: 0;'>😇 Niche Dekho </h2>
         </div>
     """, unsafe_allow_html=True)
     
