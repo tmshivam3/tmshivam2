@@ -94,6 +94,7 @@ st.markdown("""
 def list_files(folder, exts):
     """List files in folder with given extensions"""
     if not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
         return []
     return [f for f in os.listdir(folder) 
            if any(f.lower().endswith(ext.lower()) for ext in exts)]
@@ -113,20 +114,21 @@ def get_text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font(attempt=0):
+def get_random_font():
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
         return ImageFont.load_default()
     
-    # Try to get a working font with max 3 attempts
-    for _ in range(3):
+    max_attempts = 3
+    for attempt in range(max_attempts):
         try:
             font_path = os.path.join("assets/fonts", random.choice(fonts))
-            return ImageFont.truetype(font_path, 80)
-        except:
+            if os.path.exists(font_path):
+                return ImageFont.truetype(font_path, 80)
+        except Exception as e:
+            logging.warning(f"Failed to load font (attempt {attempt+1}): {str(e)}")
             continue
     
-    # If all attempts fail, use default font
     return ImageFont.load_default()
 
 def get_random_wish(greeting_type):
@@ -139,7 +141,6 @@ def get_random_wish(greeting_type):
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
 def get_random_color():
-    # Generate random color
     return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
@@ -150,70 +151,49 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     shadow_color = effect_settings.get('shadow_color', (0, 0, 0, 128))
     glow_color = effect_settings.get('glow_color', get_random_color())
     
-    # Apply texture if enabled
     if effect_settings.get('use_texture', False) and texture_img:
-        # Create text mask
         mask = Image.new("L", (font.getsize(text)[0], font.getsize(text)[1]))
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.text((0, 0), text, font=font, fill=255)
-        
-        # Resize texture to match text size
         texture = texture_img.resize(mask.size)
-        
-        # Apply texture to text
         textured_text = Image.new("RGBA", mask.size)
         textured_text.paste(texture, (0, 0), mask)
-        
-        # Paste textured text onto image
         draw.bitmap((x, y), textured_text.convert("L"), fill=(255, 255, 255))
         return effect_settings
     
-    # Apply different text effects
     if effect_type == "white_only":
         draw.text((x, y), text, font=font, fill=main_color)
     elif effect_type == "white_black_outline":
-        # Black outline
         outline_size = 2
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        # Black shadow
         shadow_offset = 3
         draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=shadow_color)
-        # Main text
         draw.text((x, y), text, font=font, fill=main_color)
     elif effect_type == "glowing":
-        # Glowing effect
         for i in range(1, 4):
             outline_size = i
             for ox in range(-outline_size, outline_size+1):
                 for oy in range(-outline_size, outline_size+1):
                     if ox != 0 or oy != 0:
                         draw.text((x+ox, y+oy), text, font=font, fill=glow_color + (200,))
-        # Shadow
         shadow_offset = 3
         draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=glow_color + (128,))
-        # White text
         draw.text((x, y), text, font=font, fill=main_color)
     elif effect_type == "random_all":
-        # Random text color
         text_color = effect_settings.get('main_color', get_random_color())
-        # Random outline color
         outline_color = effect_settings.get('outline_color', get_random_color())
-        # Random shadow color
         shadow_color = effect_settings.get('shadow_color', get_random_color())
         
-        # Outline
         outline_size = 2
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        # Shadow
         shadow_offset = 3
         draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=shadow_color + (128,))
-        # Main text
         draw.text((x, y), text, font=font, fill=text_color)
     
     return effect_settings
@@ -339,18 +319,15 @@ def create_variant(original_img, settings, use_advanced=False):
     
     blank_space = analyze_blank_space(img) if use_advanced else None
     
-    # Get texture image if enabled
     texture_img = None
     if settings.get('use_texture', False) and settings.get('texture_image', None):
         texture_img = settings['texture_image']
     
-    # Generate consistent effect settings for all text in this image
     effect_settings = {
         'type': settings.get('text_effect', None),
         'use_texture': settings.get('use_texture', False)
     }
     
-    # If random effect, generate consistent colors for all text elements
     if effect_settings['type'] == 'random_all':
         effect_settings['main_color'] = get_random_color()
         effect_settings['outline_color'] = get_random_color()
@@ -529,30 +506,12 @@ with st.sidebar:
     generate_variants = st.checkbox("Generate 3 Variants per Photo", value=False)
     use_advanced_analysis = st.checkbox("Use Advanced Text Placement", value=False)
     
-    # Text effect selection (removed font selection)
     text_effect = st.selectbox(
         "Text Style",
         ["Random (Recommended)", "White Only", "White with Black Outline", "Glowing Effect", "Full Random"],
         index=0
     )
     
-    # Font upload option
-    st.markdown("### 🔠 Font Options")
-    upload_font = st.checkbox("Upload Custom Font", value=False)
-    custom_font = None
-    
-    if upload_font:
-        uploaded_font = st.file_uploader("Upload Font (TTF/OTF)", type=["ttf", "otf"])
-        if uploaded_font:
-            try:
-                # Save the uploaded font temporarily
-                font_bytes = uploaded_font.read()
-                custom_font = ImageFont.truetype(io.BytesIO(font_bytes), size=80)
-            except Exception as e:
-                st.warning(f"Couldn't load uploaded font: {str(e)}")
-                custom_font = None
-    
-    # Texture option
     st.markdown("### 🎨 Texture Options")
     use_texture = st.checkbox("Use Texture for Text", value=False)
     texture_image = None
@@ -593,17 +552,16 @@ with st.sidebar:
         watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
         
         if watermark_option == "Pre-made":
-            available_watermarks = [
-                "Think Tank TV.png",
-                "Wishful Vibes.png",
-                "Travellar Bharat.png",
-                "Good Vibes.png",
-                "naturevibes.png"
-            ]
-            selected_watermark = st.selectbox("Select Watermark", available_watermarks, index=1)
-            watermark_path = os.path.join("assets/logos", selected_watermark)
-            if os.path.exists(watermark_path):
-                watermark_image = Image.open(watermark_path).convert("RGBA")
+            watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
+            if watermark_files:
+                selected_watermark = st.selectbox("Select Watermark", watermark_files, index=0)
+                watermark_path = os.path.join("assets/logos", selected_watermark)
+                if os.path.exists(watermark_path):
+                    watermark_image = Image.open(watermark_path).convert("RGBA")
+                else:
+                    st.error(f"Watermark file not found: {watermark_path}")
+            else:
+                st.warning("No watermarks found in assets/logos folder")
         else:
             uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
             if uploaded_watermark:
@@ -644,7 +602,6 @@ if st.button("✨ Generate Photos", key="generate"):
             processed_images = []
             variant_images = []
             
-            # Map text effect selection to internal values
             effect_mapping = {
                 "Random (Recommended)": None,
                 "White Only": "white_only",
@@ -676,8 +633,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 'selected_pet': selected_pet if use_coffee_pet else None,
                 'text_effect': selected_effect,
                 'use_texture': use_texture,
-                'texture_image': texture_image,
-                'custom_font': custom_font
+                'texture_image': texture_image
             }
             
             for uploaded_file in uploaded_images:
@@ -696,7 +652,10 @@ if st.button("✨ Generate Photos", key="generate"):
                     if use_overlay:
                         for overlay_file in overlay_files:
                             overlay_path = os.path.join("assets/overlays", overlay_theme, overlay_file)
-                            img = apply_overlay(img, overlay_path, overlay_size)
+                            if os.path.exists(overlay_path):
+                                img = apply_overlay(img, overlay_path, overlay_size)
+                            else:
+                                st.warning(f"Overlay file not found: {overlay_path}")
                     
                     if generate_variants:
                         variants = []
@@ -706,16 +665,14 @@ if st.button("✨ Generate Photos", key="generate"):
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
-                        font = custom_font if custom_font else get_random_font()
+                        font = get_random_font()
                         blank_space = analyze_blank_space(img) if use_advanced_analysis else None
                         
-                        # Generate consistent effect settings for all text in this image
                         effect_settings = {
                             'type': selected_effect,
                             'use_texture': use_texture
                         }
                         
-                        # If random effect, generate consistent colors for all text elements
                         if selected_effect == 'random_all':
                             effect_settings['main_color'] = get_random_color()
                             effect_settings['outline_color'] = get_random_color()
@@ -899,14 +856,12 @@ if st.session_state.generated_images:
         mime="application/zip"
     )
     
-    # Image preview container with black background
     st.markdown("""
         <div class='image-preview-container'>
             <h2 style='text-align: center; color: #ffff00; margin: 0;'>📸 Preview</h2>
         </div>
     """, unsafe_allow_html=True)
     
-    # Display all generated images in a grid
     cols_per_row = 3
     rows = (len(st.session_state.generated_images) // cols_per_row) + 1
     
