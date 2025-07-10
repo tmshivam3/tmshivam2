@@ -750,7 +750,52 @@ if st.button("✨ Generate Photos", key="generate"):
                         
                         if selected_effect == 'full_random':
                             effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
-                            effect_settings['out texture_img=texture_image
+                            effect_settings['outline_color'](" in date_text:
+                                day_part = date_text[date_text.index("("):]
+                                day_width, _ = get_text_size(draw, day_part, font_date)
+                                if date_x + day_width > img.width - 20:
+                                    date_x = img.width - day_width - 25
+                            
+                            apply_text_effect(
+                                draw, 
+                                (date_x, date_y), 
+                                date_text, 
+                                font_date,
+                                effect_settings,
+                                texture_img=texture_image
+                            )
+                        
+                        if settings['show_quote']:
+                            font_quote = font.font_variant(size=settings['quote_size'])  # Same font as main text
+                            quote_text = settings['quote_text']
+                            
+                            # Split the quote into lines
+                            lines = quote_text.split('\n')
+                            
+                            # Calculate total height needed
+                            total_height = 0
+                            line_heights = []
+                            for line in lines:
+                                _, line_height = get_text_size(draw, line, font_quote)
+                                line_heights.append(line_height)
+                                total_height += line_height
+                            
+                            # Calculate starting y position to center vertically
+                            quote_y = (img.height - total_height) // 2
+                            
+                            # Render each line
+                            for i, line in enumerate(lines):
+                                line_width, _ = get_text_size(draw, line, font_quote)
+                                max_quote_x = max(20, img.width - line_width - 20)
+                                quote_x = random.randint(20, max_quote_x) if max_quote_x > 20 else 20
+                                
+                                apply_text_effect(
+                                    draw, 
+                                    (quote_x, quote_y), 
+                                    line, 
+                                    font_quote,
+                                    effect_settings,
+                                    texture_img=texture_image
                                 )
                                 quote_y += line_heights[i] + 5  # Add small spacing between lines
                         
