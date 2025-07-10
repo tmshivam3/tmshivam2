@@ -861,7 +861,7 @@ if st.session_state.generated_images:
     
     st.markdown("""
         <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #008000; margin: 0;'>😇 Niche Dekho </h2>
+            <h2 style='text-align: center; color: #FFFFFF; margin: 0;'>😇 Niche Dekho </h2>
         </div>
     """, unsafe_allow_html=True)
     
