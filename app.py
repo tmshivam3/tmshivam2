@@ -114,18 +114,28 @@ def get_text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font(attempt=0):
+def get_random_font(font_size=80, max_attempts=3):
+    """
+    Returns a random truetype font from the assets/fonts directory.
+    Falls back to the default font if loading fails.
+    """
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
         return ImageFont.load_default()
-    
-    # Try to get a working font with max 3 attempts
-    for _ in range(3):
+
+    random.shuffle(fonts)
+    attempts = 0
+    for font_file in fonts:
+        if attempts >= max_attempts:
+            break
+        font_path = os.path.join("assets/fonts", font_file)
         try:
-            font_path = os.path.join("assets/fonts", random.choice(fonts))
-            return ImageFont.truetype(font_path, 80)
-        except:
-            continue
+            return ImageFont.truetype(font_path, font_size)
+        except OSError:
+            attempts += 1
+            continue  # Try the next font
+
+    return ImageFont.load_default()
     
     # If all attempts fail, use default font
     return ImageFont.load_default()
