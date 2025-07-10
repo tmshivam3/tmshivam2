@@ -117,7 +117,7 @@ def get_text_size(draw, text, font):
 def get_random_font():
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
-        return ImageFont.load_default()
+        return None  # Return None if no fonts available
     
     max_attempts = 3
     for attempt in range(max_attempts):
@@ -129,7 +129,7 @@ def get_random_font():
             logging.warning(f"Failed to load font (attempt {attempt+1}): {str(e)}")
             continue
     
-    return ImageFont.load_default()
+    return None  # Return None if all attempts fail
 
 def get_random_wish(greeting_type):
     wishes = {
@@ -146,8 +146,14 @@ def get_random_color():
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
-    main_color = effect_settings.get('main_color', (255, 255, 255))
-    outline_color = effect_settings.get('outline_color', (0, 0, 0))
+    
+    # For full random, we'll use the same color for all text in the image
+    if effect_type == 'full_random':
+        main_color = effect_settings.get('main_color', (255, 255, 255))
+        outline_color = effect_settings.get('outline_color', (0, 0, 0))
+    else:
+        main_color = effect_settings.get('main_color', (255, 255, 255))
+        outline_color = effect_settings.get('outline_color', (0, 0, 0))
     
     if effect_settings.get('use_texture', False) and texture_img:
         mask = Image.new("L", (font.getsize(text)[0], font.getsize(text)[1]))
@@ -177,7 +183,7 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
             for ox in range(-outline_size, outline_size+1):
                 for oy in range(-outline_size, outline_size+1):
                     if ox != 0 or oy != 0:
-                        draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+                        draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
             draw.text((x, y), text, font=font, fill=main_color)
     
     return effect_settings
@@ -250,56 +256,14 @@ def upscale_text_elements(img, scale_factor=2):
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def analyze_blank_space(img):
-    gray = img.convert('L')
-    threshold = 200
-    mask = gray.point(lambda p: p > threshold and 255)
-    
-    contours = []
-    try:
-        for y in range(img.height):
-            for x in range(img.width):
-                if mask.getpixel((x, y)) == 255:
-                    area = [(x, y)]
-                    mask.putpixel((x, y), 0)
-                    i = 0
-                    while i < len(area):
-                        cx, cy = area[i]
-                        for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
-                            nx, ny = cx+dx, cy+dy
-                            if 0 <= nx < img.width and 0 <= ny < img.height:
-                                if mask.getpixel((nx, ny)) == 255:
-                                    area.append((nx, ny))
-                                    mask.putpixel((nx, ny), 0)
-                        i += 1
-                    if len(area) > 100:
-                        contours.append(area)
-    except:
-        pass
-    
-    if not contours:
-        return None
-    
-    largest = max(contours, key=len)
-    x_coords = [p[0] for p in largest]
-    y_coords = [p[1] for p in largest]
-    
-    min_x, max_x = min(x_coords), max(x_coords)
-    min_y, max_y = min(y_coords), max(y_coords)
-    
-    return {
-        'x': min_x,
-        'y': min_y,
-        'width': max_x - min_x,
-        'height': max_y - min_y,
-        'center_x': (min_x + max_x) // 2,
-        'center_y': (min_y + max_y) // 2
-    }
-
 def create_variant(original_img, settings):
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
+    
+    # Get font - if None, return None to indicate failure
     font = get_random_font()
+    if font is None:
+        return None
     
     texture_img = None
     if settings.get('use_texture', False) and settings.get('texture_image', None):
@@ -307,12 +271,16 @@ def create_variant(original_img, settings):
     
     effect_settings = {
         'type': settings.get('text_effect', None),
-        'use_texture': settings.get('use_texture', False),
-        'main_color': (255, 255, 255)  # Always white text
+        'use_texture': settings.get('use_texture', False)
     }
     
+    if effect_settings['type'] == 'full_random':
+        # For full random, we'll use the same color for all text in the image
+        effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
+        effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
+    
     if settings['show_text']:
-        font_main = font.font_variant(size=90)  # Default size 90 for main text
+        font_main = font.font_variant(size=settings['main_size'])
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
@@ -331,14 +299,14 @@ def create_variant(original_img, settings):
         )
     
     if settings['show_wish']:
-        font_wish = font.font_variant(size=60)  # Default size 60 for wish text
+        font_wish = font.font_variant(size=settings['wish_size'])
         wish_text = get_random_wish(settings['greeting_type'])
         wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
         
         if settings['show_text']:
             max_wish_x = max(20, img.width - wish_width - 20)
             wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            wish_y = text_y + 90 + random.randint(10, 30)  # 90 is main text size
+            wish_y = text_y + settings['main_size'] + random.randint(10, 30)
         else:
             max_wish_x = max(20, img.width - wish_width - 20)
             wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
@@ -397,27 +365,6 @@ def create_variant(original_img, settings):
         
         watermark.thumbnail((img.width//4, img.height//4))
         pos = get_watermark_position(img, watermark)
-        
-        for _ in range(3):
-            overlap = False
-            if settings['show_text']:
-                if (pos[0] < text_x + text_width and pos[0] + watermark.width > text_x and
-                    pos[1] < text_y + text_height and pos[1] + watermark.height > text_y):
-                    overlap = True
-            if not overlap and settings['show_wish']:
-                if (pos[0] < wish_x + wish_width and pos[0] + watermark.width > wish_x and
-                    pos[1] < wish_y + wish_height and pos[1] + watermark.height > wish_y):
-                    overlap = True
-            if not overlap and settings['show_date']:
-                if (pos[0] < date_x + date_width and pos[0] + watermark.width > date_x and
-                    pos[1] < date_y + date_height and pos[1] + watermark.height > date_y):
-                    overlap = True
-            
-            if not overlap:
-                break
-            else:
-                pos = get_watermark_position(img, watermark)
-        
         img.paste(watermark, pos, watermark)
     
     if settings['use_coffee_pet'] and settings['selected_pet']:
@@ -489,7 +436,12 @@ with st.sidebar:
                     texture_image = Image.open(texture_path).convert("RGBA")
     
     show_text = st.checkbox("Show Greeting", value=True)
+    if show_text:
+        main_size = st.slider("Main Text Size", 10, 200, 90)  # Default 90
+    
     show_wish = st.checkbox("Show Wish", value=True)
+    if show_wish:
+        wish_size = st.slider("Wish Text Size", 10, 200, 60)  # Default 60
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
@@ -503,20 +455,27 @@ with st.sidebar:
     watermark_image = None
     
     if use_watermark:
-        watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
-        if watermark_files:
-            # Default to "wishful vibes.png" if available
-            default_index = 0
-            if "wishful vibes.png" in watermark_files:
-                default_index = watermark_files.index("wishful vibes.png")
-            selected_watermark = st.selectbox("Select Watermark", watermark_files, index=default_index)
-            watermark_path = os.path.join("assets/logos", selected_watermark)
-            if os.path.exists(watermark_path):
-                watermark_image = Image.open(watermark_path).convert("RGBA")
+        watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
+        
+        if watermark_option == "Pre-made":
+            watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
+            if watermark_files:
+                # Default to "wishful vibes.png" if available
+                default_index = 0
+                if "wishful vibes.png" in watermark_files:
+                    default_index = watermark_files.index("wishful vibes.png")
+                selected_watermark = st.selectbox("Select Watermark", watermark_files, index=default_index)
+                watermark_path = os.path.join("assets/logos", selected_watermark)
+                if os.path.exists(watermark_path):
+                    watermark_image = Image.open(watermark_path).convert("RGBA")
+                else:
+                    st.error(f"Watermark file not found: {watermark_path}")
             else:
-                st.error(f"Watermark file not found: {watermark_path}")
+                st.warning("No watermarks found in assets/logos folder")
         else:
-            st.warning("No watermarks found in assets/logos folder")
+            uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
+            if uploaded_watermark:
+                watermark_image = Image.open(uploaded_watermark).convert("RGBA")
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
@@ -563,7 +522,9 @@ if st.button("✨ Generate Photos", key="generate"):
             settings = {
                 'greeting_type': greeting_type,
                 'show_text': show_text,
+                'main_size': main_size if show_text else 90,  # Default 90
                 'show_wish': show_wish,
+                'wish_size': wish_size if show_wish else 60,  # Default 60
                 'show_date': show_date,
                 'show_day': show_day if show_date else False,
                 'date_size': date_size if show_date else 30,
@@ -608,25 +569,32 @@ if st.button("✨ Generate Photos", key="generate"):
                         variants = []
                         for i in range(3):
                             variant = create_variant(img, settings)
-                            variants.append((generate_filename(), variant))
+                            if variant is not None:  # Only add if font selection succeeded
+                                variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
+                        if font is None:
+                            st.error(f"Failed to load any fonts for {uploaded_file.name}. Please check your fonts folder.")
+                            continue
                         
                         effect_settings = {
                             'type': selected_effect,
-                            'use_texture': use_texture,
-                            'main_color': (255, 255, 255)  # Always white text
+                            'use_texture': use_texture
                         }
                         
+                        if selected_effect == 'full_random':
+                            effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
+                            effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
+                        
                         if show_text:
-                            font_main = font.font_variant(size=90)  # Default size 90 for main text
+                            font_main = font.font_variant(size=main_size)
                             text = greeting_type
                             text_width, text_height = get_text_size(draw, text, font_main)
                             
                             if text_width > img.width - 40:
-                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, 90)
+                                font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
                                 text_width, text_height = get_text_size(draw, text, font_main)
                             
                             text_x = (img.width - text_width) // 2
@@ -642,16 +610,16 @@ if st.button("✨ Generate Photos", key="generate"):
                             )
                         
                         if show_wish:
-                            font_wish = font.font_variant(size=60)  # Default size 60 for wish text
+                            font_wish = font.font_variant(size=wish_size)
                             wish_text = get_random_wish(greeting_type)
                             wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
                             if wish_width > img.width - 40:
-                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, 60)
+                                font_wish = adjust_font_size_to_fit(draw, wish_text, img.width - 40, img.height//3, wish_size)
                                 wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
                             
                             wish_x = (img.width - wish_width) // 2
-                            wish_y = text_y + 90 + 20 if show_text else 20  # 90 is main text size
+                            wish_y = text_y + main_size + 20 if show_text else 20
                             
                             apply_text_effect(
                                 draw, 
@@ -708,28 +676,6 @@ if st.button("✨ Generate Photos", key="generate"):
                             
                             watermark.thumbnail((img.width//4, img.height//4))
                             pos = get_watermark_position(img, watermark)
-                            
-                            text_areas = []
-                            if show_text:
-                                text_areas.append((text_x, text_y, text_x + text_width, text_y + text_height))
-                            if show_wish:
-                                text_areas.append((wish_x, wish_y, wish_x + wish_width, wish_y + wish_height))
-                            if show_date:
-                                text_areas.append((date_x, date_y, date_x + date_width, date_y + date_height))
-                            
-                            for _ in range(3):
-                                overlap = False
-                                for (x1, y1, x2, y2) in text_areas:
-                                    if (pos[0] < x2 and pos[0] + watermark.width > x1 and
-                                        pos[1] < y2 and pos[1] + watermark.height > y1):
-                                        overlap = True
-                                        break
-                                
-                                if not overlap:
-                                    break
-                                else:
-                                    pos = get_watermark_position(img, watermark)
-                            
                             img.paste(watermark, pos, watermark)
                         
                         if use_coffee_pet and selected_pet:
