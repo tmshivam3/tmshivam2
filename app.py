@@ -846,7 +846,7 @@ if st.session_state.generated_images:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=95)
+                img.save(img_bytes, format='JPEG', quality=150)
                 zip_file.writestr(filename, img_bytes.getvalue())
             except Exception as e:
                 st.error(f"Error adding {filename} to zip: {str(e)}")
