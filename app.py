@@ -2,31 +2,24 @@
 import streamlit as st
 from keyauth import api
 
-# ==================== CONFIGURATION ====================
+# ==================== KEYAUTH APP CONFIG ====================
 APP_NAME = "Skbindjnp9's Application"
 OWNER_ID = "jPmvngHsy3"
 APP_VERSION = "1.0"
+HASH_TO_CHECK = "abc123"  # You can keep anything here
 
-# ==================== INITIALIZATION ====================
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-if "auth_method" not in st.session_state:
-    st.session_state["auth_method"] = None
-if "user_info" not in st.session_state:
-    st.session_state["user_info"] = {}
-
-# Create KeyAuth instance (no hash for now)
+# Initialize KeyAuth
 KeyAuthApp = api(
     name=APP_NAME,
     ownerid=OWNER_ID,
-    version=APP_VERSION
+    version=APP_VERSION,
+    hash_to_check=HASH_TO_CHECK
 )
-
 
 # ==================== LOGIN SCREEN ====================
 def show_login_screen():
-    st.set_page_config(page_title="🔐 Secure Login", layout="centered")
-    st.title("🔒 Secure Login to Access Tool")
+    st.set_page_config(page_title="🔐 Login Required", layout="centered")
+    st.title("🔒 Secure Login")
 
     tab1, tab2 = st.tabs(["🧑 ID & Password", "🔑 License Key"])
 
@@ -37,56 +30,59 @@ def show_login_screen():
 
         if st.button("Login"):
             if not username or not password:
-                st.warning("⚠️ Please enter both username and password")
+                st.warning("⚠️ Please enter both fields.")
                 st.stop()
 
             try:
                 KeyAuthApp.init()
                 KeyAuthApp.login(username, password)
+
+                # If successful
+                st.session_state['authenticated'] = True
+                st.session_state['user'] = username
                 st.success(f"✅ Welcome {username}!")
-                st.session_state["authenticated"] = True
-                st.session_state["auth_method"] = "idpass"
-                st.session_state["user_info"] = {"username": username}
                 st.experimental_rerun()
 
-            except Exception:
-                st.error("❌ Invalid username or password")
+            except Exception as e:
+                st.error("❌ Invalid username or password.")
                 with st.expander("🛒 Purchase Access"):
                     st.markdown(
-                        "**Contact Developer to Buy Access:**\n\n"
-                        "- 📱 [WhatsApp: 9140588751](https://wa.me/919140588751)"
+                        """
+                        **To purchase subscription:**
+                        - 📱 WhatsApp: [9140588751](https://wa.me/9191405888751)
+                        """
                     )
                 st.stop()
 
     with tab2:
         st.subheader("Activate with License Key")
-        license_key = st.text_input("License Key", type="password")
+        license = st.text_input("License Key", type="password")
 
         if st.button("Activate"):
-            if not license_key:
-                st.warning("⚠️ Please enter your license key")
+            if not license:
+                st.warning("⚠️ Please enter your license key.")
                 st.stop()
 
             try:
                 KeyAuthApp.init()
-                KeyAuthApp.license(license_key)
-                st.success("✅ License verified successfully!")
-                st.session_state["authenticated"] = True
-                st.session_state["auth_method"] = "license"
-                st.session_state["user_info"] = {"license": license_key}
+                KeyAuthApp.license(license)
+
+                # If successful
+                st.session_state['authenticated'] = True
+                st.session_state['user'] = "LicenseUser"
+                st.success("✅ License activated successfully!")
                 st.experimental_rerun()
 
-            except Exception:
-                st.error("❌ Invalid or expired license key")
-                with st.expander("🛒 Purchase License"):
+            except Exception as e:
+                st.error("❌ Invalid or expired license key.")
+                with st.expander("🛒 Purchase Access"):
                     st.markdown(
-                        "**Contact Developer to Buy License:**\n\n"
-                        "- 📱 [WhatsApp: 9140588751](https://wa.me/919140588751)"
+                        """
+                        **To purchase license:**
+                        - 📱 WhatsApp: [9140588751](https://wa.me/9191405888751)
+                        """
                     )
                 st.stop()
-
-    st.markdown("---")
-    st.info("Having trouble? Contact developer on WhatsApp: [9140588751](https://wa.me/919140588751)")
 
 
 # ==================== MAIN APP ====================
@@ -95,12 +91,8 @@ def main_app():
     st.title("⚡ Welcome to Your Tool")
     st.success("✅ You are logged in!")
 
-    # 👇👇👇
-    # 👉 Paste your ENTIRE existing 700+ lines code below THIS line 👇
-    # For example:
-    # your_photo_editor_main_function()
-    # ...
-    st.info("
+    # 👇👇👇 Paste your FULL 700+ lines BELOW THIS LINE
+    
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
@@ -813,12 +805,20 @@ if st.session_state.generated_images:
                 mime="image/jpeg",
                 key=f"download_{i}"
                 )
-")
+# Example:
+    # st.header("Upload your photo")
+    # ...
+    # ...
+    # END of your pasted code
+
     st.markdown("---")
 
 
 # ==================== APP FLOW ====================
-if not st.session_state["authenticated"]:
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+
+if not st.session_state['authenticated']:
     show_login_screen()
 else:
     main_app()
