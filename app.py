@@ -68,11 +68,11 @@ st.markdown("""
 
 # =================== UTILS ===================
 def list_files(folder, exts):
+    """List files in folder with given extensions"""
     if not os.path.exists(folder):
         return []
     return [f for f in os.listdir(folder) 
-            .endswith(ext) for ext in exts]
-
+           if any(f.lower().endswith(ext.lower()) for ext in exts)]
 def smart_crop(img, target_ratio=3/4):
     w, h = img.size
     if w/h > target_ratio:
