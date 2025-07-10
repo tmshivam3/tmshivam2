@@ -547,7 +547,8 @@ def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
         try:
             font = ImageFont.truetype("assets/fonts/default.ttf", size)
             text_width, text_height = get_text_size(draw, text, font)
-            if text_width <= max_width and text_height <= max_height
+            if text_width <= max_width and text_height <= max_height:
+                break
         except:
             font = ImageFont.load_default()
             break
@@ -747,13 +748,13 @@ if st.button("✨ Generate Photos", key="generate"):
                             'use_texture': use_texture
                         }
                         
-                       elif effect_type == 'full_random':
-    # For full random, we'll use the same color for all text in the image
-    effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
-    effect_settings['outline_color'] = (0, 0, 0)  # Always black for outline
+                        if selected_effect == 'full_random':
+                            effect_settings['main_color'] = (255, 255, 255)  # Always white for main text
+                            effect_settings['out texture_img=texture_image
+                                )
                                 quote_y += line_heights[i] + 5  # Add small spacing between lines
                         
-                    if use_watermark and watermark_image:
+                        if use_watermark and watermark_image:
                             watermark = watermark_image.copy()
                             
                             if watermark_opacity < 1.0:
