@@ -9,16 +9,30 @@ import numpy as np
 import logging
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
+st.set_page_config(page_title="⚡ EDIT 100+ IMAGE IN ONE CLICK", layout="wide")
 
-# Custom CSS for white/yellow theme
+# Custom CSS for black/yellow theme with specific areas having black background
 st.markdown("""
     <style>
     .main {
         background-color: #ffffff;
     }
+    .header-container {
+        background-color: #000000;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 2px solid #ffff00;
+    }
+    .image-preview-container {
+        background-color: #000000;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 2px solid #ffff00;
+    }
     .stButton>button {
-        background-color: #ffffff;
+        background-color: #000000;
         color: #ffff00;
         border: 2px solid #ffff00;
         padding: 0.5rem 1rem;
@@ -57,13 +71,16 @@ st.markdown("""
         margin-top: 5px;
         text-align: center;
     }
+    .glowing-text {
+        text-shadow: 0 0 5px #ffff00, 0 0 10px #ffff00, 0 0 15px #ffff00;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Main header
+# Main header with black background
 st.markdown("""
-    <div style='background-color: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ffff00;'>
-        <h1 style='text-align: center; color: #ffff00; margin: 0;'>⚡ Instant Photo Generator</h1>
+    <div class='header-container'>
+        <h1 style='text-align: center; color: #ffff00; margin: 0;' class='glowing-text'>⚡ EDIT 100+ IMAGE IN ONE CLICK</h1>
     </div>
 """, unsafe_allow_html=True)
 
@@ -116,45 +133,29 @@ def get_random_wish(greeting_type):
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
 def get_random_color():
-    colors = [
-        (255, 255, 0), (255, 255, 255), (0, 255, 255),
-        (255, 0, 255), (255, 165, 0), (0, 255, 0),
-        (255, 0, 0), (0, 0, 255)
-    ]
-    return random.choice(colors)
+    # For glowing effect, we'll mostly use white with yellow outline
+    return (255, 255, 255)  # White text for glowing effect
 
-def get_random_text_effect():
-    if random.random() < 0.4:
-        return "none"
-    else:
-        return random.choice(["shadow", "outline", "both"])
-
-def apply_text_effects(draw, position, text, font, color, effect=None):
-    if effect is None:
-        effect = get_random_text_effect()
+def apply_glowing_text_effect(draw, position, text, font):
+    # Create glowing effect with yellow outline and shadow
+    x, y = position
     
-    if effect == "shadow":
-        shadow_offset = 3
-        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
-                 text, font=font, fill=(0,0,0,128))
-    elif effect == "outline":
-        outline_size = 2
-        for x in range(-outline_size, outline_size+1):
-            for y in range(-outline_size, outline_size+1):
-                if x != 0 or y != 0:
-                    draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
-    elif effect == "both":
-        shadow_offset = 3
-        draw.text((position[0]+shadow_offset, position[1]+shadow_offset), 
-                 text, font=font, fill=(0,0,0,128))
-        outline_size = 2
-        for x in range(-outline_size, outline_size+1):
-            for y in range(-outline_size, outline_size+1):
-                if x != 0 or y != 0:
-                    draw.text((position[0]+x, position[1]+y), text, font=font, fill=(0,0,0))
+    # Add multiple layers for glow effect
+    for i in range(1, 4):
+        outline_size = i
+        for ox in range(-outline_size, outline_size+1):
+            for oy in range(-outline_size, outline_size+1):
+                if ox != 0 or oy != 0:
+                    draw.text((x+ox, y+oy), text, font=font, fill=(255, 255, 0, 200))  # Yellow outline
     
-    draw.text(position, text, font=font, fill=color)
-    return effect
+    # Add shadow
+    shadow_offset = 3
+    draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(255, 255, 0, 128))  # Yellow shadow
+    
+    # Main white text
+    draw.text(position, text, font=font, fill=(255, 255, 255))  # White text
+    
+    return "glowing"
 
 def format_date(date_format="%d %B %Y", show_day=False):
     today = datetime.datetime.now()
@@ -292,7 +293,7 @@ def create_variant(original_img, settings, text_effect=None, use_advanced=False)
             max_text_y = max(20, img.height // 3)
             text_y = random.randint(20, max_text_y) if max_text_y > 20 else 20
         
-        effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color, text_effect)
+        effect = apply_glowing_text_effect(draw, (text_x, text_y), text, font_main)
     
     if settings['show_wish']:
         font_wish = font.font_variant(size=settings['wish_size'])
@@ -317,7 +318,7 @@ def create_variant(original_img, settings, text_effect=None, use_advanced=False)
                 max_wish_y = max(20, img.height // 2)
                 wish_y = random.randint(20, max_wish_y) if max_wish_y > 20 else 20
         
-        apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
+        apply_glowing_text_effect(draw, (wish_x, wish_y), wish_text, font_wish)
     
     if settings['show_date']:
         font_date = font.font_variant(size=settings['date_size'])
@@ -347,7 +348,7 @@ def create_variant(original_img, settings, text_effect=None, use_advanced=False)
             if date_x + day_width > img.width - 20:
                 date_x = img.width - day_width - 25
         
-        apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
+        apply_glowing_text_effect(draw, (date_x, date_y), date_text, font_date)
     
     if settings['use_watermark'] and settings['watermark_image']:
         watermark = settings['watermark_image'].copy()
@@ -514,7 +515,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 'date_format': date_format if show_date else "8 July 2025",
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
-                'watermark_opacity': watermark_opacity if use_watermark else 1.0,  # Changed default to 1.0
+                'watermark_opacity': watermark_opacity if use_watermark else 1.0,
                 'use_overlay': use_overlay,
                 'overlay_files': overlay_files if use_overlay else [],
                 'overlay_theme': overlay_theme if use_overlay else "",
@@ -543,16 +544,14 @@ if st.button("✨ Generate Photos", key="generate"):
                             img = apply_overlay(img, overlay_path, overlay_size)
                     
                     if generate_variants:
-                        text_effect = get_random_text_effect()
                         variants = []
                         for i in range(3):
-                            variant = create_variant(img, settings, text_effect, use_advanced_analysis)
+                            variant = create_variant(img, settings, use_advanced=use_advanced_analysis)
                             variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
                         font = get_random_font()
-                        text_color = get_random_color()
                         blank_space = analyze_blank_space(img) if use_advanced_analysis else None
                         
                         if show_text:
@@ -571,7 +570,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 text_x = (img.width - text_width) // 2
                                 text_y = 20
                             
-                            effect = apply_text_effects(draw, (text_x, text_y), text, font_main, text_color)
+                            apply_glowing_text_effect(draw, (text_x, text_y), text, font_main)
                         
                         if show_wish:
                             font_wish = font.font_variant(size=wish_size)
@@ -589,7 +588,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 wish_x = (img.width - wish_width) // 2
                                 wish_y = text_y + main_size + 20 if show_text else 20
                             
-                            apply_text_effects(draw, (wish_x, wish_y), wish_text, font_wish, text_color, effect)
+                            apply_glowing_text_effect(draw, (wish_x, wish_y), wish_text, font_wish)
                         
                         if show_date:
                             font_date = font.font_variant(size=date_size)
@@ -622,7 +621,7 @@ if st.button("✨ Generate Photos", key="generate"):
                                 if date_x + day_width > img.width - 20:
                                     date_x = img.width - day_width - 25
                             
-                            apply_text_effects(draw, (date_x, date_y), date_text, font_date, text_color, effect)
+                            apply_glowing_text_effect(draw, (date_x, date_y), date_text, font_date)
                         
                         if use_watermark and watermark_image:
                             watermark = watermark_image.copy()
@@ -710,7 +709,12 @@ if st.session_state.generated_images:
         mime="application/zip"
     )
     
-    st.markdown("### 📸 Preview")
+    # Image preview container with black background
+    st.markdown("""
+        <div class='image-preview-container'>
+            <h2 style='text-align: center; color: #ffff00; margin: 0;'>📸 Preview</h2>
+        </div>
+    """, unsafe_allow_html=True)
     
     # Display all generated images in a grid
     cols_per_row = 3
