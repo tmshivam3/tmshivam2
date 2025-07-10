@@ -11,14 +11,14 @@ import logging
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ Instant Photo Generator", layout="wide")
 
-# Custom CSS for black/white/yellow theme
+# Custom CSS for white/yellow theme
 st.markdown("""
     <style>
     .main {
-        background-color: #000000;
+        background-color: #ffffff;
     }
     .stButton>button {
-        background-color: #000000;
+        background-color: #ffffff;
         color: #ffff00;
         border: 2px solid #ffff00;
         padding: 0.5rem 1rem;
@@ -26,18 +26,18 @@ st.markdown("""
         font-weight: bold;
     }
     .sidebar .sidebar-content {
-        background-color: #000000;
-        color: white;
+        background-color: #ffffff;
+        color: black;
         border-right: 1px solid #ffff00;
     }
     .stSlider>div>div>div>div {
         background-color: #ffff00;
     }
     .stCheckbox>div>label {
-        color: white !important;
+        color: black !important;
     }
     .stSelectbox>div>div>select {
-        color: white !important;
+        color: black !important;
     }
     .stImage>img {
         border: 2px solid #ffff00;
@@ -62,7 +62,7 @@ st.markdown("""
 
 # Main header
 st.markdown("""
-    <div style='background-color: #000000; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ffff00;'>
+    <div style='background-color: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ffff00;'>
         <h1 style='text-align: center; color: #ffff00; margin: 0;'>⚡ Instant Photo Generator</h1>
     </div>
 """, unsafe_allow_html=True)
@@ -467,7 +467,7 @@ with st.sidebar:
             if uploaded_watermark:
                 watermark_image = Image.open(uploaded_watermark).convert("RGBA")
         
-        watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 0.7)
+        watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)  # Changed default to 1.0
     
     use_overlay = st.checkbox("Use Pre-made Overlays", value=False)
     
@@ -514,7 +514,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 'date_format': date_format if show_date else "8 July 2025",
                 'use_watermark': use_watermark,
                 'watermark_image': watermark_image,
-                'watermark_opacity': watermark_opacity if use_watermark else 0.7,
+                'watermark_opacity': watermark_opacity if use_watermark else 1.0,  # Changed default to 1.0
                 'use_overlay': use_overlay,
                 'overlay_files': overlay_files if use_overlay else [],
                 'overlay_theme': overlay_theme if use_overlay else "",
@@ -689,14 +689,6 @@ if st.button("✨ Generate Photos", key="generate"):
     else:
         st.warning("Please upload at least one image.")
 
-# [Previous imports and configuration remain exactly the same...]
-
-# =================== MAIN APP ===================
-if 'generated_images' not in st.session_state:
-    st.session_state.generated_images = []
-
-# [All your previous code remains exactly the same until the image display section...]
-
 if st.session_state.generated_images:
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
@@ -719,53 +711,33 @@ if st.session_state.generated_images:
     )
     
     st.markdown("### 📸 Preview")
-    cols = st.columns(3)
     
-    for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):
-        with cols[i % 3]:
-            try:
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=95)
-                img_bytes.seek(0)
-                st.image(img_bytes, use_column_width=True)  # Fixed parameter
-                st.caption(filename)
-                
-                st.download_button(
-                    label="⬇️ Download",
-                    data=img_bytes.getvalue(),
-                    file_name=filename,
-                    mime="image/jpeg",
-                    key=f"download_{i}"
-                )
-            except Exception as e:
-                st.error(f"Error displaying {filename}: {str(e)}")
-
-# [Rest of your code remains exactly the same...]
-            except Exception as e:
-                st.error(f"Error displaying {filename}: {str(e)}")
+    # Display all generated images in a grid
+    cols_per_row = 3
+    rows = (len(st.session_state.generated_images) // cols_per_row) + 1
     
-    st.markdown("### 📸 Preview")
-    cols = st.columns(3)
-    
-    for i, (filename, img) in enumerate(st.session_state.generated_images[:9]):
-        with cols[i % 3]:
-            try:
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=95)
-                img_bytes.seek(0)
-                st.image(img_bytes, use_container_width=True)
-                st.caption(filename)
-                
-                st.download_button(
-                    label="⬇️ Download",
-                    data=img_bytes.getvalue(),
-                    file_name=filename,
-                    mime="image/jpeg",
-                    key=f"download_{i}"
-                )
-            except Exception as e:
-                st.error(f"Error displaying {filename}: {str(e)}")
+    for row in range(rows):
+        cols = st.columns(cols_per_row)
+        for col in range(cols_per_row):
+            idx = row * cols_per_row + col
+            if idx < len(st.session_state.generated_images):
+                filename, img = st.session_state.generated_images[idx]
+                with cols[col]:
+                    try:
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format='JPEG', quality=95)
+                        img_bytes.seek(0)
+                        st.image(img_bytes, use_column_width=True)
+                        st.caption(filename)
+                        
+                        st.download_button(
+                            label="⬇️ Download",
+                            data=img_bytes.getvalue(),
+                            file_name=filename,
+                            mime="image/jpeg",
+                            key=f"download_{idx}"
+                        )
+                    except Exception as e:
+                        st.error(f"Error displaying {filename}: {str(e)}")
