@@ -7,11 +7,9 @@ import os
 def initialize_keyauth():
     try:
         KeyAuthApp = keyauth.api(
-            name="Skbindjnp9's Application",   # Your App Name
+            name="Skbindjnp9's Application",   # Your App Name EXACTLY as on KeyAuth
             ownerid="jPmvngHsy3",              # Your Owner ID
-            version="1.0",                     # App version
-            hash_to_check="",                  # Optional
-            api_url="https://keyauth.win/api/1.2/"
+            version="1.0"                      # Your App Version
         )
         return KeyAuthApp
     except Exception as e:
@@ -51,9 +49,9 @@ def login_screen():
                 st.session_state['is_premium'] = True
                 st.session_state['user'] = username
                 st.experimental_rerun()
-            except Exception as e:
+            except Exception:
                 st.error("❌ Login Failed: Invalid username or password.")
-                st.info("📞 Contact Developer: WhatsApp 9140588751")
+                st.info("📞 Contact Developer to purchase subscription: WhatsApp 9140588751")
                 st.stop()
 
     elif login_type == "🔑 License Key":
@@ -69,20 +67,21 @@ def login_screen():
                 st.session_state['is_premium'] = True
                 st.session_state['user'] = "LicensedUser"
                 st.experimental_rerun()
-            except Exception as e:
+            except Exception:
                 st.error("❌ Invalid or expired license key.")
-                st.info("📞 Contact Developer: WhatsApp 9140588751")
+                st.info("📞 Contact Developer to purchase subscription: WhatsApp 9140588751")
                 st.stop()
 
-# ==================== YOUR FULL MAIN APP (After Login) ====================
+# ==================== YOUR MAIN APP ====================
 def main_app():
     st.title("⚡ Welcome to Instant Photo Generator!")
     st.markdown(f"Hello, **{st.session_state.get('user', 'Guest')}** 🎉")
     
-    # 👉👉 PASTE YOUR FULL 700+ LINES OF CODE HERE 👇
-    # Example: st.write("Your photo editing UI starts here.")
+    # 👉👉 PASTE YOUR FULL 700+ LINES OF APP CODE HERE 👇
+    # Example:
+    # st.write("Your photo editing UI starts here.")
 
-# ==================== MAIN ====================
+# ==================== APP ENTRY ====================
 if __name__ == "__main__":
     if 'authenticated' not in st.session_state:
         st.session_state['authenticated'] = False
@@ -91,7 +90,6 @@ if __name__ == "__main__":
         login_screen()
     else:
         main_app()
-
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
