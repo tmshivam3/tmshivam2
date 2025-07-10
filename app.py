@@ -11,11 +11,10 @@ import cv2
 
 # KeyAuth App Info (yahi use karna jo tumhare KeyAuth Dashboard me diya hai)
 KeyAuthApp = keyauth.api(
-    name="Skbindjnp9's Application",  # App name
-    ownerid="jPmvngHsy3",             # Owner ID
-    version="1.0"                     # App version
+    "Skbindjnp9's Application",  # App name
+    "jPmvngHsy3",                 # Owner ID
+    "1.0"                         # App version
 )
-
 # Streamlit page config
 st.set_page_config(page_title="My Photo App", layout="wide")
 
