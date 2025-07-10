@@ -1,4 +1,4 @@
-# ==================== KEYAUTH LOGIN ====================
+# ==================== IMPORTS ====================
 import streamlit as st
 import keyauth
 from PIL import Image, ImageDraw, ImageFont
@@ -9,16 +9,18 @@ import datetime
 import numpy as np
 import cv2
 
-# KeyAuth App Info (yahi use karna jo tumhare KeyAuth Dashboard me diya hai)
+# ==================== KEYAUTH LOGIN ====================
+# Tumhare KeyAuth Dashboard ke hisab se ye fill kiya hai
 KeyAuthApp = keyauth.api(
     "Skbindjnp9's Application",  # App name
     "jPmvngHsy3",                 # Owner ID
     "1.0"                         # App version
 )
+
 # Streamlit page config
 st.set_page_config(page_title="My Photo App", layout="wide")
 
-# Show login screen
+# Login screen
 st.title("🔐 Login - Enter License Key")
 license_key = st.text_input("Enter your License Key:", type="password")
 
@@ -33,7 +35,8 @@ except Exception as e:
     st.error("❌ Invalid or expired license key. Contact Admin.")
     st.stop()
 
-# ==================== YOUR ORIGINAL CODE STARTS BELOW THIS ====================
+# ==================== BELOW THIS LINE ====================
+# Paste your existing 700+ line app.py code here
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
