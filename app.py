@@ -137,11 +137,9 @@ def get_random_wish(greeting_type):
         "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!"]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
-
 def get_random_color():
     # Generate random color
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
-
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
