@@ -689,8 +689,34 @@ if st.button("✨ Generate Photos", key="generate"):
     else:
         st.warning("Please upload at least one image.")
 
+# [Previous imports and configuration remain exactly the same...]
+
+# =================== MAIN APP ===================
+if 'generated_images' not in st.session_state:
+    st.session_state.generated_images = []
+
+# [All your previous code remains exactly the same until the image display section...]
+
 if st.session_state.generated_images:
-    # ... [previous code remains the same]
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
+        for filename, img in st.session_state.generated_images:
+            try:
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format='JPEG', quality=95)
+                zip_file.writestr(filename, img_bytes.getvalue())
+            except Exception as e:
+                st.error(f"Error adding {filename} to zip: {str(e)}")
+                continue
+    
+    st.download_button(
+        label="⬇️ Download All Photos",
+        data=zip_buffer.getvalue(),
+        file_name="generated_photos.zip",
+        mime="application/zip"
+    )
     
     st.markdown("### 📸 Preview")
     cols = st.columns(3)
@@ -713,6 +739,10 @@ if st.session_state.generated_images:
                     mime="image/jpeg",
                     key=f"download_{i}"
                 )
+            except Exception as e:
+                st.error(f"Error displaying {filename}: {str(e)}")
+
+# [Rest of your code remains exactly the same...]
             except Exception as e:
                 st.error(f"Error displaying {filename}: {str(e)}")
     
