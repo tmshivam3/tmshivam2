@@ -265,20 +265,23 @@ def generate_filename():
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img, watermark):
-    # 50% chance to be at bottom, otherwise random position
+    # 50% chance to be at bottom corners
     if random.random() < 0.5:
-        # Bottom position (centered horizontally)
-        x = (img.width - watermark.width) // 2
-        y = img.height - watermark.height - 20
+        # Choose either left or right bottom corner
+        if random.random() < 0.5:
+            x = 20  # Left corner
+        else:
+            x = img.width - watermark.width - 20  # Right corner
+        y = img.height - watermark.height - 20  # Bottom
     else:
-        # Random position (avoid edges)
+        # Random position elsewhere (avoid edges)
         max_x = max(20, img.width - watermark.width - 20)
         max_y = max(20, img.height - watermark.height - 20)
         x = random.randint(20, max_x) if max_x > 20 else 20
         y = random.randint(20, max_y) if max_y > 20 else 20
     
     return (x, y)
-
+        
 def enhance_image_quality(img):
     if img.mode != 'RGB':
         img = img.convert('RGB')
