@@ -3,24 +3,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
 import io
 import random
-import datetime
-import zipfile
-import numpy as np
-import logging
-
-# =================== CONFIG ===================
-st.set_page_config(page_title="⚡ EDIT 100+ IMAGE IN ONE CLICK", layout="wide")
-
-# Custom CSS for black/yellow theme with specific areas having black background
-st.markdown("""
-    <style>
-    .main {
-        background-color: #ffffff;
-    }
-    .header-container {
-        background-color: #000000;
-        padding: 15px;
-        border-radius: 8px;
+imp
         margin-bottom: 20px;
         border: 2px solid #ffff00;
     }
