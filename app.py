@@ -572,7 +572,7 @@ with st.sidebar:
 
 if st.button("✨ Generate Photos", key="generate"):
     if not uploaded_images:  # Check if no images are uploaded
-        st.error("⚠️ Please upload images first!")  # Show error message
+        st.error("⚠️ Phootuiya Upload kara!🙃")  # Show error message
         st.stop()  # Stop execution if no images
     else:
         with st.spinner("Processing images..."):
