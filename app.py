@@ -571,17 +571,21 @@ with st.sidebar:
             selected_pet = random.choice(pet_files) if pet_files else None
 
 if st.button("✨ Generate Photos", key="generate"):
-    if uploaded_images:
+    if not uploaded_images:  # Check if no images are uploaded
+        st.error("⚠️ Please upload images first!")  # Show error message
+        st.stop()  # Stop execution if no images
+    else:
         with st.spinner("Processing images..."):
             processed_images = []
             variant_images = []
             
             effect_mapping = {
                 "White Only": "white_only",
-                "White with Black Outline": "white_black_outline",
+                "White with Black Outline": "white_black_outline", 
                 "Full Random": "full_random",
                 "Colorful": "colorful"
             }
+            # Rest of your existing code...
             selected_effect = effect_mapping[text_effect]
             
             settings = {
