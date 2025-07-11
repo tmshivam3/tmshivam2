@@ -803,60 +803,40 @@ if st.button("✨ Generate Photos", key="generate"):
             else:
                 st.warning("No images were processed.")
 
+# Display images in groups - INDIVIDUAL and VARIANTS separately
 if st.session_state.generated_images:
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-        for filename, img in st.session_state.generated_images:
-            try:
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=95)  # Reduced quality for faster download
-                zip_file.writestr(filename, img_bytes.getvalue())
-            except Exception as e:
-                st.error(f"Error adding {filename} to zip: {str(e)}")
-                continue
+    # Show individual images first
+    st.subheader("Single Images")
+    cols = st.columns(3)
+    for i, (filename, img) in enumerate([img for img in st.session_state.generated_images if "_" not in img[0]]):
+        with cols[i % 3]:
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format='JPEG', quality=95)
+            st.image(img_bytes, use_column_width=True)
+            st.download_button(
+                "⬇️ Download", 
+                img_bytes.getvalue(),
+                file_name=filename,
+                mime="image/jpeg",
+                key=f"ind_{filename}"
+            )
     
-    st.download_button(
-        label="⬇️ Download All Photos",
-        data=zip_buffer.getvalue(),
-        file_name="generated_photos.zip",
-        mime="application/zip"
-    )
-    
-    st.markdown("""
-        <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #FFFFFF; margin: 0;'>😇 Niche Dekho </h2>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # Display images in batches to improve performance
-    batch_size = 6
-    for i in range(0, len(st.session_state.generated_images), batch_size):
-        batch = st.session_state.generated_images[i:i+batch_size]
+    # Show variants in groups of 3
+    st.subheader("Variants (3 versions together)")
+    variant_files = [img for img in st.session_state.generated_images if "_" in img[0]]
+    for i in range(0, len(variant_files), 3):
+        group = variant_files[i:i+3]
         cols = st.columns(3)
-        for j, (filename, img) in enumerate(batch):
-            with cols[j % 3]:
-                try:
-                    if img.mode != 'RGB':
-                        img = img.convert('RGB')
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format='JPEG', quality=85)  # Lower quality for preview
-                    img_bytes.seek(0)
-                    st.image(img_bytes, use_column_width=True)
-                    st.caption(filename)
-                    
-                    # Create a separate BytesIO for download to avoid quality reduction
-                    download_bytes = io.BytesIO()
-                    img.save(download_bytes, format='JPEG', quality=105)
-                    download_bytes.seek(0)
-                    
-                    st.download_button(
-                        label="⬇️ Download",
-                        data=download_bytes.getvalue(),
-                        file_name=filename,
-                        mime="image/jpeg",
-                        key=f"download_{i+j}"
-                    )
-                except Exception as e:
-                    st.error(f"Error displaying {filename}: {str(e)}")
+        for j, (filename, img) in enumerate(group):
+            with cols[j]:
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format='JPEG', quality=95)
+                st.image(img_bytes, use_column_width=True)
+                st.download_button(
+                    f"⬇️ Download Variant {j+1}",
+                    img_bytes.getvalue(),
+                    file_name=filename,
+                    mime="image/jpeg",
+                    key=f"var_{filename}"
+                )
+        st.write("---")  # separator line
