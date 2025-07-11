@@ -172,7 +172,7 @@ def get_random_quote():
     return random.choice(quotes)
 
 def get_random_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
