@@ -1,3 +1,4 @@
+
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
@@ -79,18 +80,6 @@ st.markdown("""
         padding: 10px;
         background-color: #f0f0f0;
         border-radius: 5px;
-    }
-    .error-popup {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background-color: #ff0000;
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        z-index: 1000;
-        box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -238,12 +227,15 @@ def generate_filename():
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img, watermark):
-    # 75% chance for right bottom corner, 25% for left bottom corner
-    if random.random() < 0.75:
-        x = img.width - watermark.width - 20
+    if random.random() < 0.7:
+        x = random.choice([20, max(20, img.width - watermark.width - 20)])
+        y = max(20, img.height - watermark.height - 20)
     else:
-        x = 20
-    y = img.height - watermark.height - 20
+        max_x = max(20, img.width - watermark.width - 20)
+        max_y = max(20, img.height - watermark.height - 20)
+        x = random.randint(20, max_x) if max_x > 20 else 20
+        y = random.randint(20, max_y) if max_y > 20 else 20
+    
     return (x, y)
 
 def enhance_image_quality(img):
@@ -409,16 +401,6 @@ def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
         size -= 2
     return font
 
-def show_error_popup(error_message):
-    st.markdown(f"""
-        <div class='error-popup'>
-            <h3>⚠️ Website Under Development</h3>
-            <p>{error_message}</p>
-            <p>Please contact developer at:</p>
-            <p>WhatsApp: 9140588751</p>
-        </div>
-    """, unsafe_allow_html=True)
-
 # =================== MAIN APP ===================
 if 'generated_images' not in st.session_state:
     st.session_state.generated_images = []
@@ -479,10 +461,10 @@ with st.sidebar:
         if watermark_option == "Pre-made":
             watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
             if watermark_files:
-                # Default to "Bharatak.png" if available
+                # Default to "wishful vibes.png" if available
                 default_index = 0
-                if "Bharatak.png" in watermark_files:
-                    default_index = watermark_files.index("Bharatak.png")
+                if "wishful vibes.png" in watermark_files:
+                    default_index = watermark_files.index("wishful vibes.png")
                 selected_watermark = st.selectbox("Select Watermark", watermark_files, index=default_index)
                 watermark_path = os.path.join("assets/logos", selected_watermark)
                 if os.path.exists(watermark_path):
@@ -497,9 +479,6 @@ with st.sidebar:
                 watermark_image = Image.open(uploaded_watermark).convert("RGBA")
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
-        
-        # Add checkbox for watermark position
-        st.checkbox("Always place watermark at bottom corner", value=True, key="watermark_position")
     
     use_overlay = st.checkbox("Use Pre-made Overlays", value=False)
     
@@ -563,8 +542,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 'selected_pet': selected_pet if use_coffee_pet else None,
                 'text_effect': selected_effect,
                 'use_texture': use_texture,
-                'texture_image': texture_image,
-                'watermark_position': st.session_state.get('watermark_position', True)
+                'texture_image': texture_image
             }
             
             for uploaded_file in uploaded_images:
@@ -720,9 +698,7 @@ if st.button("✨ Generate Photos", key="generate"):
                         processed_images.append((generate_filename(), img))
                 
                 except Exception as e:
-                    error_msg = f"Error processing {uploaded_file.name}: {str(e)}"
-                    st.error(error_msg)
-                    show_error_popup(error_msg)
+                    st.error(f"Error processing {uploaded_file.name}: {str(e)}")
                     continue
 
             st.session_state.generated_images = processed_images + variant_images
@@ -745,9 +721,7 @@ if st.session_state.generated_images:
                 img.save(img_bytes, format='JPEG', quality=95)
                 zip_file.writestr(filename, img_bytes.getvalue())
             except Exception as e:
-                error_msg = f"Error adding {filename} to zip: {str(e)}"
-                st.error(error_msg)
-                show_error_popup(error_msg)
+                st.error(f"Error adding {filename} to zip: {str(e)}")
                 continue
     
     st.download_button(
@@ -790,6 +764,4 @@ if st.session_state.generated_images:
                             key=f"download_{idx}"
                         )
                     except Exception as e:
-                        error_msg = f"Error displaying {filename}: {str(e)}"
-                        st.error(error_msg)
-                        show_error_popup(error_msg)
+                        st.error(f"Error displaying {filename}: {str(e)}")
