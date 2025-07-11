@@ -172,19 +172,23 @@ def get_random_quote():
     return random.choice(quotes)
 
 def get_random_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
     
-    # Set colors based on effect type
-    if effect_type == 'colorful':
+    # For full_random effect, 50% images will be black & white with shadow, 50% colorful with single color text
+    if effect_type == 'full_random':
+        if random.random() < 0.5:  # 50% chance for black & white with shadow
+            main_color = (255, 255, 255)  # White
+            outline_color = (0, 0, 0)  # Black
+        else:  # 50% chance for colorful with single color
+            main_color = get_random_color()
+            outline_color = main_color  # Same color as main text
+    elif effect_type == 'colorful':
         main_color = effect_settings.get('main_color', get_random_color())
         outline_color = (0, 0, 0)  # Black outline
-    elif effect_type == 'full_random':
-        main_color = get_random_color()
-        outline_color = get_random_color()
     else:  # Default/white styles
         main_color = (255, 255, 255)  # White
         outline_color = (0, 0, 0)  # Black
@@ -220,17 +224,12 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     return effect_settings
 
 def format_date(date_format="%d %B %Y", show_day=False):
-    today = datetime.datetime.now()
+    today = datetime.datetime.now() + datetime.timedelta(days=1)  # Add 1 day to current date
     formatted_date = today.strftime(date_format)
     
     if show_day:
-        if today.hour >= 19:
-            next_day = today + datetime.timedelta(days=1)
-            day_name = next_day.strftime("%A")
-            formatted_date += f" (Advance {day_name})"
-        else:
-            day_name = today.strftime("%A")
-            formatted_date += f" ({day_name})"
+        day_name = today.strftime("%A")
+        formatted_date += f" ({day_name})"
     
     return formatted_date
 
@@ -250,11 +249,20 @@ def apply_overlay(image, overlay_path, size=0.5):
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-def generate_filename():
-    now = datetime.datetime.now()
-    future_minutes = random.randint(1, 10)
-    future_time = now + datetime.timedelta(minutes=future_minutes)
-    return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
+def generate_filename(variant=False, base_time=None):
+    if base_time is None:
+        base_time = datetime.datetime.now()
+    
+    # Subtract 10-15 minutes from current time
+    minutes_to_subtract = random.randint(10, 15)
+    adjusted_time = base_time - datetime.timedelta(minutes=minutes_to_subtract)
+    
+    if variant:
+        # For variants, use sequential seconds to keep them together
+        seconds_offset = random.randint(1, 59)
+        adjusted_time += datetime.timedelta(seconds=seconds_offset)
+    
+    return f"Picsart_{adjusted_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img, watermark):
     if random.random() < 0.5:
@@ -289,7 +297,7 @@ def upscale_text_elements(img, scale_factor=2):
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def create_variant(original_img, settings):
+def create_variant(original_img, settings, base_time=None):
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
     
@@ -303,6 +311,10 @@ def create_variant(original_img, settings):
         'type': settings.get('text_effect', None),
         'use_texture': settings.get('use_texture', False)
     }
+    
+    # Get a new random quote for each variant
+    if settings['show_quote']:
+        settings['quote_text'] = get_random_quote()
     
     if settings['show_text']:
         font_main = font.font_variant(size=settings['main_size'])
@@ -621,10 +633,14 @@ if st.button("✨ Generate Photos", key="generate"):
                     
                     if generate_variants:
                         variants = []
+                        base_time = datetime.datetime.now()
+                        base_filename = generate_filename(variant=True, base_time=base_time)
                         for i in range(3):
-                            variant = create_variant(img, settings)
+                            variant = create_variant(img, settings, base_time=base_time)
                             if variant is not None:
-                                variants.append((generate_filename(), variant))
+                                # For variants, generate sequential filenames
+                                variant_filename = base_filename.replace(".jpg", f"_{i+1}.jpg")
+                                variants.append((variant_filename, variant))
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
@@ -795,7 +811,7 @@ if st.session_state.generated_images:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=100)
+                img.save(img_bytes, format='JPEG', quality=95)  # Reduced quality for faster download
                 zip_file.writestr(filename, img_bytes.getvalue())
             except Exception as e:
                 st.error(f"Error adding {filename} to zip: {str(e)}")
@@ -814,31 +830,33 @@ if st.session_state.generated_images:
         </div>
     """, unsafe_allow_html=True)
     
-    cols_per_row = 3
-    rows = (len(st.session_state.generated_images) // cols_per_row) + 1
-    
-    for row in range(rows):
-        cols = st.columns(cols_per_row)
-        for col in range(cols_per_row):
-            idx = row * cols_per_row + col
-            if idx < len(st.session_state.generated_images):
-                filename, img = st.session_state.generated_images[idx]
-                with cols[col]:
-                    try:
-                        if img.mode != 'RGB':
-                            img = img.convert('RGB')
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format='JPEG', quality=95)
-                        img_bytes.seek(0)
-                        st.image(img_bytes, use_column_width=True)
-                        st.caption(filename)
-                        
-                        st.download_button(
-                            label="⬇️ Download",
-                            data=img_bytes.getvalue(),
-                            file_name=filename,
-                            mime="image/jpeg",
-                            key=f"download_{idx}"
-                        )
-                    except Exception as e:
-                        st.error(f"Error displaying {filename}: {str(e)}")
+    # Display images in batches to improve performance
+    batch_size = 6
+    for i in range(0, len(st.session_state.generated_images), batch_size):
+        batch = st.session_state.generated_images[i:i+batch_size]
+        cols = st.columns(3)
+        for j, (filename, img) in enumerate(batch):
+            with cols[j % 3]:
+                try:
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format='JPEG', quality=85)  # Lower quality for preview
+                    img_bytes.seek(0)
+                    st.image(img_bytes, use_column_width=True)
+                    st.caption(filename)
+                    
+                    # Create a separate BytesIO for download to avoid quality reduction
+                    download_bytes = io.BytesIO()
+                    img.save(download_bytes, format='JPEG', quality=105)
+                    download_bytes.seek(0)
+                    
+                    st.download_button(
+                        label="⬇️ Download",
+                        data=download_bytes.getvalue(),
+                        file_name=filename,
+                        mime="image/jpeg",
+                        key=f"download_{i+j}"
+                    )
+                except Exception as e:
+                    st.error(f"Error displaying {filename}: {str(e)}")
