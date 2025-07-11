@@ -178,17 +178,13 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     x, y = position
     effect_type = effect_settings['type']
     
-    # For full_random effect, 50% images will be black & white with shadow, 50% colorful with single color text
-    if effect_type == 'full_random':
-        if random.random() < 0.5:  # 50% chance for black & white with shadow
-            main_color = (255, 255, 255)  # White
-            outline_color = (0, 0, 0)  # Black
-        else:  # 50% chance for colorful with single color
-            main_color = get_random_color()
-            outline_color = main_color  # Same color as main text
-    elif effect_type == 'colorful':
+    # Set colors based on effect type
+    if effect_type == 'colorful':
         main_color = effect_settings.get('main_color', get_random_color())
         outline_color = (0, 0, 0)  # Black outline
+    elif effect_type == 'full_random':
+        main_color = get_random_color()
+        outline_color = get_random_color()
     else:  # Default/white styles
         main_color = (255, 255, 255)  # White
         outline_color = (0, 0, 0)  # Black
@@ -224,12 +220,17 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     return effect_settings
 
 def format_date(date_format="%d %B %Y", show_day=False):
-    today = datetime.datetime.now() + datetime.timedelta(days=1)  # Add 1 day to current date
+    today = datetime.datetime.now()
     formatted_date = today.strftime(date_format)
     
     if show_day:
-        day_name = today.strftime("%A")
-        formatted_date += f" ({day_name})"
+        if today.hour >= 19:
+            next_day = today + datetime.timedelta(days=1)
+            day_name = next_day.strftime("%A")
+            formatted_date += f" (Advance {day_name})"
+        else:
+            day_name = today.strftime("%A")
+            formatted_date += f" ({day_name})"
     
     return formatted_date
 
@@ -249,20 +250,11 @@ def apply_overlay(image, overlay_path, size=0.5):
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-def generate_filename(variant=False, base_time=None):
-    if base_time is None:
-        base_time = datetime.datetime.now()
-    
-    # Subtract 10-15 minutes from current time
-    minutes_to_subtract = random.randint(10, 15)
-    adjusted_time = base_time - datetime.timedelta(minutes=minutes_to_subtract)
-    
-    if variant:
-        # For variants, use sequential seconds to keep them together
-        seconds_offset = random.randint(1, 59)
-        adjusted_time += datetime.timedelta(seconds=seconds_offset)
-    
-    return f"Picsart_{adjusted_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
+def generate_filename():
+    now = datetime.datetime.now()
+    future_minutes = random.randint(1, 10)
+    future_time = now + datetime.timedelta(minutes=future_minutes)
+    return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img, watermark):
     if random.random() < 0.5:
@@ -297,7 +289,7 @@ def upscale_text_elements(img, scale_factor=2):
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def create_variant(original_img, settings, base_time=None):
+def create_variant(original_img, settings):
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
     
@@ -311,10 +303,6 @@ def create_variant(original_img, settings, base_time=None):
         'type': settings.get('text_effect', None),
         'use_texture': settings.get('use_texture', False)
     }
-    
-    # Get a new random quote for each variant
-    if settings['show_quote']:
-        settings['quote_text'] = get_random_quote()
     
     if settings['show_text']:
         font_main = font.font_variant(size=settings['main_size'])
@@ -571,21 +559,17 @@ with st.sidebar:
             selected_pet = random.choice(pet_files) if pet_files else None
 
 if st.button("✨ Generate Photos", key="generate"):
-    if not uploaded_images:  # Check if no images are uploaded
-        st.error("⚠️ Phootuiya Upload kara!🙃")  # Show error message
-        st.stop()  # Stop execution if no images
-    else:
+    if uploaded_images:
         with st.spinner("Processing images..."):
             processed_images = []
             variant_images = []
             
             effect_mapping = {
                 "White Only": "white_only",
-                "White with Black Outline": "white_black_outline", 
+                "White with Black Outline": "white_black_outline",
                 "Full Random": "full_random",
                 "Colorful": "colorful"
             }
-            # Rest of your existing code...
             selected_effect = effect_mapping[text_effect]
             
             settings = {
@@ -637,14 +621,10 @@ if st.button("✨ Generate Photos", key="generate"):
                     
                     if generate_variants:
                         variants = []
-                        base_time = datetime.datetime.now()
-                        base_filename = generate_filename(variant=True, base_time=base_time)
                         for i in range(3):
-                            variant = create_variant(img, settings, base_time=base_time)
+                            variant = create_variant(img, settings)
                             if variant is not None:
-                                # For variants, generate sequential filenames
-                                variant_filename = base_filename.replace(".jpg", f"_{i+1}.jpg")
-                                variants.append((variant_filename, variant))
+                                variants.append((generate_filename(), variant))
                         variant_images.extend(variants)
                     else:
                         draw = ImageDraw.Draw(img)
@@ -807,40 +787,58 @@ if st.button("✨ Generate Photos", key="generate"):
             else:
                 st.warning("No images were processed.")
 
-# Display images in groups - INDIVIDUAL and VARIANTS separately
 if st.session_state.generated_images:
-    # Show individual images first
-    st.subheader("Single Images")
-    cols = st.columns(3)
-    for i, (filename, img) in enumerate([img for img in st.session_state.generated_images if "_" not in img[0]]):
-        with cols[i % 3]:
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format='JPEG', quality=95)
-            st.image(img_bytes, use_column_width=True)
-            st.download_button(
-                "⬇️ Download", 
-                img_bytes.getvalue(),
-                file_name=filename,
-                mime="image/jpeg",
-                key=f"ind_{filename}"
-            )
-    
-    # Show variants in groups of 3
-    st.subheader("Variants (3 versions together)")
-    variant_files = [img for img in st.session_state.generated_images if "_" in img[0]]
-    for i in range(0, len(variant_files), 3):
-        group = variant_files[i:i+3]
-        cols = st.columns(3)
-        for j, (filename, img) in enumerate(group):
-            with cols[j]:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
+        for filename, img in st.session_state.generated_images:
+            try:
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
                 img_bytes = io.BytesIO()
-                img.save(img_bytes, format='JPEG', quality=95)
-                st.image(img_bytes, use_column_width=True)
-                st.download_button(
-                    f"⬇️ Download Variant {j+1}",
-                    img_bytes.getvalue(),
-                    file_name=filename,
-                    mime="image/jpeg",
-                    key=f"var_{filename}"
-                )
-        st.write("---")  # separator line
+                img.save(img_bytes, format='JPEG', quality=100)
+                zip_file.writestr(filename, img_bytes.getvalue())
+            except Exception as e:
+                st.error(f"Error adding {filename} to zip: {str(e)}")
+                continue
+    
+    st.download_button(
+        label="⬇️ Download All Photos",
+        data=zip_buffer.getvalue(),
+        file_name="generated_photos.zip",
+        mime="application/zip"
+    )
+    
+    st.markdown("""
+        <div class='image-preview-container'>
+            <h2 style='text-align: center; color: #FFFFFF; margin: 0;'>😇 Niche Dekho </h2>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    cols_per_row = 3
+    rows = (len(st.session_state.generated_images) // cols_per_row) + 1
+    
+    for row in range(rows):
+        cols = st.columns(cols_per_row)
+        for col in range(cols_per_row):
+            idx = row * cols_per_row + col
+            if idx < len(st.session_state.generated_images):
+                filename, img = st.session_state.generated_images[idx]
+                with cols[col]:
+                    try:
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format='JPEG', quality=95)
+                        img_bytes.seek(0)
+                        st.image(img_bytes, use_column_width=True)
+                        st.caption(filename)
+                        
+                        st.download_button(
+                            label="⬇️ Download",
+                            data=img_bytes.getvalue(),
+                            file_name=filename,
+                            mime="image/jpeg",
+                            key=f"download_{idx}"
+                        )
+                    except Exception as e:
+                        st.error(f"Error displaying {filename}: {str(e)}")
