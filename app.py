@@ -830,7 +830,7 @@ if st.session_state.generated_images:
                         img_bytes = io.BytesIO()
                         img.save(img_bytes, format='JPEG', quality=95)
                         img_bytes.seek(0)
-                        st.image(img_bytes, use_column_width=True)
+                        st.image(img_bytes, use_container_width=True)
                         st.caption(filename)
                         
                         st.download_button(
