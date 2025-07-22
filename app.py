@@ -174,6 +174,31 @@ def get_random_quote():
 def get_random_color():
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
+def get_gradient_color(width, position, colors=None):
+    if not colors:
+        colors = [
+            (255, 255, 255),  # White
+            (255, 255, 0),    # Yellow
+            (255, 0, 0),      # Red
+            (0, 0, 255),      # Blue
+            (0, 255, 0),      # Green
+            (255, 192, 203)   # Pink
+        ]
+    
+    # Select two random colors for gradient
+    start_color = random.choice(colors)
+    end_color = random.choice(colors)
+    while end_color == start_color:
+        end_color = random.choice(colors)
+    
+    # Calculate intermediate color
+    ratio = position / width
+    r = int(start_color[0] + ratio * (end_color[0] - start_color[0]))
+    g = int(start_color[1] + ratio * (end_color[1] - start_color[1]))
+    b = int(start_color[2] + ratio * (end_color[2] - start_color[2]))
+    
+    return (r, g, b)
+
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
@@ -185,6 +210,9 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
     elif effect_type == 'full_random':
         main_color = get_random_color()
         outline_color = get_random_color()
+    elif effect_type == 'gradient':
+        # We'll handle gradient separately
+        pass
     else:  # Default/white styles
         main_color = (255, 255, 255)  # White
         outline_color = (0, 0, 0)  # Black
@@ -215,7 +243,16 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
     
     # Apply main text
-    draw.text((x, y), text, font=font, fill=main_color)
+    if effect_type == 'gradient':
+        # Apply gradient color effect
+        text_width, text_height = get_text_size(draw, text, font)
+        for i, char in enumerate(text):
+            char_width = draw.textlength(char, font=font)
+            for px in range(int(char_width)):
+                color = get_gradient_color(text_width, x + i * char_width + px)
+                draw.text((x + i * char_width + px, y), char, font=font, fill=color)
+    else:
+        draw.text((x, y), text, font=font, fill=main_color)
     
     return effect_settings
 
@@ -274,12 +311,15 @@ def enhance_image_quality(img):
     if img.mode != 'RGB':
         img = img.convert('RGB')
     
-    img = ImageEnhance.Sharpness(img).enhance(1.5)
-    img = ImageEnhance.Contrast(img).enhance(1.1)
+    # Ultra quality enhancement
+    img = img.resize((img.width * 2, img.height * 2), Image.LANCZOS)
+    img = ImageEnhance.Sharpness(img).enhance(2.0)
+    img = ImageEnhance.Contrast(img).enhance(1.2)
+    img = ImageEnhance.Color(img).enhance(1.1)
     
     hist = img.histogram()
     if sum(hist[:100]) > sum(hist[-100:]):
-        img = ImageEnhance.Brightness(img).enhance(1.1)
+        img = ImageEnhance.Brightness(img).enhance(1.2)
     
     return img
 
@@ -309,9 +349,17 @@ def create_variant(original_img, settings):
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
-        max_text_x = max(20, img.width - text_width - 20)
-        text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-        text_y = 20
+        # Position handling based on user selection
+        if settings['text_position'] == "Top Center":
+            text_x = (img.width - text_width) // 2
+            text_y = 20
+        elif settings['text_position'] == "Bottom Center":
+            text_x = (img.width - text_width) // 2
+            text_y = img.height - text_height - 20
+        else:  # Random
+            max_text_x = max(20, img.width - text_width - 20)
+            text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
+            text_y = random.randint(20, img.height - text_height - 20)
         
         effect_settings = apply_text_effect(
             draw, 
@@ -407,17 +455,20 @@ def create_variant(original_img, settings):
             )
             quote_y += line_heights[i] + 10
     
-    if settings['use_watermark'] and settings['watermark_image']:
-        watermark = settings['watermark_image'].copy()
-        
-        if settings['watermark_opacity'] < 1.0:
-            alpha = watermark.split()[3]
-            alpha = ImageEnhance.Brightness(alpha).enhance(settings['watermark_opacity'])
-            watermark.putalpha(alpha)
-        
-        watermark.thumbnail((img.width//4, img.height//4))
-        pos = get_watermark_position(img, watermark)
-        img.paste(watermark, pos, watermark)
+    if settings['use_watermark']:
+        if isinstance(settings['watermark_images'], list) and settings['watermark_images']:
+            # Multiple watermark selection
+            watermark_idx = random.randint(0, len(settings['watermark_images']) - 1)
+            watermark = settings['watermark_images'][watermark_idx].copy()
+            
+            if settings['watermark_opacity'] < 1.0:
+                alpha = watermark.split()[3]
+                alpha = ImageEnhance.Brightness(alpha).enhance(settings['watermark_opacity'])
+                watermark.putalpha(alpha)
+            
+            watermark.thumbnail((img.width//4, img.height//4))
+            pos = get_watermark_position(img, watermark)
+            img.paste(watermark, pos, watermark)
     
     if settings['use_coffee_pet'] and settings['selected_pet']:
         pet_path = os.path.join("assets/pets", settings['selected_pet'])
@@ -452,6 +503,24 @@ def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
         size -= 2
     return font
 
+def create_text_only_image(text, width=800, height=600):
+    """Create a simple image with just text for watermark grouping"""
+    img = Image.new("RGB", (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    
+    try:
+        font = ImageFont.truetype("arial.ttf", 120)
+    except:
+        font = ImageFont.load_default()
+    
+    text_width, text_height = get_text_size(draw, text, font)
+    x = (width - text_width) // 2
+    y = (height - text_height) // 2
+    
+    draw.text((x, y), text, font=font, fill=(0, 0, 0))
+    
+    return img
+
 # =================== MAIN APP ===================
 if 'generated_images' not in st.session_state:
     st.session_state.generated_images = []
@@ -466,9 +535,12 @@ with st.sidebar:
     
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Full Random", "Colorful"],
+        ["White Only", "White with Black Outline", "Full Random", "Colorful", "Gradient"],
         index=0
     )
+    
+    # Text position options
+    text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"])
     
     st.markdown("### 🎨 Texture Options")
     use_texture = st.checkbox("Use Texture for Text", value=False)
@@ -509,7 +581,7 @@ with st.sidebar:
         quote_size = st.slider("Quote Text Size", 10, 100, 40)
     
     use_watermark = st.checkbox("Add Watermark", value=True)
-    watermark_image = None
+    watermark_images = []
     
     if use_watermark:
         watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
@@ -517,17 +589,27 @@ with st.sidebar:
         if watermark_option == "Pre-made":
             watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
             if watermark_files:
-                default_index = 0
-                if "wishful vibes.png" in watermark_files:
-                    default_index = watermark_files.index("wishful vibes.png")
-                selected_watermark = st.selectbox("Select Watermark", watermark_files, index=default_index)
-                watermark_path = os.path.join("assets/logos", selected_watermark)
-                if os.path.exists(watermark_path):
-                    watermark_image = Image.open(watermark_path).convert("RGBA")
+                # Allow multiple selection
+                selected_watermarks = st.multiselect(
+                    "Select Watermark(s)", 
+                    watermark_files,
+                    default=["wishful vibes.png"] if "wishful vibes.png" in watermark_files else None
+                )
+                for watermark_file in selected_watermarks:
+                    watermark_path = os.path.join("assets/logos", watermark_file)
+                    if os.path.exists(watermark_path):
+                        watermark_images.append(Image.open(watermark_path).convert("RGBA"))
+                
+                # Add text-only watermark if selected
+                if st.checkbox("Add Text-only Watermark"):
+                    watermark_text = st.text_input("Watermark Text", "Happy Happy")
+                    if watermark_text:
+                        watermark_images.append(create_text_only_image(watermark_text))
         else:
-            uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"])
-            if uploaded_watermark:
-                watermark_image = Image.open(uploaded_watermark).convert("RGBA")
+            uploaded_watermarks = st.file_uploader("Upload Watermark(s)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+            if uploaded_watermarks:
+                for uploaded_watermark in uploaded_watermarks:
+                    watermark_images.append(Image.open(uploaded_watermark).convert("RGBA"))
         
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
@@ -568,12 +650,14 @@ if st.button("✨ Generate Photos", key="generate"):
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
                 "Full Random": "full_random",
-                "Colorful": "colorful"
+                "Colorful": "colorful",
+                "Gradient": "gradient"
             }
             selected_effect = effect_mapping[text_effect]
             
             settings = {
                 'greeting_type': greeting_type,
+                'text_position': text_position,
                 'show_text': show_text,
                 'main_size': main_size if show_text else 90,
                 'show_wish': show_wish,
@@ -586,7 +670,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 'quote_text': quote_text if show_quote else "",
                 'quote_size': quote_size if show_quote else 40,
                 'use_watermark': use_watermark,
-                'watermark_image': watermark_image,
+                'watermark_images': watermark_images if use_watermark else [],
                 'watermark_opacity': watermark_opacity if use_watermark else 1.0,
                 'use_overlay': use_overlay,
                 'overlay_files': overlay_files if use_overlay else [],
@@ -599,6 +683,16 @@ if st.button("✨ Generate Photos", key="generate"):
                 'use_texture': use_texture,
                 'texture_image': texture_image
             }
+            
+            # First create text-only images for watermark grouping if needed
+            if use_watermark and watermark_images:
+                for i, watermark_img in enumerate(watermark_images):
+                    if isinstance(watermark_img, Image.Image):
+                        try:
+                            text_img = create_text_only_image(f"Watermark Group {i+1}")
+                            processed_images.append((f"watermark_group_{i+1}.jpg", text_img))
+                        except Exception as e:
+                            st.error(f"Error creating watermark group image: {str(e)}")
             
             for uploaded_file in uploaded_images:
                 try:
@@ -647,8 +741,16 @@ if st.button("✨ Generate Photos", key="generate"):
                                 font_main = adjust_font_size_to_fit(draw, text, img.width - 40, img.height//3, main_size)
                                 text_width, text_height = get_text_size(draw, text, font_main)
                             
-                            text_x = random.randint(20, max(20, img.width - text_width - 20))
-                            text_y = 20
+                            # Position handling based on user selection
+                            if text_position == "Top Center":
+                                text_x = (img.width - text_width) // 2
+                                text_y = 20
+                            elif text_position == "Bottom Center":
+                                text_x = (img.width - text_width) // 2
+                                text_y = img.height - text_height - 20
+                            else:  # Random
+                                text_x = random.randint(20, max(20, img.width - text_width - 20))
+                                text_y = random.randint(20, img.height - text_height - 20)
                             
                             effect_settings = apply_text_effect(
                                 draw, 
@@ -746,8 +848,9 @@ if st.button("✨ Generate Photos", key="generate"):
                                 )
                                 quote_y += line_heights[i] + 10
                         
-                        if use_watermark and watermark_image:
-                            watermark = watermark_image.copy()
+                        if use_watermark and watermark_images:
+                            watermark_idx = random.randint(0, len(watermark_images) - 1)
+                            watermark = watermark_images[watermark_idx].copy()
                             
                             if watermark_opacity < 1.0:
                                 alpha = watermark.split()[3]
@@ -842,4 +945,3 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
-
