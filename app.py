@@ -1,23 +1,17 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
 import io
 import random
 import datetime
 import zipfile
-import numpy as np
-import textwrap
-from typing import Tuple, List, Optional
 import math
-import requests
-from io import BytesIO
-import base64
-import re
+import colorsys
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
 
-# Custom CSS for black/yellow theme with enhancements
+# Custom CSS for black/yellow theme
 st.markdown("""
     <style>
     .main {
@@ -29,7 +23,6 @@ st.markdown("""
         border-radius: 8px;
         margin-bottom: 20px;
         border: 2px solid #ffff00;
-        box-shadow: 0 0 15px #ffff00;
     }
     .image-preview-container {
         background-color: #000000;
@@ -45,32 +38,24 @@ st.markdown("""
         padding: 0.5rem 1rem;
         border-radius: 8px;
         font-weight: bold;
-        transition: all 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #ffff00;
-        color: #000000;
-        box-shadow: 0 0 15px #ffff00;
     }
     .sidebar .sidebar-content {
-        background-color: #0a0a0a;
-        color: #ffff00;
-        border-right: 2px solid #ffff00;
+        background-color: #ffffff;
+        color: black;
+        border-right: 1px solid #ffff00;
     }
     .stSlider>div>div>div>div {
         background-color: #ffff00;
     }
     .stCheckbox>div>label {
-        color: #ffff00 !important;
+        color: black !important;
     }
     .stSelectbox>div>div>select {
-        background-color: #000000;
-        color: #ffff00 !important;
+        color: black !important;
     }
     .stImage>img {
         border: 2px solid #ffff00;
         border-radius: 8px;
-        box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
     }
     .variant-container {
         display: flex;
@@ -92,9 +77,8 @@ st.markdown("""
     .texture-option {
         margin-top: 10px;
         padding: 10px;
-        background-color: #1a1a1a;
+        background-color: #f0f0f0;
         border-radius: 5px;
-        border: 1px solid #ffff00;
     }
     .quote-slider {
         margin-top: 10px;
@@ -105,49 +89,20 @@ st.markdown("""
         padding: 15px;
         margin-bottom: 15px;
         background-color: #000000;
-        color: #ffff00;
-        box-shadow: 0 0 10px rgba(255, 255, 0, 0.3);
-    }
-    .pro-badge {
-        background-color: #ffff00;
-        color: #000;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 0.8em;
-        font-weight: bold;
-        margin-left: 5px;
-    }
-    .section-title {
-        color: #ffff00;
-        border-bottom: 2px solid #ffff00;
-        padding-bottom: 5px;
-        margin-top: 20px;
-    }
-    .effect-card {
-        background-color: #1a1a1a;
-        border: 1px solid #333;
-        border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-    .stProgress > div > div > div {
-        background-color: #ffff00;
+        color: white;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Main header with enhanced design
+# Main header
 st.markdown("""
     <div class='header-container'>
-        <h1 style='text-align: center; color: #ffff00; margin: 0;' class='glowing-text'>
-            ⚡ ULTRA PRO MAX IMAGE EDITOR 900% <span style='font-size:0.6em;'>(40+ Features)</span>
-        </h1>
-        <p style='text-align: center; color: #ffff00;'>The World's Most Powerful Free Image Editor</p>
+        <h1 style='text-align: center; color: #ffff00; margin: 0;' class='glowing-text'>⚡ ULTRA PRO MAX IMAGE EDITOR</h1>
     </div>
 """, unsafe_allow_html=True)
 
 # =================== UTILS ===================
-def list_files(folder: str, exts: List[str]) -> List[str]:
+def list_files(folder, exts):
     """List files in folder with given extensions"""
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
@@ -155,8 +110,7 @@ def list_files(folder: str, exts: List[str]) -> List[str]:
     return [f for f in os.listdir(folder) 
            if any(f.lower().endswith(ext.lower()) for ext in exts)]
 
-def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
-    """Smart crop to maintain aspect ratio"""
+def smart_crop(img, target_ratio=3/4):
     w, h = img.size
     if w/h > target_ratio:
         new_w = int(h * target_ratio)
@@ -167,13 +121,11 @@ def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
         top = (h - new_h) // 2
         return img.crop((0, top, w, top + new_h))
 
-def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
-    """Get text dimensions"""
+def get_text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font() -> ImageFont.FreeTypeFont:
-    """Get a random font from assets"""
+def get_random_font():
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
         try:
@@ -193,21 +145,17 @@ def get_random_font() -> ImageFont.FreeTypeFont:
     except:
         return ImageFont.load_default()
 
-def get_random_wish(greeting_type: str) -> str:
-    """Get random wish based on greeting type"""
+def get_random_wish(greeting_type):
     wishes = {
         "Good Morning": ["Rise and shine!", "Make today amazing!", "Morning blessings!", "New day, new blessings!"],
         "Good Afternoon": ["Enjoy your day!", "Afternoon delights!", "Sunshine and smiles!", "Perfect day ahead!"],
         "Good Evening": ["Beautiful sunset!", "Evening serenity!", "Twilight magic!", "Peaceful evening!"],
         "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!"],
-        "Custom Greeting": ["Have a wonderful day!", "Stay blessed!", "Keep smiling!", "Enjoy every moment!"],
-        "Happy Birthday": ["Wishing you a fantastic day!", "Many happy returns!", "Celebrate big!", "Best wishes on your special day!"],
-        "Merry Christmas": ["Joy to the world!", "Season's greetings!", "Ho ho ho!", "Warmest wishes!"]
+        "Custom Greeting": ["Have a wonderful day!", "Stay blessed!", "Keep smiling!", "Enjoy every moment!"]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
-def get_random_quote() -> str:
-    """Get inspirational quote"""
+def get_random_quote():
     quotes = [
         "Every morning is a new opportunity\nto rise and shine.",
         "Wake up with determination,\ngo to bed with satisfaction.",
@@ -222,11 +170,10 @@ def get_random_quote() -> str:
     ]
     return random.choice(quotes)
 
-def get_random_color() -> Tuple[int, int, int]:
-    """Generate random RGB color"""
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+def get_random_color():
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
-def get_gradient_colors() -> List[Tuple[int, int, int]]:
+def get_gradient_colors():
     """Returns a list of gradient colors (2-4 colors)"""
     num_colors = random.choice([2, 2, 3, 4])  # More chance for 2 colors
     base_colors = [
@@ -253,7 +200,7 @@ def get_gradient_colors() -> List[Tuple[int, int, int]]:
     
     return random.sample(base_colors, num_colors)
 
-def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
+def create_gradient_mask(width, height, colors, direction='horizontal'):
     """Create a gradient mask image"""
     gradient = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(gradient)
@@ -275,9 +222,7 @@ def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, i
     
     return gradient
 
-def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
-                     effect_settings: dict, texture_img: Optional[Image.Image] = None) -> dict:
-    """Apply advanced text effects"""
+def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
     text_width, text_height = get_text_size(draw, text, font)
@@ -375,8 +320,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     
     return effect_settings
 
-def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
-    """Format current date with options"""
+def format_date(date_format="%d %B %Y", show_day=False):
     today = datetime.datetime.now()
     formatted_date = today.strftime(date_format)
     
@@ -391,8 +335,7 @@ def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
     
     return formatted_date
 
-def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5) -> Image.Image:
-    """Apply decorative overlay"""
+def apply_overlay(image, overlay_path, size=0.5):
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
         new_size = (int(image.width * size), int(image.height * size))
@@ -408,42 +351,30 @@ def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5) -> I
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-def generate_filename() -> str:
-    """Generate unique filename"""
+def generate_filename():
     now = datetime.datetime.now()
     future_minutes = random.randint(1, 10)
     future_time = now + datetime.timedelta(minutes=future_minutes)
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
-def get_watermark_position(img: Image.Image, watermark: Image.Image) -> Tuple[int, int]:
-    """Get watermark position (90% bottom)"""
+def get_watermark_position(img, watermark):
+    # 90% corner position (bottom)
     x = random.choice([20, img.width - watermark.width - 20])
     y = img.height - watermark.height - 20
     return (x, y)
 
-def enhance_image_quality(img: Image.Image) -> Image.Image:
-    """Enhance image quality without altering original"""
+def enhance_image_quality(img):
     if img.mode != 'RGB':
         img = img.convert('RGB')
-        
-    # Apply sharpening
-    enhancer = ImageEnhance.Sharpness(img)
-    img = enhancer.enhance(1.2)
-    
-    # Apply contrast enhancement
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(1.1)
-    
     return img
 
-def upscale_text_elements(img: Image.Image, scale_factor: int = 2) -> Image.Image:
-    """Upscale text elements for better quality"""
+def upscale_text_elements(img, scale_factor=2):
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def apply_halftone_effect(img: Image.Image, scale: int = 4) -> Image.Image:
+def apply_halftone_effect(img, scale=4):
     """Apply halftone effect to image"""
     img = img.convert('L')
     width, height = img.size
@@ -451,86 +382,61 @@ def apply_halftone_effect(img: Image.Image, scale: int = 4) -> Image.Image:
     img = img.resize((width, height), Image.NEAREST)
     return img.convert('RGB')
 
-def apply_vignette(img: Image.Image, intensity: float = 0.8) -> Image.Image:
-    """Apply vignette effect"""
-    width, height = img.size
-    x = np.linspace(-1, 1, width)
-    y = np.linspace(-1, 1, height)
-    X, Y = np.meshgrid(x, y)
-    R = np.sqrt(X**2 + Y**2)
-    mask = 1 - np.clip(R * intensity, 0, 1)
-    mask = (mask * 255).astype(np.uint8)
-    mask_img = Image.fromarray(mask).convert('L')
-    vignette = Image.new('RGB', (width, height), (0, 0, 0))
-    img.paste(vignette, (0, 0), mask_img)
-    return img
-
-def apply_sketch_effect(img: Image.Image) -> Image.Image:
+def apply_sketch_effect(img):
     """Convert image to pencil sketch"""
     img_gray = img.convert('L')
     img_invert = ImageOps.invert(img_gray)
     img_blur = img_invert.filter(ImageFilter.GaussianBlur(radius=3))
     return ImageOps.invert(img_blur)
 
-def apply_oil_painting_effect(img: Image.Image, size: int = 7) -> Image.Image:
-    """Apply oil painting effect"""
-    img_arr = np.array(img)
-    h, w = img_arr.shape[:2]
-    oil_img = np.zeros_like(img_arr)
-    
-    for i in range(size//2, h-size//2):
-        for j in range(size//2, w-size//2):
-            region = img_arr[i-size//2:i+size//2+1, j-size//2:j+size//2+1]
-            unique_colors, counts = np.unique(region.reshape(-1, 3), axis=0, return_counts=True)
-            oil_img[i, j] = unique_colors[np.argmax(counts)]
-    
-    return Image.fromarray(oil_img)
-
-def apply_watercolor_effect(img: Image.Image) -> Image.Image:
+def apply_watercolor_effect(img):
     """Apply watercolor painting effect"""
     img = img.filter(ImageFilter.SMOOTH_MORE)
     img = img.filter(ImageFilter.CONTOUR)
     img = Image.blend(img, img.filter(ImageFilter.GaussianBlur(1)), 0.5)
     return img
 
-def apply_glitch_effect(img: Image.Image, intensity: float = 0.1) -> Image.Image:
-    """Apply glitch effect"""
-    img_arr = np.array(img)
-    h, w = img_arr.shape[:2]
+def apply_glitch_effect(img, intensity=0.1):
+    """Apply glitch effect using PIL only"""
+    width, height = img.size
+    # Create a copy of the image
+    glitched = img.copy()
+    draw = ImageDraw.Draw(glitched)
     
-    # Channel shift
-    shift = int(w * intensity)
-    r, g, b = cv2.split(img_arr)
-    r = np.roll(r, shift, axis=1)
-    b = np.roll(b, -shift, axis=1)
-    glitched = cv2.merge([r, g, b])
+    # Create random channel shifts
+    shift = int(width * intensity)
+    for y in range(0, height, 5):
+        offset = random.randint(-shift, shift)
+        region = img.crop((0, y, width, y+5))
+        glitched.paste(region, (offset, y))
     
-    # Scan lines
-    for i in range(0, h, 2):
-        glitched[i:i+1, :] = glitched[i:i+1, :] // 2
+    # Add scan lines
+    for y in range(0, height, 2):
+        draw.line([(0, y), (width, y)], fill=(0, 0, 0, 50))
     
-    return Image.fromarray(glitched)
+    return glitched
 
-def apply_pixel_art_effect(img: Image.Image, pixel_size: int = 8) -> Image.Image:
+def apply_pixel_art_effect(img, pixel_size=8):
     """Convert image to pixel art"""
     width, height = img.size
     img = img.resize((width//pixel_size, height//pixel_size), Image.NEAREST)
     img = img.resize((width, height), Image.NEAREST)
     return img
 
-def apply_rainbow_effect(img: Image.Image) -> Image.Image:
+def apply_rainbow_effect(img):
     """Apply rainbow color effect"""
     width, height = img.size
     rainbow = Image.new('RGB', (width, height))
+    draw = ImageDraw.Draw(rainbow)
     
     for y in range(height):
         hue = y / height
         r, g, b = [int(255 * c) for c in colorsys.hsv_to_rgb(hue, 1, 1)]
-        rainbow.paste(Image.new('RGB', (width, 1), (r, g, b)), (0, y))
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
     
     return Image.blend(img, rainbow, 0.3)
 
-def apply_light_leak_effect(img: Image.Image, leak_color: Tuple[int, int, int] = (255, 100, 0), opacity: float = 0.3) -> Image.Image:
+def apply_light_leak_effect(img, leak_color=(255, 100, 0), opacity=0.3):
     """Apply light leak effect"""
     width, height = img.size
     leak = Image.new('RGB', (width, height), leak_color)
@@ -549,283 +455,49 @@ def apply_light_leak_effect(img: Image.Image, leak_color: Tuple[int, int, int] =
     
     return Image.composite(img, leak, mask)
 
-def apply_film_grain_effect(img: Image.Image, intensity: float = 0.1) -> Image.Image:
-    """Apply film grain effect"""
-    img_arr = np.array(img)
-    noise = np.random.normal(0, intensity * 255, img_arr.shape)
-    noisy = np.clip(img_arr + noise, 0, 255).astype(np.uint8)
-    return Image.fromarray(noisy)
+def apply_film_grain_effect(img, intensity=0.1):
+    """Apply film grain effect using PIL"""
+    width, height = img.size
+    grain = Image.new('L', (width, height))
+    pixels = grain.load()
+    
+    for x in range(width):
+        for y in range(height):
+            pixels[x, y] = random.randint(0, int(255 * intensity))
+    
+    return Image.blend(img, Image.merge('RGB', (grain, grain, grain)), 0.7)
 
-def apply_double_exposure_effect(img1: Image.Image, img2: Image.Image, blend_ratio: float = 0.5) -> Image.Image:
+def apply_sepia_effect(img):
+    """Apply sepia tone effect"""
+    sepia = img.copy()
+    pixels = sepia.load()
+    width, height = sepia.size
+    
+    for x in range(width):
+        for y in range(height):
+            r, g, b = pixels[x, y]
+            tr = int(0.393 * r + 0.769 * g + 0.189 * b)
+            tg = int(0.349 * r + 0.686 * g + 0.168 * b)
+            tb = int(0.272 * r + 0.534 * g + 0.131 * b)
+            pixels[x, y] = (
+                min(255, tr),
+                min(255, tg),
+                min(255, tb)
+            )
+    
+    return sepia
+
+def apply_double_exposure_effect(img1, img2, blend_ratio=0.5):
     """Create double exposure effect"""
     img2 = img2.resize(img1.size)
     return Image.blend(img1.convert('RGB'), img2.convert('RGB'), blend_ratio)
 
-def apply_texture_overlay(img: Image.Image, texture: Image.Image, opacity: float = 0.5) -> Image.Image:
+def apply_texture_overlay(img, texture, opacity=0.5):
     """Overlay texture on image"""
     texture = texture.resize(img.size)
     return Image.blend(img.convert('RGB'), texture.convert('RGB'), opacity)
 
-def apply_cartoon_effect(img: Image.Image) -> Image.Image:
-    """Apply cartoon effect without OpenCV"""
-    # Reduce colors
-    reduced = img.quantize(colors=8, method=1)
-    # Find edges
-    gray = img.convert('L')
-    edges = gray.filter(ImageFilter.FIND_EDGES)
-    edges = edges.filter(ImageFilter.SMOOTH)
-    edges = edges.point(lambda x: 0 if x < 150 else 255)
-    # Combine
-    cartoon = reduced.convert('RGB')
-    cartoon.paste((0, 0, 0), (0, 0), edges)
-    return cartoon
-
-def apply_thermal_effect(img: Image.Image) -> Image.Image:
-    """Apply thermal camera effect without OpenCV"""
-    # Convert to grayscale
-    gray = img.convert('L')
-    # Apply color mapping
-    arr = np.array(gray)
-    # Simple thermal mapping: low values = blue, high values = red
-    thermal = np.zeros((arr.shape[0], arr.shape[1], 3), dtype=np.uint8)
-    thermal[:, :, 0] = np.clip(arr * 2, 0, 255)  # Red
-    thermal[:, :, 1] = np.clip(arr * 0.5, 0, 255)  # Green
-    thermal[:, :, 2] = np.clip(255 - arr, 0, 255)  # Blue
-    return Image.fromarray(thermal)
-
-def apply_parallax_effect(img: Image.Image, depth_map: Image.Image, intensity: float = 0.1) -> Image.Image:
-    """Apply parallax scrolling effect"""
-    img_arr = np.array(img)
-    depth = np.array(depth_map.convert('L'))
-    
-    h, w = img_arr.shape[:2]
-    shift = (depth * intensity).astype(np.int32)
-    
-    result = np.zeros_like(img_arr)
-    for y in range(h):
-        for x in range(w):
-            new_x = x + shift[y, x]
-            if 0 <= new_x < w:
-                result[y, x] = img_arr[y, new_x]
-    
-    return Image.fromarray(result)
-
-def apply_hdr_effect(img: Image.Image, strength: float = 1.5) -> Image.Image:
-    """Apply HDR effect"""
-    # Split into RGB channels
-    r, g, b = img.split()
-    
-    # Enhance each channel
-    r = ImageEnhance.Contrast(r).enhance(strength)
-    g = ImageEnhance.Contrast(g).enhance(strength)
-    b = ImageEnhance.Contrast(b).enhance(strength)
-    
-    # Merge back
-    return Image.merge("RGB", (r, g, b))
-
-def apply_magic_glow(img: Image.Image, glow_color: Tuple[int, int, int] = (255, 255, 0)) -> Image.Image:
-    """Apply magical glow effect"""
-    # Create a blurred version for glow
-    blurred = img.filter(ImageFilter.GaussianBlur(10))
-    
-    # Create a solid color layer
-    color_layer = Image.new('RGB', img.size, glow_color)
-    
-    # Blend with original
-    result = Image.blend(img, color_layer, 0.3)
-    result = Image.blend(result, blurred, 0.2)
-    return result
-
-def apply_crystal_effect(img: Image.Image) -> Image.Image:
-    """Apply crystal refraction effect"""
-    # Create displacement map
-    width, height = img.size
-    displacement = Image.new('L', (width, height))
-    draw = ImageDraw.Draw(displacement)
-    for i in range(0, width, 20):
-        for j in range(0, height, 20):
-            draw.ellipse([(i-10, j-10), (i+10, j+10)], fill=128)
-    
-    # Apply displacement
-    return ImageChops.offset(img, 5, 5)
-
-def apply_anime_effect(img: Image.Image) -> Image.Image:
-    """Apply anime-style effect"""
-    # Enhance colors
-    enhancer = ImageEnhance.Color(img)
-    img = enhancer.enhance(1.5)
-    
-    # Apply edge enhancement
-    edges = img.filter(ImageFilter.FIND_EDGES)
-    edges = edges.convert('L')
-    edges = edges.point(lambda x: 0 if x < 100 else 255)
-    
-    # Combine with original
-    result = img.copy()
-    result.paste((0, 0, 0), (0, 0), edges)
-    return result
-
-def apply_golden_hour(img: Image.Image) -> Image.Image:
-    """Apply golden hour warm effect"""
-    # Create warm overlay
-    overlay = Image.new('RGB', img.size, (255, 200, 50))
-    return Image.blend(img, overlay, 0.3)
-
-def apply_moonlight_effect(img: Image.Image) -> Image.Image:
-    """Apply cool moonlight effect"""
-    # Create cool overlay
-    overlay = Image.new('RGB', img.size, (50, 100, 200))
-    return Image.blend(img, overlay, 0.2)
-
-def apply_vintage_effect(img: Image.Image) -> Image.Image:
-    """Apply vintage photo effect"""
-    # Sepia tone
-    sepia = img.convert('RGB')
-    r, g, b = sepia.split()
-    r = r.point(lambda x: x * 0.9)
-    g = g.point(lambda x: x * 0.7)
-    b = b.point(lambda x: x * 0.4)
-    sepia = Image.merge('RGB', (r, g, b))
-    
-    # Add vignette
-    sepia = apply_vignette(sepia)
-    
-    # Add grain
-    sepia = apply_film_grain_effect(sepia, 0.05)
-    return sepia
-
-def apply_cyberpunk_effect(img: Image.Image) -> Image.Image:
-    """Apply cyberpunk neon effect"""
-    # Increase contrast
-    img = ImageEnhance.Contrast(img).enhance(1.5)
-    
-    # Boost blues and pinks
-    r, g, b = img.split()
-    b = ImageEnhance.Brightness(b).enhance(1.5)
-    r = ImageEnhance.Brightness(r).enhance(1.3)
-    return Image.merge('RGB', (r, g, b))
-
-def apply_abstract_art(img: Image.Image) -> Image.Image:
-    """Create abstract art effect"""
-    # Apply multiple filters
-    img = img.filter(ImageFilter.EDGE_ENHANCE_MORE)
-    img = img.filter(ImageFilter.CONTOUR)
-    img = ImageEnhance.Color(img).enhance(2.0)
-    return img
-
-def apply_mirror_effect(img: Image.Image) -> Image.Image:
-    """Create mirror reflection effect"""
-    width, height = img.size
-    mirrored = Image.new('RGB', (width * 2, height))
-    mirrored.paste(img, (0, 0))
-    mirrored.paste(img.transpose(Image.FLIP_LEFT_RIGHT), (width, 0))
-    return mirrored
-
-def apply_kaleidoscope(img: Image.Image, segments: int = 6) -> Image.Image:
-    """Create kaleidoscope effect"""
-    # Crop to square
-    size = min(img.size)
-    img = img.crop((0, 0, size, size))
-    
-    # Create segment
-    angle = 360 / segments
-    segment = img.rotate(-angle / 2)
-    segment = segment.crop((0, 0, size, size // 2))
-    
-    # Create full image
-    result = Image.new('RGB', (size, size))
-    for i in range(segments):
-        rotated = segment.rotate(angle * i)
-        result.paste(rotated, (0, 0))
-    
-    return result
-
-def apply_liquid_effect(img: Image.Image, intensity: float = 5.0) -> Image.Image:
-    """Apply liquid distortion effect"""
-    width, height = img.size
-    xm, ym = width / 2, height / 2
-    
-    # Create displacement map
-    displacement = Image.new('L', (width, height))
-    draw = ImageDraw.Draw(displacement)
-    for y in range(height):
-        for x in range(width):
-            dx = x - xm
-            dy = y - ym
-            dist = math.sqrt(dx*dx + dy*dy)
-            if dist == 0:
-                dist = 1
-            factor = (1 + math.sin(dist / intensity)) / 2
-            value = int(255 * factor)
-            draw.point((x, y), value)
-    
-    # Apply displacement
-    return ImageChops.offset(img, 0, 0, displacement)
-
-def apply_rain_effect(img: Image.Image) -> Image.Image:
-    """Add rain effect to image"""
-    # Create rain layer
-    width, height = img.size
-    rain = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(rain)
-    
-    # Draw rain streaks
-    for _ in range(1000):
-        x = random.randint(0, width)
-        y = random.randint(0, height)
-        length = random.randint(10, 30)
-        draw.line([(x, y), (x, y+length)], fill=(200, 200, 255, 100), width=1)
-    
-    return Image.alpha_composite(img.convert('RGBA'), rain).convert('RGB')
-
-def apply_snow_effect(img: Image.Image) -> Image.Image:
-    """Add snow effect to image"""
-    # Create snow layer
-    width, height = img.size
-    snow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(snow)
-    
-    # Draw snowflakes
-    for _ in range(500):
-        x = random.randint(0, width)
-        y = random.randint(0, height)
-        size = random.randint(2, 6)
-        draw.ellipse([(x, y), (x+size, y+size)], fill=(255, 255, 255, 200))
-    
-    return Image.alpha_composite(img.convert('RGBA'), snow).convert('RGB')
-
-def apply_fire_frame(img: Image.Image) -> Image.Image:
-    """Add animated fire frame effect (static version)"""
-    width, height = img.size
-    frame_size = 30
-    fire_frame = Image.new('RGBA', (width + frame_size*2, height + frame_size*2), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(fire_frame)
-    
-    # Draw fire-like pattern
-    for i in range(0, width + frame_size*2, 10):
-        height_var = random.randint(5, frame_size)
-        draw.rectangle([(i, 0), (i+10, height_var)], fill=(255, 100, 0, 200))
-        draw.rectangle([(i, height + frame_size*2 - height_var), (i+10, height + frame_size*2)], 
-                      fill=(255, 100, 0, 200))
-    
-    # Paste original image
-    fire_frame.paste(img, (frame_size, frame_size))
-    return fire_frame.convert('RGB')
-
-def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
-    """Add emoji stickers to image"""
-    # This is a placeholder - in a real app you'd use emoji images
-    draw = ImageDraw.Draw(img)
-    for _ in range(5):
-        x = random.randint(20, img.width-40)
-        y = random.randint(20, img.height-40)
-        emoji = random.choice(emojis)
-        font = ImageFont.truetype("arial.ttf", 40)
-        draw.text((x, y), emoji, font=font, fill=(255, 255, 0))
-    return img
-
-def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
-    """Create image variant with applied effects"""
+def create_variant(original_img, settings):
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
     
@@ -980,49 +652,21 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
     if settings.get('apply_halftone', False):
         img = apply_halftone_effect(img)
     
-    if settings.get('apply_vignette', False):
-        img = apply_vignette(img)
-    
     if settings.get('apply_sketch', False):
         img = apply_sketch_effect(img)
     
-    if settings.get('apply_cartoon', False):
-        img = apply_cartoon_effect(img)
+    if settings.get('apply_light_leak', False):
+        img = apply_light_leak_effect(img)
     
-    if settings.get('apply_anime', False):
-        img = apply_anime_effect(img)
-    
-    if settings.get('apply_cyberpunk', False):
-        img = apply_cyberpunk_effect(img)
-    
-    if settings.get('apply_vintage', False):
-        img = apply_vintage_effect(img)
-    
-    if settings.get('apply_hdr', False):
-        img = apply_hdr_effect(img)
-    
-    if settings.get('apply_magic_glow', False):
-        img = apply_magic_glow(img)
-    
-    if settings.get('apply_rain', False):
-        img = apply_rain_effect(img)
-    
-    if settings.get('apply_snow', False):
-        img = apply_snow_effect(img)
-    
-    if settings.get('apply_golden_hour', False):
-        img = apply_golden_hour(img)
-    
-    if settings.get('apply_moonlight', False):
-        img = apply_moonlight_effect(img)
+    if settings.get('apply_sepia', False):
+        img = apply_sepia_effect(img)
     
     img = enhance_image_quality(img)
     img = upscale_text_elements(img, scale_factor=2)
     
     return img.convert("RGB")
 
-def adjust_font_size_to_fit(draw: ImageDraw.Draw, text: str, max_width: int, max_height: int, initial_size: int) -> ImageFont.FreeTypeFont:
-    """Adjust font size to fit within dimensions"""
+def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
     font = None
     size = initial_size
     while size > 10:
@@ -1047,34 +691,19 @@ if 'watermark_groups' not in st.session_state:
 # Display features
 st.markdown("""
     <div class='feature-card'>
-        <h3>🌟 ULTRA PRO MAX FEATURES (40+)</h3>
+        <h3>🌟 ULTRA PRO MAX FEATURES</h3>
         <ul>
-            <li><span class='pro-badge'>NEW</span> Anime Style Effect</li>
-            <li><span class='pro-badge'>NEW</span> Cyberpunk Neon Effect</li>
-            <li><span class='pro-badge'>NEW</span> Vintage Photo Filter</li>
-            <li><span class='pro-badge'>NEW</span> HDR Enhancement</li>
-            <li><span class='pro-badge'>NEW</span> Magic Glow Effect</li>
-            <li><span class='pro-badge'>NEW</span> Golden Hour Warmth</li>
-            <li><span class='pro-badge'>NEW</span> Moonlight Cool Effect</li>
-            <li><span class='pro-badge'>NEW</span> Rain & Snow Effects</li>
-            <li><span class='pro-badge'>NEW</span> Fire Frame Decorations</li>
-            <li><span class='pro-badge'>NEW</span> Emoji Stickers</li>
-            <li>Smart Gradient Text Effects</li>
-            <li>Multiple Watermark Support</li>
-            <li>Advanced Text Positioning</li>
+            <li>Smart Gradient Text with Multiple Color Options</li>
+            <li>Multiple Watermark Support with Group Download</li>
+            <li>Advanced Text Positioning (Top/Bottom/Random)</li>
             <li>High Quality Text Rendering</li>
             <li>Custom Greeting Messages</li>
             <li>Date & Time Stamps</li>
             <li>Inspirational Quotes</li>
             <li>Pet & Coffee PNG Overlays</li>
             <li>Texture Overlays</li>
-            <li>Batch Processing (100+ Images)</li>
+            <li>Batch Processing (100+ Images at Once)</li>
             <li>Multiple Variants Generation</li>
-            <li>Light Leak & Film Grain</li>
-            <li>Double Exposure</li>
-            <li>Cartoon Effect</li>
-            <li>Pixel Art Converter</li>
-            <li>And 15+ more effects...</li>
         </ul>
     </div>
 """, unsafe_allow_html=True)
@@ -1084,9 +713,7 @@ uploaded_images = st.file_uploader("📁 Upload Images (100+ at once)", type=["j
 with st.sidebar:
     st.markdown("### ⚙️ ULTRA PRO SETTINGS")
     
-    greeting_type = st.selectbox("Greeting Type", 
-                               ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
-                                "Happy Birthday", "Merry Christmas", "Custom Greeting"])
+    greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", "Custom Greeting"])
     if greeting_type == "Custom Greeting":
         custom_greeting = st.text_input("Enter Custom Greeting", "Awesome Day!")
     
@@ -1094,7 +721,7 @@ with st.sidebar:
     
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Gradient", "Neon", "3D", "Full Random", "Colorful"],
+        ["White Only", "White with Black Outline", "Gradient", "Colorful"],
         index=0
     )
     
@@ -1102,7 +729,7 @@ with st.sidebar:
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
     text_position = text_position.lower().replace(" ", "_")
     
-    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Neon", "3D", "Colorful"] else 2
+    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Colorful"] else 2
     
     st.markdown("### 🎨 PRO TEXTURE OPTIONS")
     use_texture = st.checkbox("Use Texture for Text", value=False)
@@ -1151,8 +778,14 @@ with st.sidebar:
         if watermark_option == "Pre-made":
             watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
             if watermark_files:
-                selected_watermarks = st.multiselect("Select Watermark(s)", watermark_files, 
-                                                   default=["wishful vibes.png", "happy vibes.png", "nature vibes.png"])
+                # Get the first 3 watermarks that actually exist
+                available_watermarks = watermark_files[:3]
+                
+                selected_watermarks = st.multiselect(
+                    "Select Watermark(s)", 
+                    watermark_files, 
+                    default=available_watermarks
+                )
                 for watermark_file in selected_watermarks:
                     watermark_path = os.path.join("assets/logos", watermark_file)
                     if os.path.exists(watermark_path):
@@ -1182,30 +815,6 @@ with st.sidebar:
         overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
     
     st.markdown("---")
-    st.markdown("### 🎭 PRO EFFECTS")
-    col1, col2 = st.columns(2)
-    with col1:
-        apply_halftone = st.checkbox("Halftone Effect", value=False)
-        apply_vignette = st.checkbox("Vignette Effect", value=False)
-        apply_sketch = st.checkbox("Pencil Sketch", value=False)
-        apply_cartoon = st.checkbox("Cartoon Effect", value=False)
-        apply_anime = st.checkbox("Anime Style", value=False)
-        
-    with col2:
-        apply_cyberpunk = st.checkbox("Cyberpunk", value=False)
-        apply_vintage = st.checkbox("Vintage", value=False)
-        apply_hdr = st.checkbox("HDR Enhancement", value=False)
-        apply_magic_glow = st.checkbox("Magic Glow", value=False)
-        
-    st.markdown("### 🌦️ WEATHER EFFECTS")
-    apply_rain = st.checkbox("Rain Effect", value=False)
-    apply_snow = st.checkbox("Snow Effect", value=False)
-    
-    st.markdown("### ☀️ LIGHTING EFFECTS")
-    apply_golden_hour = st.checkbox("Golden Hour", value=False)
-    apply_moonlight = st.checkbox("Moonlight", value=False)
-    
-    st.markdown("---")
     st.markdown("### ☕🐾 PRO OVERLAYS")
     use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
     if use_coffee_pet:
@@ -1215,10 +824,6 @@ with st.sidebar:
         
         if selected_pet == "Random":
             selected_pet = random.choice(pet_files) if pet_files else None
-            
-    st.markdown("### 🔥 SPECIAL EFFECTS")
-    apply_fire_frame = st.checkbox("Fire Frame", value=False)
-    apply_emoji = st.checkbox("Emoji Stickers", value=False)
 
 if st.button("✨ ULTRA PRO GENERATE", key="generate"):
     if uploaded_images:
@@ -1230,9 +835,6 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate"):
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
                 "Gradient": "gradient",
-                "Neon": "neon",
-                "3D": "3d",
-                "Full Random": "full_random",
                 "Colorful": "colorful"
             }
             selected_effect = effect_mapping[text_effect]
@@ -1309,20 +911,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate"):
                                     'selected_pet': selected_pet if use_coffee_pet else None,
                                     'text_effect': selected_effect,
                                     'use_texture': use_texture,
-                                    'texture_image': texture_image,
-                                    'apply_halftone': apply_halftone,
-                                    'apply_vignette': apply_vignette,
-                                    'apply_sketch': apply_sketch,
-                                    'apply_cartoon': apply_cartoon,
-                                    'apply_anime': apply_anime,
-                                    'apply_cyberpunk': apply_cyberpunk,
-                                    'apply_vintage': apply_vintage,
-                                    'apply_hdr': apply_hdr,
-                                    'apply_magic_glow': apply_magic_glow,
-                                    'apply_rain': apply_rain,
-                                    'apply_snow': apply_snow,
-                                    'apply_golden_hour': apply_golden_hour,
-                                    'apply_moonlight': apply_moonlight
+                                    'texture_image': texture_image
                                 }
                                 
                                 variant = create_variant(img, settings)
@@ -1357,20 +946,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate"):
                                 'selected_pet': selected_pet if use_coffee_pet else None,
                                 'text_effect': selected_effect,
                                 'use_texture': use_texture,
-                                'texture_image': texture_image,
-                                'apply_halftone': apply_halftone,
-                                'apply_vignette': apply_vignette,
-                                'apply_sketch': apply_sketch,
-                                'apply_cartoon': apply_cartoon,
-                                'apply_anime': apply_anime,
-                                'apply_cyberpunk': apply_cyberpunk,
-                                'apply_vintage': apply_vintage,
-                                'apply_hdr': apply_hdr,
-                                'apply_magic_glow': apply_magic_glow,
-                                'apply_rain': apply_rain,
-                                'apply_snow': apply_snow,
-                                'apply_golden_hour': apply_golden_hour,
-                                'apply_moonlight': apply_moonlight
+                                'texture_image': texture_image
                             }
                             
                             processed_img = create_variant(img, settings)
@@ -1395,16 +971,15 @@ if st.session_state.generated_images:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
                 for filename, img in st.session_state.generated_images:
-                    if img in group_data.get('images', []):
-                        try:
-                            if img.mode != 'RGB':
-                                img = img.convert('RGB')
-                            img_bytes = io.BytesIO()
-                            img.save(img_bytes, format='JPEG', quality=100)
-                            zip_file.writestr(filename, img_bytes.getvalue())
-                        except Exception as e:
-                            st.error(f"Error adding {filename} to zip: {str(e)}")
-                            continue
+                    try:
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format='JPEG', quality=100)
+                        zip_file.writestr(filename, img_bytes.getvalue())
+                    except Exception as e:
+                        st.error(f"Error adding {filename} to zip: {str(e)}")
+                        continue
             
             st.download_button(
                 label=f"⬇️ Download {group_name} Photos",
