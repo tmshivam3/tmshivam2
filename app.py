@@ -533,7 +533,7 @@ def apply_rainbow_effect(img: Image.Image) -> Image.Image:
 def apply_light_leak_effect(img: Image.Image, leak_color: Tuple[int, int, int] = (255, 100, 0), opacity: float = 0.3) -> Image.Image:
     """Apply light leak effect"""
     width, height = img.size
-    leak = Image.new('RGB', (width, height), leak_color))
+    leak = Image.new('RGB', (width, height), leak_color)
     
     # Create gradient mask
     mask = Image.new('L', (width, height), 0)
