@@ -172,7 +172,7 @@ def get_random_quote():
     return random.choice(quotes)
 
 def get_random_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
 def get_gradient_colors():
     # Define gradient color combinations
@@ -206,6 +206,9 @@ def get_multi_gradient_colors():
 
 def create_gradient_mask(width, height, colors, direction='horizontal'):
     """Create a gradient mask with given colors"""
+    if width <= 0 or height <= 0:
+        return Image.new('RGB', (1, 1), colors[0])
+    
     base = Image.new('RGB', (width, height), colors[0])
     if len(colors) == 1:
         return base
@@ -228,10 +231,35 @@ def create_gradient_mask(width, height, colors, direction='horizontal'):
     
     return base
 
+def safe_outline_filter(mask, size=2):
+    """Apply outline filter safely"""
+    if size <= 0:
+        return mask
+    
+    try:
+        return mask.filter(ImageFilter.MaxFilter(size))
+    except:
+        # Fallback for small images
+        new_mask = mask.copy()
+        for x in range(mask.width):
+            for y in range(mask.height):
+                if mask.getpixel((x, y)) > 0:
+                    for dx in range(-size, size+1):
+                        for dy in range(-size, size+1):
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < mask.width and 0 <= ny < mask.height:
+                                if new_mask.getpixel((nx, ny)) == 0:
+                                    new_mask.putpixel((nx, ny), 128)
+        return new_mask.point(lambda p: 255 if p > 0 else 0)
+
 def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
     x, y = position
     effect_type = effect_settings['type']
     text_width, text_height = get_text_size(draw, text, font)
+    
+    # Ensure minimum size for text
+    if text_width <= 0 or text_height <= 0:
+        return effect_settings
     
     # Create a temporary image for advanced effects
     temp_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0, 0, 0, 0))
@@ -283,8 +311,8 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
         outline_draw = ImageDraw.Draw(outline_mask)
         outline_draw.text((10 + outline_size, 10 + outline_size), text, font=font, fill=255)
         
-        # Dilate for outline
-        outline_mask = outline_mask.filter(ImageFilter.MaxFilter(outline_size))
+        # Dilate for outline (with safety check)
+        outline_mask = safe_outline_filter(outline_mask, outline_size)
         
         # Paste outline
         outline_img = Image.new('RGBA', outline_mask.size, (0, 0, 0, 0))
@@ -378,178 +406,187 @@ def enhance_image_quality(img):
     if img.mode != 'RGB':
         img = img.convert('RGB')
     
-    img = ImageEnhance.Sharpness(img).enhance(1.5)
-    img = ImageEnhance.Contrast(img).enhance(1.1)
-    
-    hist = img.histogram()
-    if sum(hist[:100]) > sum(hist[-100:]):
-        img = ImageEnhance.Brightness(img).enhance(1.1)
+    try:
+        img = ImageEnhance.Sharpness(img).enhance(1.5)
+        img = ImageEnhance.Contrast(img).enhance(1.1)
+        
+        hist = img.histogram()
+        if sum(hist[:100]) > sum(hist[-100:]):
+            img = ImageEnhance.Brightness(img).enhance(1.1)
+    except Exception as e:
+        st.error(f"Error enhancing image: {str(e)}")
     
     return img
 
 def upscale_text_elements(img, scale_factor=2):
     if scale_factor > 1:
-        new_size = (img.width * scale_factor, img.height * scale_factor)
-        img = img.resize(new_size, Image.LANCZOS)
+        try:
+            new_size = (img.width * scale_factor, img.height * scale_factor)
+            img = img.resize(new_size, Image.LANCZOS)
+        except Exception as e:
+            st.error(f"Error upscaling image: {str(e)}")
     return img
 
 def create_variant(original_img, settings):
-    img = original_img.copy()
-    draw = ImageDraw.Draw(img)
-    
-    font = get_random_font()
-    if font is None:
-        return None
-    
-    texture_img = settings.get('texture_image', None)
-    
-    effect_settings = {
-        'type': settings.get('text_effect', None),
-        'use_texture': settings.get('use_texture', False)
-    }
-    
-    if settings['show_text']:
-        font_main = font.font_variant(size=settings['main_size'])
-        text = settings['greeting_type']
-        text_width, text_height = get_text_size(draw, text, font_main)
+    try:
+        img = original_img.copy()
+        draw = ImageDraw.Draw(img)
         
-        # Position handling based on selection
-        if settings['text_position'] == "Top Center":
-            text_x = (img.width - text_width) // 2
-            text_y = 20
-        elif settings['text_position'] == "Bottom Center":
-            text_x = (img.width - text_width) // 2
-            text_y = img.height - text_height - 20
-        else:  # Random
-            max_text_x = max(20, img.width - text_width - 20)
-            text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-            text_y = random.randint(20, max(20, img.height - text_height - 20))
+        font = get_random_font()
+        if font is None:
+            return None
         
-        effect_settings = apply_text_effect(
-            draw, 
-            (text_x, text_y), 
-            text, 
-            font_main,
-            effect_settings,
-            texture_img=texture_img
-        )
-    
-    if settings['show_wish']:
-        font_wish = font.font_variant(size=settings['wish_size'])
-        wish_text = get_random_wish(settings['greeting_type'])
-        wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+        texture_img = settings.get('texture_image', None)
+        
+        effect_settings = {
+            'type': settings.get('text_effect', None),
+            'use_texture': settings.get('use_texture', False)
+        }
         
         if settings['show_text']:
-            wish_y = text_y + settings['main_size'] + random.randint(10, 30)
-        else:
-            wish_y = 20
-        
-        max_wish_x = max(20, img.width - wish_width - 20)
-        wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-        
-        apply_text_effect(
-            draw, 
-            (wish_x, wish_y), 
-            wish_text, 
-            font_wish,
-            effect_settings,
-            texture_img=texture_img
-        )
-    
-    if settings['show_date']:
-        font_date = font.font_variant(size=settings['date_size'])
-        
-        if settings['date_format'] == "8 July 2025":
-            date_text = format_date("%d %B %Y", settings['show_day'])
-        elif settings['date_format'] == "28 January 2025":
-            date_text = format_date("%d %B %Y", settings['show_day'])
-        elif settings['date_format'] == "07/08/2025":
-            date_text = format_date("%m/%d/%Y", settings['show_day'])
-        else:
-            date_text = format_date("%Y-%m-%d", settings['show_day'])
+            font_main = font.font_variant(size=settings['main_size'])
+            text = settings['greeting_type']
+            text_width, text_height = get_text_size(draw, text, font_main)
             
-        date_width, date_height = get_text_size(draw, date_text, font_date)
-        
-        max_date_x = max(20, img.width - date_width - 20)
-        date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
-        date_y = max(20, img.height - date_height - 20)
-        
-        if settings['show_day'] and "(" in date_text:
-            day_part = date_text[date_text.index("("):]
-            day_width, _ = get_text_size(draw, day_part, font_date)
-            if date_x + day_width > img.width - 20:
-                date_x = img.width - day_width - 25
-        
-        apply_text_effect(
-            draw, 
-            (date_x, date_y), 
-            date_text, 
-            font_date,
-            effect_settings,
-            texture_img=texture_img
-        )
-    
-    if settings['show_quote']:
-        font_quote = font.font_variant(size=settings['quote_size'])
-        quote_text = settings['quote_text']
-        
-        lines = [line.strip() for line in quote_text.split('\n') if line.strip()]
-        
-        total_height = 0
-        line_heights = []
-        line_widths = []
-        
-        for line in lines:
-            w, h = get_text_size(draw, line, font_quote)
-            line_heights.append(h)
-            line_widths.append(w)
-            total_height += h + 10
-        
-        quote_y = (img.height - total_height) // 2
-        
-        for i, line in enumerate(lines):
-            line_x = (img.width - line_widths[i]) // 2
-            apply_text_effect(
+            # Position handling based on selection
+            if settings['text_position'] == "Top Center":
+                text_x = (img.width - text_width) // 2
+                text_y = 20
+            elif settings['text_position'] == "Bottom Center":
+                text_x = (img.width - text_width) // 2
+                text_y = img.height - text_height - 20
+            else:  # Random
+                text_x = random.randint(20, max(20, img.width - text_width - 20))
+                text_y = random.randint(20, max(20, img.height - text_height - 20))
+            
+            effect_settings = apply_text_effect(
                 draw, 
-                (line_x, quote_y), 
-                line, 
-                font_quote,
+                (text_x, text_y), 
+                text, 
+                font_main,
                 effect_settings,
                 texture_img=texture_img
             )
-            quote_y += line_heights[i] + 10
-    
-    if settings['use_watermark'] and settings['watermark_images']:
-        for watermark_image in settings['watermark_images']:
-            if random.random() < 0.5:  # 50% chance to apply each watermark
-                watermark = watermark_image.copy()
-                
-                if settings['watermark_opacity'] < 1.0:
-                    alpha = watermark.split()[3]
-                    alpha = ImageEnhance.Brightness(alpha).enhance(settings['watermark_opacity'])
-                    watermark.putalpha(alpha)
-                
-                watermark.thumbnail((img.width//4, img.height//4))
-                pos = get_watermark_position(img, watermark)
-                img.paste(watermark, pos, watermark)
-    
-    if settings['use_coffee_pet'] and settings['selected_pet']:
-        pet_path = os.path.join("assets/pets", settings['selected_pet'])
-        if os.path.exists(pet_path):
-            pet_img = Image.open(pet_path).convert("RGBA")
-            pet_img = pet_img.resize(
-                (int(img.width * settings['pet_size']), 
-                int(img.height * settings['pet_size'] * (pet_img.height/pet_img.width))),
-                Image.LANCZOS
+        
+        if settings['show_wish']:
+            font_wish = font.font_variant(size=settings['wish_size'])
+            wish_text = get_random_wish(settings['greeting_type'])
+            wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+            
+            if settings['show_text']:
+                wish_y = text_y + settings['main_size'] + random.randint(10, 30)
+            else:
+                wish_y = 20
+            
+            max_wish_x = max(20, img.width - wish_width - 20)
+            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
+            
+            apply_text_effect(
+                draw, 
+                (wish_x, wish_y), 
+                wish_text, 
+                font_wish,
+                effect_settings,
+                texture_img=texture_img
             )
-            x = img.width - pet_img.width - 20
-            y = img.height - pet_img.height - 20
-            img.paste(pet_img, (x, y), pet_img)
-    
-    img = enhance_image_quality(img)
-    img = upscale_text_elements(img, scale_factor=2)
-    
-    return img.convert("RGB")
+        
+        if settings['show_date']:
+            font_date = font.font_variant(size=settings['date_size'])
+            
+            if settings['date_format'] == "8 July 2025":
+                date_text = format_date("%d %B %Y", settings['show_day'])
+            elif settings['date_format'] == "28 January 2025":
+                date_text = format_date("%d %B %Y", settings['show_day'])
+            elif settings['date_format'] == "07/08/2025":
+                date_text = format_date("%m/%d/%Y", settings['show_day'])
+            else:
+                date_text = format_date("%Y-%m-%d", settings['show_day'])
+                
+            date_width, date_height = get_text_size(draw, date_text, font_date)
+            
+            max_date_x = max(20, img.width - date_width - 20)
+            date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
+            date_y = max(20, img.height - date_height - 20)
+            
+            if settings['show_day'] and "(" in date_text:
+                day_part = date_text[date_text.index("("):]
+                day_width, _ = get_text_size(draw, day_part, font_date)
+                if date_x + day_width > img.width - 20:
+                    date_x = img.width - day_width - 25
+            
+            apply_text_effect(
+                draw, 
+                (date_x, date_y), 
+                date_text, 
+                font_date,
+                effect_settings,
+                texture_img=texture_img
+            )
+        
+        if settings['show_quote']:
+            font_quote = font.font_variant(size=settings['quote_size'])
+            quote_text = settings['quote_text']
+            
+            lines = [line.strip() for line in quote_text.split('\n') if line.strip()]
+            
+            total_height = 0
+            line_heights = []
+            line_widths = []
+            
+            for line in lines:
+                w, h = get_text_size(draw, line, font_quote)
+                line_heights.append(h)
+                line_widths.append(w)
+                total_height += h + 10
+            
+            quote_y = (img.height - total_height) // 2
+            
+            for i, line in enumerate(lines):
+                line_x = (img.width - line_widths[i]) // 2
+                apply_text_effect(
+                    draw, 
+                    (line_x, quote_y), 
+                    line, 
+                    font_quote,
+                    effect_settings,
+                    texture_img=texture_img
+                )
+                quote_y += line_heights[i] + 10
+        
+        if settings['use_watermark'] and settings['watermark_images']:
+            for watermark_image in settings['watermark_images']:
+                if random.random() < 0.5:  # 50% chance to apply each watermark
+                    watermark = watermark_image.copy()
+                    
+                    if settings['watermark_opacity'] < 1.0:
+                        alpha = watermark.split()[3]
+                        alpha = ImageEnhance.Brightness(alpha).enhance(settings['watermark_opacity'])
+                        watermark.putalpha(alpha)
+                    
+                    watermark.thumbnail((img.width//4, img.height//4))
+                    pos = get_watermark_position(img, watermark)
+                    img.paste(watermark, pos, watermark)
+        
+        if settings['use_coffee_pet'] and settings['selected_pet']:
+            pet_path = os.path.join("assets/pets", settings['selected_pet'])
+            if os.path.exists(pet_path):
+                pet_img = Image.open(pet_path).convert("RGBA")
+                pet_img = pet_img.resize(
+                    (int(img.width * settings['pet_size']), 
+                    int(img.height * settings['pet_size'] * (pet_img.height/pet_img.width))),
+                    Image.LANCZOS
+                )
+                x = img.width - pet_img.width - 20
+                y = img.height - pet_img.height - 20
+                img.paste(pet_img, (x, y), pet_img)
+        
+        img = enhance_image_quality(img)
+        img = upscale_text_elements(img, scale_factor=2)
+        
+        return img.convert("RGB")
+    except Exception as e:
+        st.error(f"Error creating variant: {str(e)}")
+        return None
 
 def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
     font = None
