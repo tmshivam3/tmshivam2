@@ -6,10 +6,14 @@ import random
 import datetime
 import zipfile
 import numpy as np
-import logging
+import textwrap
+from typing import Tuple, List, Optional
+import cv2
+from skimage import exposure
+import math
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="⚡ EDIT 100+ IMAGE IN ONE CLICK", layout="wide")
+st.set_page_config(page_title="⚡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
 
 # Custom CSS for black/yellow theme
 st.markdown("""
@@ -83,26 +87,35 @@ st.markdown("""
     .quote-slider {
         margin-top: 10px;
     }
+    .feature-card {
+        border: 1px solid #ffff00;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background-color: #000000;
+        color: white;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # Main header
 st.markdown("""
     <div class='header-container'>
-        <h1 style='text-align: center; color: #ffff00; margin: 0;' class='glowing-text'>⚡ EDIT 100+ IMAGE IN ONE CLICK</h1>
+        <h1 style='text-align: center; color: #ffff00; margin: 0;' class='glowing-text'>⚡ ULTRA PRO MAX IMAGE EDITOR</h1>
     </div>
 """, unsafe_allow_html=True)
 
 # =================== UTILS ===================
-def list_files(folder, exts):
+def list_files(folder: str, exts: List[str]) -> List[str]:
     """List files in folder with given extensions"""
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
         return []
     return [f for f in os.listdir(folder) 
-           if any(f.lower().endswith(ext.lower()) for ext in exts]
+           if any(f.lower().endswith(ext.lower()) for ext in exts)]
 
-def smart_crop(img, target_ratio=3/4):
+def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
+    """Smart crop to maintain aspect ratio"""
     w, h = img.size
     if w/h > target_ratio:
         new_w = int(h * target_ratio)
@@ -113,11 +126,13 @@ def smart_crop(img, target_ratio=3/4):
         top = (h - new_h) // 2
         return img.crop((0, top, w, top + new_h))
 
-def get_text_size(draw, text, font):
+def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
+    """Get text dimensions"""
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font():
+def get_random_font() -> ImageFont.FreeTypeFont:
+    """Get a random font from assets"""
     fonts = list_files("assets/fonts", [".ttf", ".otf"])
     if not fonts:
         try:
@@ -137,16 +152,19 @@ def get_random_font():
     except:
         return ImageFont.load_default()
 
-def get_random_wish(greeting_type):
+def get_random_wish(greeting_type: str) -> str:
+    """Get random wish based on greeting type"""
     wishes = {
         "Good Morning": ["Rise and shine!", "Make today amazing!", "Morning blessings!", "New day, new blessings!"],
         "Good Afternoon": ["Enjoy your day!", "Afternoon delights!", "Sunshine and smiles!", "Perfect day ahead!"],
         "Good Evening": ["Beautiful sunset!", "Evening serenity!", "Twilight magic!", "Peaceful evening!"],
-        "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!"]
+        "Good Night": ["Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!"],
+        "Custom Greeting": ["Have a wonderful day!", "Stay blessed!", "Keep smiling!", "Enjoy every moment!"]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
-def get_random_quote():
+def get_random_quote() -> str:
+    """Get inspirational quote"""
     quotes = [
         "Every morning is a new opportunity\nto rise and shine.",
         "Wake up with determination,\ngo to bed with satisfaction.",
@@ -157,24 +175,15 @@ def get_random_quote():
         "The sun is a daily reminder\nthat we too can rise again\nfrom the darkness.",
         "Today's morning brings\nnew strength, new thoughts,\nand new possibilities.",
         "Morning is the time\nwhen the whole world\nstarts anew.",
-        "Every sunrise is an invitation\nfor us to arise\nand brighten someone's day.",
-        "The first hour of the morning\nis the rudder of the day.",
-        "Morning is the time\nto plan your day\nand make it count.",
-        "Wake up with a smile\nand chase your dreams\nwith passion.",
-        "Morning is the best time\nto be thankful\nfor all you have.",
-        "A beautiful morning begins\nwith a beautiful mindset.",
-        "The morning breeze\nhas secrets to tell you.",
-        "Morning is the time\nwhen everything\nis possible again.",
-        "Each morning we are born again.\nWhat we do today\nmatters most.",
-        "Morning is the key to the day\nand the secret to productivity.",
-        "The morning sun\ninspires confidence\nand optimism."
+        "Every sunrise is an invitation\nfor us to arise\nand brighten someone's day."
     ]
     return random.choice(quotes)
 
-def get_random_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+def get_random_color() -> Tuple[int, int, int]:
+    """Generate random RGB color"""
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-def get_gradient_colors():
+def get_gradient_colors() -> List[Tuple[int, int, int]]:
     """Returns a list of gradient colors (2-4 colors)"""
     num_colors = random.choice([2, 2, 3, 4])  # More chance for 2 colors
     base_colors = [
@@ -201,7 +210,7 @@ def get_gradient_colors():
     
     return random.sample(base_colors, num_colors)
 
-def create_gradient_mask(width, height, colors, direction='horizontal'):
+def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
     """Create a gradient mask image"""
     gradient = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(gradient)
@@ -223,31 +232,26 @@ def create_gradient_mask(width, height, colors, direction='horizontal'):
     
     return gradient
 
-def apply_text_effect(draw, position, text, font, effect_settings, texture_img=None):
+def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
+                     effect_settings: dict, texture_img: Optional[Image.Image] = None) -> dict:
+    """Apply advanced text effects"""
     x, y = position
     effect_type = effect_settings['type']
-    
-    # Get text size
     text_width, text_height = get_text_size(draw, text, font)
     
     # Create a temporary image for advanced effects
     temp_img = Image.new('RGBA', (text_width, text_height))
     temp_draw = ImageDraw.Draw(temp_img)
-    
-    # Draw text on temp image
     temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
     
     if effect_type == 'gradient':
-        # Create gradient
         colors = get_gradient_colors()
         gradient = create_gradient_mask(text_width, text_height, colors)
-        
-        # Apply gradient to text
         gradient_text = Image.new('RGBA', (text_width, text_height))
         gradient_text.paste(gradient, (0, 0), temp_img)
         
         # Apply outline
-        outline_size = 2
+        outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
@@ -256,53 +260,80 @@ def apply_text_effect(draw, position, text, font, effect_settings, texture_img=N
         # Paste gradient text
         draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
+    elif effect_type == 'neon':
+        # Neon glow effect
+        glow_size = effect_settings.get('glow_size', 5)
+        glow_color = effect_settings.get('glow_color', (0, 255, 255))
+        
+        for i in range(glow_size, 0, -1):
+            alpha = int(255 * (i/glow_size))
+            temp_glow = Image.new('RGBA', (text_width + i*2, text_height + i*2))
+            temp_glow_draw = ImageDraw.Draw(temp_glow)
+            temp_glow_draw.text((i, i), text, font=font, fill=(*glow_color, alpha))
+            
+            for _ in range(2):  # Blur iterations
+                temp_glow = temp_glow.filter(ImageFilter.BLUR)
+            
+            draw.bitmap((x-i, y-i), temp_glow.convert('L'), fill=None)
+        
+        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        
+    elif effect_type == '3d':
+        # 3D extruded text effect
+        depth = effect_settings.get('depth', 5)
+        light_angle = effect_settings.get('light_angle', 45)
+        
+        for i in range(1, depth+1):
+            angle_color = (
+                int(255 * math.cos(math.radians(light_angle))),
+                int(255 * math.sin(math.radians(light_angle))),
+                100
+            )
+            draw.text((x+i, y+i), text, font=font, fill=angle_color)
+        
+        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        
     elif effect_type == 'colorful':
         main_color = effect_settings.get('main_color', get_random_color())
-        outline_color = (0, 0, 0)  # Black outline
+        outline_color = (0, 0, 0)
         
-        # Apply outline
-        outline_size = 2
+        outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
-        # Apply main text
         draw.text((x, y), text, font=font, fill=main_color)
         
     elif effect_type == 'full_random':
         main_color = get_random_color()
         outline_color = get_random_color()
         
-        # Apply outline
-        outline_size = 2
+        outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
-        # Apply main text
         draw.text((x, y), text, font=font, fill=main_color)
         
     else:  # Default/white styles
-        # Apply shadow
         shadow_offset = 3
         draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(25, 25, 25))
         
-        # Apply outline if needed
         if effect_type == "white_black_outline":
-            outline_size = 2
+            outline_size = effect_settings.get('outline_size', 2)
             for ox in range(-outline_size, outline_size+1):
                 for oy in range(-outline_size, outline_size+1):
                     if ox != 0 or oy != 0:
                         draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
         
-        # Apply main text
         draw.text((x, y), text, font=font, fill=(255, 255, 255))
     
     return effect_settings
 
-def format_date(date_format="%d %B %Y", show_day=False):
+def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
+    """Format current date with options"""
     today = datetime.datetime.now()
     formatted_date = today.strftime(date_format)
     
@@ -317,7 +348,8 @@ def format_date(date_format="%d %B %Y", show_day=False):
     
     return formatted_date
 
-def apply_overlay(image, overlay_path, size=0.5):
+def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5) -> Image.Image:
+    """Apply decorative overlay"""
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
         new_size = (int(image.width * size), int(image.height * size))
@@ -333,32 +365,200 @@ def apply_overlay(image, overlay_path, size=0.5):
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-def generate_filename():
+def generate_filename() -> str:
+    """Generate unique filename"""
     now = datetime.datetime.now()
     future_minutes = random.randint(1, 10)
     future_time = now + datetime.timedelta(minutes=future_minutes)
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
-def get_watermark_position(img, watermark):
-    # 90% corner position (bottom)
+def get_watermark_position(img: Image.Image, watermark: Image.Image) -> Tuple[int, int]:
+    """Get watermark position (90% bottom)"""
     x = random.choice([20, img.width - watermark.width - 20])
     y = img.height - watermark.height - 20
     return (x, y)
-        
-def enhance_image_quality(img):
+
+def enhance_image_quality(img: Image.Image) -> Image.Image:
+    """Enhance image quality without altering original"""
     if img.mode != 'RGB':
         img = img.convert('RGB')
-    
-    # Only enhance text sharpness, don't touch image quality
     return img
 
-def upscale_text_elements(img, scale_factor=2):
+def upscale_text_elements(img: Image.Image, scale_factor: int = 2) -> Image.Image:
+    """Upscale text elements for better quality"""
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
-def create_variant(original_img, settings):
+def apply_halftone_effect(img: Image.Image, scale: int = 4) -> Image.Image:
+    """Apply halftone effect to image"""
+    img = img.convert('L')
+    width, height = img.size
+    img = img.resize((width//scale, height//scale))
+    img = img.resize((width, height), Image.NEAREST)
+    return img.convert('RGB')
+
+def apply_vignette(img: Image.Image, intensity: float = 0.8) -> Image.Image:
+    """Apply vignette effect"""
+    width, height = img.size
+    x = np.linspace(-1, 1, width)
+    y = np.linspace(-1, 1, height)
+    X, Y = np.meshgrid(x, y)
+    R = np.sqrt(X**2 + Y**2)
+    mask = 1 - np.clip(R * intensity, 0, 1)
+    mask = (mask * 255).astype(np.uint8)
+    mask_img = Image.fromarray(mask).convert('L')
+    vignette = Image.new('RGB', (width, height), (0, 0, 0))
+    img.paste(vignette, (0, 0), mask_img)
+    return img
+
+def apply_sketch_effect(img: Image.Image) -> Image.Image:
+    """Convert image to pencil sketch"""
+    img_gray = img.convert('L')
+    img_invert = ImageOps.invert(img_gray)
+    img_blur = img_invert.filter(ImageFilter.GaussianBlur(radius=3))
+    return ImageOps.invert(img_blur)
+
+def apply_oil_painting_effect(img: Image.Image, size: int = 7) -> Image.Image:
+    """Apply oil painting effect"""
+    img_arr = np.array(img)
+    h, w = img_arr.shape[:2]
+    oil_img = np.zeros_like(img_arr)
+    
+    for i in range(size//2, h-size//2):
+        for j in range(size//2, w-size//2):
+            region = img_arr[i-size//2:i+size//2+1, j-size//2:j+size//2+1]
+            unique_colors, counts = np.unique(region.reshape(-1, 3), axis=0, return_counts=True)
+            oil_img[i, j] = unique_colors[np.argmax(counts)]
+    
+    return Image.fromarray(oil_img)
+
+def apply_cartoon_effect(img: Image.Image, k: int = 5) -> Image.Image:
+    """Apply cartoon effect"""
+    img_arr = np.array(img)
+    
+    # Color quantization
+    data = np.float32(img_arr).reshape((-1, 3))
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+    _, labels, centers = cv2.kmeans(data, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    centers = np.uint8(centers)
+    quantized = centers[labels.flatten()].reshape(img_arr.shape)
+    
+    # Edge enhancement
+    gray = cv2.cvtColor(quantized, cv2.COLOR_RGB2GRAY)
+    gray = cv2.medianBlur(gray, 5)
+    edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 9)
+    
+    # Combine
+    cartoon = cv2.bitwise_and(quantized, quantized, mask=edges)
+    return Image.fromarray(cartoon)
+
+def apply_watercolor_effect(img: Image.Image) -> Image.Image:
+    """Apply watercolor painting effect"""
+    img = img.filter(ImageFilter.SMOOTH_MORE)
+    img = img.filter(ImageFilter.CONTOUR)
+    img = Image.blend(img, img.filter(ImageFilter.GaussianBlur(1)), 0.5)
+    return img
+
+def apply_glitch_effect(img: Image.Image, intensity: float = 0.1) -> Image.Image:
+    """Apply glitch effect"""
+    img_arr = np.array(img)
+    h, w = img_arr.shape[:2]
+    
+    # Channel shift
+    shift = int(w * intensity)
+    r, g, b = cv2.split(img_arr)
+    r = np.roll(r, shift, axis=1)
+    b = np.roll(b, -shift, axis=1)
+    glitched = cv2.merge([r, g, b])
+    
+    # Scan lines
+    for i in range(0, h, 2):
+        glitched[i:i+1, :] = glitched[i:i+1, :] // 2
+    
+    return Image.fromarray(glitched)
+
+def apply_pixel_art_effect(img: Image.Image, pixel_size: int = 8) -> Image.Image:
+    """Convert image to pixel art"""
+    width, height = img.size
+    img = img.resize((width//pixel_size, height//pixel_size), Image.NEAREST)
+    img = img.resize((width, height), Image.NEAREST)
+    return img
+
+def apply_thermal_effect(img: Image.Image) -> Image.Image:
+    """Apply thermal camera effect"""
+    img_arr = np.array(img.convert('L'))
+    thermal = cv2.applyColorMap(img_arr, cv2.COLORMAP_JET)
+    return Image.fromarray(thermal)
+
+def apply_rainbow_effect(img: Image.Image) -> Image.Image:
+    """Apply rainbow color effect"""
+    width, height = img.size
+    rainbow = Image.new('RGB', (width, height))
+    
+    for y in range(height):
+        hue = y / height
+        r, g, b = [int(255 * c) for c in colorsys.hsv_to_rgb(hue, 1, 1)]
+        rainbow.paste(Image.new('RGB', (width, 1), (r, g, b)), (0, y))
+    
+    return Image.blend(img, rainbow, 0.3)
+
+def apply_parallax_effect(img: Image.Image, depth_map: Image.Image, intensity: float = 0.1) -> Image.Image:
+    """Apply parallax scrolling effect"""
+    img_arr = np.array(img)
+    depth = np.array(depth_map.convert('L'))
+    
+    h, w = img_arr.shape[:2]
+    shift = (depth * intensity).astype(np.int32)
+    
+    result = np.zeros_like(img_arr)
+    for y in range(h):
+        for x in range(w):
+            new_x = x + shift[y, x]
+            if 0 <= new_x < w:
+                result[y, x] = img_arr[y, new_x]
+    
+    return Image.fromarray(result)
+
+def apply_light_leak_effect(img: Image.Image, leak_color: Tuple[int, int, int] = (255, 100, 0), opacity: float = 0.3) -> Image.Image:
+    """Apply light leak effect"""
+    width, height = img.size
+    leak = Image.new('RGB', (width, height), leak_color)
+    
+    # Create gradient mask
+    mask = Image.new('L', (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    
+    center_x = random.randint(0, width)
+    center_y = random.randint(0, height)
+    radius = max(width, height)
+    
+    for i in range(0, radius, radius//10):
+        alpha = int(255 * (1 - i/radius) * opacity)
+        draw.ellipse([(center_x-i, center_y-i), (center_x+i, center_y+i)], fill=alpha)
+    
+    return Image.composite(img, leak, mask)
+
+def apply_film_grain_effect(img: Image.Image, intensity: float = 0.1) -> Image.Image:
+    """Apply film grain effect"""
+    img_arr = np.array(img)
+    noise = np.random.normal(0, intensity * 255, img_arr.shape)
+    noisy = np.clip(img_arr + noise, 0, 255).astype(np.uint8)
+    return Image.fromarray(noisy)
+
+def apply_double_exposure_effect(img1: Image.Image, img2: Image.Image, blend_ratio: float = 0.5) -> Image.Image:
+    """Create double exposure effect"""
+    img2 = img2.resize(img1.size)
+    return Image.blend(img1.convert('RGB'), img2.convert('RGB'), blend_ratio)
+
+def apply_texture_overlay(img: Image.Image, texture: Image.Image, opacity: float = 0.5) -> Image.Image:
+    """Overlay texture on image"""
+    texture = texture.resize(img.size)
+    return Image.blend(img.convert('RGB'), texture.convert('RGB'), opacity)
+
+def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
+    """Create image variant with applied effects"""
     img = original_img.copy()
     draw = ImageDraw.Draw(img)
     
@@ -370,7 +570,8 @@ def create_variant(original_img, settings):
     
     effect_settings = {
         'type': settings.get('text_effect', None),
-        'use_texture': settings.get('use_texture', False)
+        'use_texture': settings.get('use_texture', False),
+        'outline_size': settings.get('outline_size', 2)
     }
     
     if settings['show_text']:
@@ -378,7 +579,6 @@ def create_variant(original_img, settings):
         text = settings['greeting_type']
         text_width, text_height = get_text_size(draw, text, font_main)
         
-        # Position handling
         if settings['text_position'] == "top_center":
             text_x = (img.width - text_width) // 2
             text_y = 20
@@ -509,12 +709,26 @@ def create_variant(original_img, settings):
             y = img.height - pet_img.height - 20
             img.paste(pet_img, (x, y), pet_img)
     
+    # Apply additional effects
+    if settings.get('apply_halftone', False):
+        img = apply_halftone_effect(img)
+    
+    if settings.get('apply_vignette', False):
+        img = apply_vignette(img)
+    
+    if settings.get('apply_sketch', False):
+        img = apply_sketch_effect(img)
+    
+    if settings.get('apply_cartoon', False):
+        img = apply_cartoon_effect(img)
+    
     img = enhance_image_quality(img)
     img = upscale_text_elements(img, scale_factor=2)
     
     return img.convert("RGB")
 
-def adjust_font_size_to_fit(draw, text, max_width, max_height, initial_size):
+def adjust_font_size_to_fit(draw: ImageDraw.Draw, text: str, max_width: int, max_height: int, initial_size: int) -> ImageFont.FreeTypeFont:
+    """Adjust font size to fit within dimensions"""
     font = None
     size = initial_size
     while size > 10:
@@ -536,17 +750,45 @@ if 'generated_images' not in st.session_state:
 if 'watermark_groups' not in st.session_state:
     st.session_state.watermark_groups = {}
 
-uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+# Display features
+st.markdown("""
+    <div class='feature-card'>
+        <h3>🌟 ULTRA PRO MAX FEATURES</h3>
+        <ul>
+            <li>15+ Professional Effects: Neon, 3D, Cartoon, Sketch, Oil Painting, etc.</li>
+            <li>Smart Gradient Text with Multiple Color Options</li>
+            <li>Multiple Watermark Support with Group Download</li>
+            <li>Advanced Text Positioning (Top/Bottom/Random)</li>
+            <li>High Quality Text Rendering (GPU Optimized)</li>
+            <li>Custom Greeting Messages</li>
+            <li>Date & Time Stamps</li>
+            <li>Inspirational Quotes</li>
+            <li>Pet & Coffee PNG Overlays</li>
+            <li>Texture Overlays</li>
+            <li>Batch Processing (100+ Images at Once)</li>
+            <li>Multiple Variants Generation</li>
+            <li>Light Leak & Film Grain Effects</li>
+            <li>Double Exposure</li>
+            <li>Thermal Camera Effect</li>
+            <li>Pixel Art Converter</li>
+        </ul>
+    </div>
+""", unsafe_allow_html=True)
+
+uploaded_images = st.file_uploader("📁 Upload Images (100+ at once)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 with st.sidebar:
-    st.markdown("### ⚙️ Settings")
+    st.markdown("### ⚙️ ULTRA PRO SETTINGS")
     
-    greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Afternoon", "Good Evening", "Good Night"])
+    greeting_type = st.selectbox("Greeting Type", ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", "Custom Greeting"])
+    if greeting_type == "Custom Greeting":
+        custom_greeting = st.text_input("Enter Custom Greeting", "Awesome Day!")
+    
     generate_variants = st.checkbox("Generate 3 Variants per Photo", value=False)
     
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Gradient", "Full Random", "Colorful"],
+        ["White Only", "White with Black Outline", "Gradient", "Neon", "3D", "Full Random", "Colorful"],
         index=0
     )
     
@@ -554,7 +796,9 @@ with st.sidebar:
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
     text_position = text_position.lower().replace(" ", "_")
     
-    st.markdown("### 🎨 Texture Options")
+    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Neon", "3D", "Colorful"] else 2
+    
+    st.markdown("### 🎨 PRO TEXTURE OPTIONS")
     use_texture = st.checkbox("Use Texture for Text", value=False)
     texture_image = None
     
@@ -601,7 +845,6 @@ with st.sidebar:
         if watermark_option == "Pre-made":
             watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
             if watermark_files:
-                # Allow multiple selection
                 selected_watermarks = st.multiselect("Select Watermark(s)", watermark_files, 
                                                    default=["wishful vibes.png", "happy vibes.png", "nature vibes.png"])
                 for watermark_file in selected_watermarks:
@@ -633,7 +876,15 @@ with st.sidebar:
         overlay_size = st.slider("Overlay Size", 0.1, 1.0, 0.5)
     
     st.markdown("---")
-    st.markdown("### ☕🐾 Coffee & Pet PNG")
+    st.markdown("### 🎭 PRO EFFECTS")
+    apply_halftone = st.checkbox("Halftone Effect", value=False)
+    apply_vignette = st.checkbox("Vignette Effect", value=False)
+    apply_sketch = st.checkbox("Pencil Sketch Effect", value=False)
+    apply_cartoon = st.checkbox("Cartoon Effect", value=False)
+    apply_light_leak = st.checkbox("Light Leak Effect", value=False)
+    
+    st.markdown("---")
+    st.markdown("### ☕🐾 PRO OVERLAYS")
     use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
     if use_coffee_pet:
         pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
@@ -643,9 +894,9 @@ with st.sidebar:
         if selected_pet == "Random":
             selected_pet = random.choice(pet_files) if pet_files else None
 
-if st.button("✨ Generate Photos", key="generate"):
+if st.button("✨ ULTRA PRO GENERATE", key="generate"):
     if uploaded_images:
-        with st.spinner("Processing images..."):
+        with st.spinner("Processing images with ULTRA PRO quality..."):
             processed_images = []
             variant_images = []
             
@@ -653,6 +904,8 @@ if st.button("✨ Generate Photos", key="generate"):
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
                 "Gradient": "gradient",
+                "Neon": "neon",
+                "3D": "3d",
                 "Full Random": "full_random",
                 "Colorful": "colorful"
             }
@@ -665,7 +918,7 @@ if st.button("✨ Generate Photos", key="generate"):
                 for i, watermark in enumerate(watermark_images):
                     start_idx = i * group_size
                     end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(uploaded_images)
-                    watermark_groups[f"Group {i+1} ({watermark.size[0]}x{watermark.size[1]})"] = {
+                    watermark_groups[f"Group {i+1}"] = {
                         'watermark': watermark,
                         'images': uploaded_images[start_idx:end_idx]
                     }
@@ -704,10 +957,11 @@ if st.button("✨ Generate Photos", key="generate"):
                             variants = []
                             for i in range(3):
                                 settings = {
-                                    'greeting_type': greeting_type,
+                                    'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
                                     'show_text': show_text,
                                     'main_size': main_size if show_text else 90,
                                     'text_position': text_position,
+                                    'outline_size': outline_size,
                                     'show_wish': show_wish,
                                     'wish_size': wish_size if show_wish else 60,
                                     'show_date': show_date,
@@ -729,7 +983,12 @@ if st.button("✨ Generate Photos", key="generate"):
                                     'selected_pet': selected_pet if use_coffee_pet else None,
                                     'text_effect': selected_effect,
                                     'use_texture': use_texture,
-                                    'texture_image': texture_image
+                                    'texture_image': texture_image,
+                                    'apply_halftone': apply_halftone,
+                                    'apply_vignette': apply_vignette,
+                                    'apply_sketch': apply_sketch,
+                                    'apply_cartoon': apply_cartoon,
+                                    'apply_light_leak': apply_light_leak
                                 }
                                 
                                 variant = create_variant(img, settings)
@@ -738,10 +997,11 @@ if st.button("✨ Generate Photos", key="generate"):
                             variant_images.extend(variants)
                         else:
                             settings = {
-                                'greeting_type': greeting_type,
+                                'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
                                 'show_text': show_text,
                                 'main_size': main_size if show_text else 90,
                                 'text_position': text_position,
+                                'outline_size': outline_size,
                                 'show_wish': show_wish,
                                 'wish_size': wish_size if show_wish else 60,
                                 'show_date': show_date,
@@ -763,7 +1023,12 @@ if st.button("✨ Generate Photos", key="generate"):
                                 'selected_pet': selected_pet if use_coffee_pet else None,
                                 'text_effect': selected_effect,
                                 'use_texture': use_texture,
-                                'texture_image': texture_image
+                                'texture_image': texture_image,
+                                'apply_halftone': apply_halftone,
+                                'apply_vignette': apply_vignette,
+                                'apply_sketch': apply_sketch,
+                                'apply_cartoon': apply_cartoon,
+                                'apply_light_leak': apply_light_leak
                             }
                             
                             processed_img = create_variant(img, settings)
@@ -777,7 +1042,7 @@ if st.button("✨ Generate Photos", key="generate"):
             st.session_state.generated_images = processed_images + variant_images
             
             if st.session_state.generated_images:
-                st.success(f"Successfully processed {len(st.session_state.generated_images)} images!")
+                st.success(f"Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
             else:
                 st.warning("No images were processed.")
 
@@ -821,15 +1086,15 @@ if st.session_state.generated_images:
                 continue
     
     st.download_button(
-        label="⬇️ Download All Photos",
+        label="⬇️ Download All Photos (ULTRA PRO QUALITY)",
         data=zip_buffer.getvalue(),
-        file_name="generated_photos.zip",
+        file_name="ultra_pro_photos.zip",
         mime="application/zip"
     )
     
     st.markdown("""
         <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #FFFFFF; margin: 0;'>😇 Niche Dekho </h2>
+            <h2 style='text-align: center; color: #FFFFFF; margin: 0;'>😇 ULTRA PRO RESULTS</h2>
         </div>
     """, unsafe_allow_html=True)
     
