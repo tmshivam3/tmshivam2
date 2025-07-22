@@ -162,8 +162,7 @@ def list_files(folder: str, exts: List[str]) -> List[str]:
         os.makedirs(folder, exist_ok=True)
         return []
     return [f for f in os.listdir(folder) 
-           if any(f.lower().endswith(ext.lower()) for ext in exts]
-
+           if any(f.lower().endswith(ext.lower()) for ext in exts)]  
 def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
     """Smart crop to maintain aspect ratio"""
     w, h = img.size
