@@ -1,3 +1,4 @@
+from PIL import Image
 
 def get_dominant_color(image: Image.Image) -> Tuple[int, int, int]:
     """Get the average color of the background image."""
