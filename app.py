@@ -1,31 +1,189 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
-import numpy as np
-import random
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
 import os
+import io
+import random
+import datetime
+import zipfile
+import numpy as np
 import textwrap
+import math
 import colorsys
+import traceback
 import base64
-import requests # For fetching images from URLs (if that's a future need)
+import requests
 
-# --- Configuration and Paths ---
+# =================== CONFIG ===================
+st.set_page_config(page_title="⚡ ULTIMATE IMAGE & TEXT EDITOR v4 ⚡", layout="wide", initial_sidebar_state="expanded")
+
+# --- Directory Setup ---
 FONT_DIR = "assets/fonts"
 LOGO_DIR = "assets/logos"
 PET_DIR = "assets/pets"
 EMOJI_DIR = "assets/emojis"
-TEXTURE_DIR = "assets/textures" # New directory for textures
-FRAMES_DIR = "assets/frames" # New directory for frames/borders
+TEXTURE_DIR = "assets/textures"
+FRAMES_DIR = "assets/frames"
+BACKGROUNDS_DIR = "assets/backgrounds" # For random backgrounds
 
 # Ensure directories exist
-os.makedirs(FONT_DIR, exist_ok=True)
-os.makedirs(LOGO_DIR, exist_ok=True)
-os.makedirs(PET_DIR, exist_ok=True)
-os.makedirs(EMOJI_DIR, exist_ok=True)
-os.makedirs(TEXTURE_DIR, exist_ok=True)
-os.makedirs(FRAMES_DIR, exist_ok=True)
+for d in [FONT_DIR, LOGO_DIR, PET_DIR, EMOJI_DIR, TEXTURE_DIR, FRAMES_DIR, BACKGROUNDS_DIR]:
+    os.makedirs(d, exist_ok=True)
 
+# =================== CUSTOM CSS ===================
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0a0a0a; /* Dark background */
+        color: #ffffff; /* White text */
+    }
+    .header-container {
+        background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 25px;
+        border: 2px solid #ffcc00; /* Gold/Yellow border */
+        box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+        text-align: center;
+    }
+    .image-preview-container {
+        background-color: #121212;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #333333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .stButton>button {
+        background: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+        color: #000000;
+        border: none;
+        padding: 0.7rem 1.5rem;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 1.1rem;
+        transition: all 0.3s;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .stButton>button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 15px rgba(255, 204, 0, 0.5);
+    }
+    .sidebar .sidebar-content {
+        background-color: #1a1a1a; /* Darker sidebar */
+        color: #ffffff;
+        border-right: 1px solid #333333;
+    }
+    .stSlider>div>div>div>div {
+        background-color: #ffcc00; /* Slider fill color */
+    }
+    .stCheckbox>div>label {
+        color: #ffffff !important;
+    }
+    .stSelectbox>div>div>select, .stTextInput>div>div>input {
+        background-color: #1a1a1a;
+        color: #ffffff !important;
+        border: 1px solid #333333;
+        border-radius: 5px;
+    }
+    .stImage>img {
+        border: 2px solid #ffcc00;
+        border-radius: 8px;
+        box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
+    }
+    .variant-container {
+        display: flex;
+        overflow-x: auto;
+        gap: 15px;
+        padding: 15px 0;
+    }
+    .variant-item {
+        flex: 0 0 auto;
+    }
+    .download-btn {
+        display: block;
+        margin-top: 10px;
+        text-align: center;
+    }
+    .feature-card {
+        border: 1px solid #ffcc00;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+        color: #ffffff;
+        box-shadow: 0 0 15px rgba(255, 204, 0, 0.2);
+    }
+    .section-title {
+        color: #ffcc00;
+        border-bottom: 2px solid #ffcc00;
+        padding-bottom: 8px;
+        margin-top: 25px;
+        font-size: 1.4rem;
+    }
+    .effect-card {
+        background-color: #1a1a1a;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    .tab-content {
+        padding: 15px 0;
+    }
+    .manual-position {
+        background-color: #1a1a1a;
+        padding: 15px;
+        border-radius: 10px;
+        margin-top: 15px;
+    }
+    .quote-display {
+        background-color: #1a1a1a;
+        padding: 15px;
+        border-radius: 10px;
+        margin-top: 15px;
+        border-left: 4px solid #ffcc00;
+    }
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #ffcc00, #ff9900);
+    }
+    .preview-container {
+        position: relative;
+        display: inline-block;
+    }
+    .text-overlay {
+        position: absolute;
+        cursor: move;
+        border: 2px dashed #ffcc00;
+        padding: 5px;
+        background-color: rgba(0,0,0,0.5);
+    }
+    /* Two-sidebar like layout (left sidebar actual, right controls simulated) */
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    .css-1d391kg { /* This targets the main content area */
+        flex-direction: row-reverse; /* Pushes content to the right, sidebar on left */
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- Helper Functions ---
+# =================== UTILS ===================
+
+@st.cache_data
+def list_files(folder: str, exts: List[str]) -> List[str]:
+    """List files in folder with given extensions"""
+    if not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+        return []
+    files = os.listdir(folder)
+    return [f for f in files
+           if any(f.lower().endswith(ext.lower()) for ext in exts)]
+
 @st.cache_data
 def get_font_path(font_name):
     """Returns the full path for a font file."""
@@ -39,11 +197,19 @@ def get_font_path(font_name):
         "Montserrat-Bold": "Montserrat-Bold.ttf",
         "IndieFlower": "IndieFlower.ttf",
         "Pacifico": "Pacifico.ttf",
-        "Lobster": "Lobster-Regular.ttf", # Renamed from Lobster-Regular.ttf to match common font naming
-        "PermanentMarker": "PermanentMarker-Regular.ttf"
+        "Lobster": "Lobster-Regular.ttf",
+        "PermanentMarker": "PermanentMarker-Regular.ttf",
     }
     filename = font_map.get(font_name, "Poppins-Bold.ttf") # Default font
     return os.path.join(FONT_DIR, filename)
+
+@st.cache_data
+def get_random_font_path():
+    """Get a random font from assets/fonts"""
+    fonts = list_files(FONT_DIR, [".ttf", ".otf"])
+    if not fonts:
+        return None # Indicate no custom fonts
+    return os.path.join(FONT_DIR, random.choice(fonts))
 
 @st.cache_data
 def get_logo_path(logo_name):
@@ -98,6 +264,13 @@ def get_frame_path(frame_name):
     filename = frame_map.get(frame_name)
     return os.path.join(FRAMES_DIR, filename) if filename else None
 
+@st.cache_data
+def get_random_background_path():
+    """Returns a random background image path."""
+    backgrounds = list_files(BACKGROUNDS_DIR, [".jpg", ".jpeg", ".png"])
+    if not backgrounds:
+        return None
+    return os.path.join(BACKGROUNDS_DIR, random.choice(backgrounds))
 
 def get_random_bright_color():
     """Generates a random bright color suitable for gradients."""
@@ -108,33 +281,150 @@ def get_random_bright_color():
     return (r, g, b)
 
 def hex_to_rgb(hex_color):
+    if hex_color is None:
+        return (0, 0, 0)
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
 def rgb_to_hex(rgb_color):
     return '#%02x%02x%02x' % rgb_color
 
-def get_font_size(img_width, base_size=50):
+def get_font_size_for_image(img_width, base_size=50):
     return int(base_size * (img_width / 1000))
 
-def get_wrapping_width(img_width, multiplier=0.8):
-    return int((img_width * multiplier) / (get_font_size(img_width) / 2)) # Rough estimate
+def get_wrapping_width(img_width, font_size, multiplier=0.8):
+    # This is a rough estimate; PIL textwrap doesn't work directly with pixel widths easily.
+    # It estimates character count based on average char width.
+    avg_char_width = font_size * 0.6 # rough approximation
+    return int((img_width * multiplier) / avg_char_width)
 
-# --- Text Rendering Functions with Effects ---
+
+def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
+    """Get text dimensions with None check"""
+    if not text:
+        return 0, 0
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+def get_random_wish(greeting_type: str) -> str:
+    """Get random wish based on greeting type"""
+    wishes = {
+        "Good Morning": [
+            "Rise and shine! A new day is a new opportunity!", "Good morning! Make today amazing!",
+            "Morning blessings! Hope your day is filled with joy!", "New day, new blessings! Seize the day!",
+            "Wake up with determination! Go to bed with satisfaction!", "Every sunrise is a new chapter! Write a beautiful story today!",
+            "Morning is the perfect time to start something new!", "The early morning has gold in its mouth!",
+            "A new day is a new chance to be better than yesterday!", "Morning is wonderful! Embrace the beauty of a fresh start!",
+            "The sun is a daily reminder that we too can rise again!", "Today's morning brings new strength, new thoughts, and new possibilities!",
+            "Morning is the time when the whole world starts anew!", "Every sunrise is an invitation for us to arise and brighten someone's day!",
+            "Good morning! May your coffee be strong and your day be productive!", "Start your day with a smile! It sets the tone for the whole day!",
+            "Morning is not just time, it's an opportunity! Make it count!", "Let the morning sunshine fill your heart with warmth and positivity!",
+            "A beautiful morning begins with a beautiful mindset!", "Good morning! May your day be as bright as your smile!"
+        ],
+        "Good Afternoon": [
+            "Enjoy your afternoon! Hope it's productive!", "Afternoon delights! Take a break and refresh!",
+            "Sunshine and smiles! Hope your afternoon is great!", "Perfect day ahead! Make the most of your afternoon!",
+            "Afternoon is the perfect time to accomplish great things!", "Hope your day is going well! Keep up the good work!",
+            "Afternoon blessings! May your energy be renewed!", "Take a deep breath! You're doing great this afternoon!",
+            "The afternoon is a bridge between morning and evening! Make it count!", "Good afternoon! Time to refuel and recharge!",
+            "Hope your afternoon is filled with productivity and joy!", "Afternoon is the perfect time for a fresh start!",
+            "Keep going! The day is still full of possibilities!", "Good afternoon! May your focus be sharp and your tasks be light!",
+            "The afternoon sun brings warmth and energy! Use it wisely!", "Halfway there! Keep up the good work and finish strong!",
+            "Good afternoon! May your second half of the day be even better than the first!", "Embrace the tranquility of the afternoon!",
+            "The afternoon is a sweet time for rest or renewed effort!", "Good afternoon! Recharge, reflect, and rejoice!"
+        ],
+        "Good Evening": [
+            "Beautiful sunset!", "Evening serenity!", "Twilight magic!", "Peaceful evening!",
+            "Unwind and relax! Enjoy your evening!", "Evening blessings! Hope you had a great day!",
+            "The day is done! Time to chill!", "Good evening! May your night be restful!",
+            "The moon rises, and so does new hope! Good evening!", "As the day fades, let your worries fade too!",
+            "Good evening! May your evening be filled with warmth and joy!", "Wrap up your day with peace and quiet!",
+            "Evening is the time to unwind from daily stress!", "Good evening! Time to enjoy the quiet moments!",
+            "The evening is a beautiful time for introspection!", "Good evening! May your night be calm and peaceful!",
+            "Wishing you a peaceful and cozy evening!", "Good evening! Relax and recharge for tomorrow!",
+            "The best part of the day, good evening!", "Good evening! May your dreams be sweet!"
+        ],
+        "Good Night": [
+            "Sweet dreams!", "Sleep tight!", "Night night!", "Rest well!",
+            "Good night! May your sleep be peaceful!", "Dream big! Good night!",
+            "Close your eyes and drift to dreamland!", "Good night! See you in the morning!",
+            "May your dreams be filled with happiness!", "Good night! Until the sun rises again!",
+            "Stars are shining, time for sleeping!", "Good night! Wishing you peaceful rest!",
+            "Rest your mind and body! Good night!", "Good night! May your worries fade with the day!",
+            "Sleep well and wake up refreshed!", "Good night! Thank you for a wonderful day!",
+            "May your sleep be deep and undisturbed!", "Good night! Sending you peaceful vibes!",
+            "The day is over, time for dreams!", "Good night! See you in the morning with new energy!"
+        ],
+        "Birthday Wish": [
+            "Happy Birthday! Wishing you a day filled with happiness!", "Many happy returns of the day! Happy Birthday!",
+            "Happy Birthday! May all your wishes come true!", "Wishing you a fantastic Birthday!",
+            "Happy Birthday! Have a wonderful celebration!", "Cheers to another year! Happy Birthday!",
+            "Happy Birthday! May your day be as special as you are!", "Wishing you joy and laughter on your Birthday!",
+            "Happy Birthday! Celebrate big!", "Wishing you a year of happiness and success! Happy Birthday!",
+            "Happy Birthday! May your day be filled with love!", "Wishing you all the best on your Birthday!",
+            "Happy Birthday! Enjoy every moment!", "May your Birthday be truly special!",
+            "Happy Birthday! Here's to many more!", "Wishing you a delightful Birthday!",
+            "Happy Birthday! May your day be bright and beautiful!", "Happy Birthday! Have an amazing day!",
+            "Wishing you a very joyful Birthday!", "Happy Birthday! Make it a memorable one!"
+        ],
+        "Anniversary Wish": [
+            "Happy Anniversary! Wishing you many more years of love!", "Happy Anniversary! Cheers to your everlasting love!",
+            "Wishing you a Happy Anniversary!", "Happy Anniversary! May your love story continue to inspire!",
+            "Happy Anniversary! Celebrating your beautiful journey!", "To a wonderful couple, Happy Anniversary!",
+            "Happy Anniversary! May your bond grow stronger each year!", "Wishing you a day filled with cherished memories!",
+            "Happy Anniversary! Here's to love, laughter, and happiness!", "Happy Anniversary! A perfect day for a perfect couple!",
+            "Happy Anniversary! May your love shine brighter!", "Wishing you a truly special Anniversary!",
+            "Happy Anniversary! Forever and always!", "Happy Anniversary! Celebrating your incredible love!",
+            "Wishing you endless love and happiness! Happy Anniversary!", "Happy Anniversary! You two are truly special!",
+            "Happy Anniversary! May your love story be eternal!", "Happy Anniversary! Enjoy your special day!",
+            "Wishing you a joyous Anniversary!", "Happy Anniversary! May your journey together be beautiful!"
+        ],
+        "Motivation Quote": [
+            "Believe you can and you're halfway there.", "The only way to do great work is to love what you do.",
+            "Success is not final, failure is not fatal: it is the courage to continue that counts.", "The future belongs to those who believe in the beauty of their dreams.",
+            "Don't watch the clock; do what it does. Keep going.", "The best way to predict the future is to create it.",
+            "It always seems impossible until it's done.", "Strive not to be a success, but rather to be of value.",
+            "The mind is everything. What you think you become.", "Your time is limited, don't waste it living someone else's life.",
+            "The journey of a thousand miles begins with a single step.", "Opportunities don't happen, you create them.",
+            "The harder you work for something, the greater you'll feel when you achieve it.", "Dream it. Wish it. Do it.",
+            "Do one thing every day that scares you.", "Push yourself, because no one else is going to do it for you.",
+            "Great things never come from comfort zones.", "The future depends on what you do today.",
+            "The only limit to our realization of tomorrow will be our doubts of today.", "The best revenge is massive success."
+        ],
+        "Inspirational Quote": [
+            "The only impossible journey is the one you never begin.", "Life is what happens when you're busy making other plans.",
+            "The purpose of our lives is to be happy.", "Live as if you were to die tomorrow. Learn as if you were to live forever.",
+            "Change your thoughts and you change your world.", "What you get by achieving your goals is not as important as what you become by achieving your goals.",
+            "The most difficult thing is the decision to act, the rest is merely tenacity.", "Every artist was first an amateur.",
+            "Happiness is not something ready made. It comes from your own actions.", "The best way to find yourself is to lose yourself in the service of others.",
+            "If you want to live a happy life, tie it to a goal, not to people or things.", "Keep your eyes on the stars, and your feet on the ground.",
+            "The only true wisdom is in knowing you know nothing.", "Nothing is impossible, the word itself says 'I'm possible'!",
+            "The only way to do great work is to love what you do.", "The bad news is time flies. The good news is you're the pilot.",
+            "You are never too old to set another goal or to dream a new dream.", "To live is the rarest thing in the world. Most people exist, that is all.",
+            "Darkness cannot drive out darkness; only light can do that. Hate cannot drive out hate; only love can do that.",
+            "The only thing we have to fear is fear itself."
+        ]
+    }
+    return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
+
+# =================== TEXT RENDERING FUNCTIONS WITH EFFECTS ===================
 
 def draw_text_with_outline(draw, text, font, position, fill_color, outline_color, outline_width, align="center"):
     x, y = position
     # Draw outline
-    for dx in range(-outline_width, outline_width + 1):
-        for dy in range(-outline_width, outline_width + 1):
-            if (dx, dy) != (0, 0): # Avoid drawing center twice
-                draw.text((x + dx, y + dy), text, font=font, fill=outline_color, align=align)
+    if outline_width > 0:
+        for dx in range(-outline_width, outline_width + 1):
+            for dy in range(-outline_width, outline_width + 1):
+                if (dx, dy) != (0, 0): # Avoid drawing center twice for outline
+                    draw.text((x + dx, y + dy), text, font=font, fill=outline_color, align=align)
     # Draw main text
     draw.text((x, y), text, font=font, fill=fill_color, align=align)
 
 def draw_gradient_text(draw, text, font, position, start_color, end_color, outline_color, outline_width, align="center"):
     x, y = position
-    text_width, text_height = draw.textbbox((0, 0), text, font=font)[2:]
+    text_width, text_height = get_text_size(draw, text, font)
+
+    if text_width == 0 or text_height == 0: return # Avoid error on empty text
 
     # Create a temporary image for the text mask
     mask_img = Image.new("L", (text_width, text_height), 0)
@@ -143,17 +433,16 @@ def draw_gradient_text(draw, text, font, position, start_color, end_color, outli
 
     # Create a gradient image
     gradient_img = Image.new("RGB", (text_width, text_height))
+    draw_gradient = ImageDraw.Draw(gradient_img)
     for i in range(text_width):
         r = int(start_color[0] + (end_color[0] - start_color[0]) * (i / text_width))
         g = int(start_color[1] + (end_color[1] - start_color[1]) * (i / text_width))
         b = int(start_color[2] + (end_color[2] - start_color[2]) * (i / text_width))
-        draw_gradient = ImageDraw.Draw(gradient_img)
         draw_gradient.line([(i, 0), (i, text_height)], fill=(r, g, b))
 
     # Apply the text mask to the gradient
     gradient_text_img = Image.composite(gradient_img, Image.new("RGB", (text_width, text_height), (0,0,0)), mask_img)
 
-    # Paste the gradient text onto the main image
     # For alignment, we need to adjust the paste position based on text_width
     paste_x = x
     if align == "center":
@@ -171,34 +460,57 @@ def draw_gradient_text(draw, text, font, position, start_color, end_color, outli
     # Paste the gradient text
     draw.paste(gradient_text_img, (paste_x, y), mask=mask_img)
 
-
 def draw_neon_text(draw, text, font, position, color, glow_color, outline_color, outline_width, align="center"):
     x, y = position
-    # Create text layer
-    text_img = Image.new('RGBA', draw.im.size, (0,0,0,0))
-    text_draw = ImageDraw.Draw(text_img)
+    text_width, text_height = get_text_size(draw, text, font)
 
-    # Draw outline first
+    if text_width == 0 or text_height == 0: return
+
+    # Create text layer
+    text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0,0,0,0)) # Add padding for blur
+    text_draw = ImageDraw.Draw(text_img)
+    
+    # Adjust position for the new text_img canvas, centralizing
+    text_x = 10
+    text_y = 10
+    
+    # Draw outline first on the temp image
     if outline_width > 0:
         for dx in range(-outline_width, outline_width + 1):
             for dy in range(-outline_width, outline_width + 1):
                 if (dx, dy) != (0, 0):
-                    text_draw.text((x + dx, y + dy), text, font=font, fill=outline_color, align=align)
+                    text_draw.text((text_x + dx, text_y + dy), text, font=font, fill=outline_color, align=align)
 
-    # Draw main text
-    text_draw.text((x, y), text, font=font, fill=color, align=align)
+    # Draw main text on the temp image
+    text_draw.text((text_x, text_y), text, font=font, fill=color, align=align)
 
     # Apply blur for glow effect
-    glow_img = text_img.filter(ImageFilter.GaussianBlur(radius=5))
-    glow_img = Image.composite(glow_img.filter(ImageFilter.BoxBlur(3)), Image.new('RGBA', glow_img.size, (0,0,0,0)), glow_img.getchannel('A').point(lambda i: i * 2))
+    glow_img = text_img.filter(ImageFilter.GaussianBlur(radius=random.randint(3, 8))) # Random blur radius for "peak randomness"
+    # Further enhance glow by increasing alpha
+    glow_img = Image.composite(glow_img.filter(ImageFilter.BoxBlur(random.randint(1, 3))), Image.new('RGBA', glow_img.size, (0,0,0,0)), glow_img.getchannel('A').point(lambda i: i * random.uniform(1.5, 2.5))) # Random alpha multiplier
 
     # Tint the glow
     r, g, b = glow_color
     tinted_glow = Image.new('RGBA', glow_img.size, (r,g,b,0))
     tinted_glow.putalpha(glow_img.getchannel('A'))
 
-    # Combine
-    draw.composite(Image.alpha_composite(tinted_glow, text_img), (0,0))
+    # Combine glow and text_img
+    final_text_render = Image.alpha_composite(tinted_glow, text_img)
+
+    # Calculate paste position on original image
+    paste_x = x
+    paste_y = y
+    if align == "center":
+        paste_x = x - (text_width // 2) - 10 # Adjust for padding
+    elif align == "right":
+        paste_x = x - text_width - 10 # Adjust for padding
+    
+    # Ensure paste_x, paste_y are within image bounds
+    paste_x = max(0, min(paste_x, draw.im.size[0] - final_text_render.size[0]))
+    paste_y = max(0, min(paste_y, draw.im.size[1] - final_text_render.size[1]))
+
+    draw.im.paste(final_text_render, (paste_x, paste_y), final_text_render)
+
 
 def draw_3d_text(draw, text, font, position, fill_color, outline_color, outline_width, depth_color, depth=5, align="center"):
     x, y = position
@@ -218,7 +530,9 @@ def draw_3d_text(draw, text, font, position, fill_color, outline_color, outline_
 
 def draw_textured_text(draw, text, font, position, texture_path, outline_color, outline_width, align="center"):
     x, y = position
-    text_width, text_height = draw.textbbox((0, 0), text, font=font)[2:]
+    text_width, text_height = get_text_size(draw, text, font)
+
+    if text_width == 0 or text_height == 0: return
 
     # Create a mask for the text
     mask_img = Image.new("L", (text_width, text_height), 0)
@@ -226,8 +540,12 @@ def draw_textured_text(draw, text, font, position, texture_path, outline_color, 
     mask_draw.text((0, 0), text, font=font, fill=255)
 
     # Load and resize texture
-    texture_img = Image.open(texture_path).convert("RGB")
-    texture_img = texture_img.resize((text_width, text_height), Image.LANCZOS)
+    try:
+        texture_img = Image.open(texture_path).convert("RGB")
+        texture_img = texture_img.resize((text_width, text_height), Image.LANCZOS)
+    except Exception:
+        st.warning("Texture file not found or corrupted. Using solid color instead for textured text.")
+        texture_img = Image.new("RGB", (text_width, text_height), (150,150,150)) # Default grey if texture fails
 
     # Apply the mask to the texture
     textured_text = Image.composite(texture_img, Image.new("RGB", (text_width, text_height), (0,0,0)), mask_img)
@@ -238,1412 +556,690 @@ def draw_textured_text(draw, text, font, position, texture_path, outline_color, 
         paste_x = x - text_width // 2
     elif align == "right":
         paste_x = x - text_width
-
-    # Draw outline first
+    
+    # Draw outline first if needed
     if outline_width > 0:
         for dx in range(-outline_width, outline_width + 1):
             for dy in range(-outline_width, outline_width + 1):
                 if (dx, dy) != (0, 0):
                     draw.text((x + dx, y + dy), text, font=font, fill=outline_color, align=align)
-
+    
     draw.paste(textured_text, (paste_x, y), mask=mask_img)
-
 
 def draw_glitch_text(draw, text, font, position, fill_color, outline_color, outline_width, align="center"):
     x, y = position
-    for _ in range(3): # Draw multiple shifted layers
-        offset_x = random.randint(-5, 5)
-        offset_y = random.randint(-5, 5)
-        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), 150) # Semi-transparent random color
+    num_layers = random.randint(2, 5) # Random number of glitch layers
+    for _ in range(num_layers):
+        offset_x = random.randint(-8, 8) # Increased randomness for glitch
+        offset_y = random.randint(-8, 8)
+        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(100, 200)) # Semi-transparent random color
         draw_text_with_outline(draw, text, font, (x + offset_x, y + offset_y), color, outline_color, outline_width, align)
     draw_text_with_outline(draw, text, font, position, fill_color, outline_color, outline_width, align) # Draw original on top
 
 def draw_stroked_text(draw, text, font, position, fill_color, stroke_color, stroke_width, align="center"):
-    x, y = position
     # PIL draw.text has a stroke_width argument in newer versions, but for compatibility
     # and more control, we'll draw the stroke manually or simulate with outline.
-    # For a true "stroke" (outline only, no fill or different fill), this might be slightly adjusted.
-    # Here, we use outline_width as stroke_width.
     draw_text_with_outline(draw, text, font, position, fill_color, stroke_color, stroke_width, align)
 
-def draw_shadow_text(draw, text, font, position, fill_color, outline_color, outline_width, shadow_color, shadow_offset=(10, 10), align="center"):
-    x, y = position
-    # Draw shadow first
-    draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=shadow_color, align=align)
-    # Then draw main text with outline
-    draw_text_with_outline(draw, text, font, position, fill_color, outline_color, outline_width, align)
-
-def draw_outline_only_text(draw, text, font, position, outline_color, outline_width, align="center"):
-    x, y = position
-    # Draw outline multiple times to make it thick and solid for outline-only effect
-    for dx in range(-outline_width, outline_width + 1):
-        for dy in range(-outline_width, outline_width + 1):
-            if (dx, dy) != (0, 0):
-                draw.text((x + dx, y + dy), text, font=font, fill=outline_color, align=align)
-
-def draw_distorted_text(draw, text, font, position, fill_color, outline_color, outline_width, align="center"):
-    x, y = position
-    # Get text bounding box for distortion
-    bbox = draw.textbbox((x, y), text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-
-    # Create a temporary image for the text
-    text_img_temp = Image.new("RGBA", (text_width * 2, text_height * 2), (0, 0, 0, 0))
-    text_draw_temp = ImageDraw.Draw(text_img_temp)
-    # Draw text at an offset so distortion doesn't crop
-    text_draw_temp.text((text_width // 2, text_height // 2), text, font=font, fill=fill_color)
-
-    # Simple distortion - wave effect
-    wavy_img = Image.new("RGBA", (text_width * 2, text_height * 2), (0,0,0,0))
-    pixels_temp = text_img_temp.load()
-    pixels_wavy = wavy_img.load()
-
-    for i in range(text_img_temp.width):
-        for j in range(text_img_temp.height):
-            # Apply a sine wave distortion
-            offset_x = int(5 * np.sin(j / 20.0))
-            new_i = i + offset_x
-            if 0 <= new_i < wavy_img.width:
-                pixels_wavy[new_i, j] = pixels_temp[i, j]
-
-    # Paste the distorted text
-    draw.paste(wavy_img, (x - text_width // 2, y - text_height // 2), mask=wavy_img)
-    # For outline, we apply it to the original text and paste underneath or on top.
-    # This is a simplification, full distortion with outline is complex.
-    # For now, let's just add a regular outline to the original text.
-    if outline_width > 0:
-        for dx in range(-outline_width, outline_width + 1):
-            for dy in range(-outline_width, outline_width + 1):
-                if (dx, dy) != (0, 0):
-                    draw.text((x + dx, y + dy), text, font=font, fill=outline_color, align=align)
-
-
-def draw_wavy_text(draw, text, font, position, fill_color, outline_color, outline_width, align="center"):
-    x, y = position
-    
-    char_spacing = 0 # Initial spacing between characters
-    wave_amplitude = 10 # Height of the wave
-    wave_frequency = 0.05 # How many waves over the text
-
-    char_positions = []
-    current_x = x
-    for i, char in enumerate(text):
-        char_width, char_height = draw.textbbox((0, 0), char, font=font)[2:]
-        wave_offset_y = int(wave_amplitude * np.sin(i * wave_frequency))
-        char_positions.append(((current_x, y + wave_offset_y), char))
-        current_x += char_width + char_spacing
-
-    for char_pos, char in char_positions:
-        draw_text_with_outline(draw, char, font, char_pos, fill_color, outline_color, outline_width)
-
-
-# --- Image Processing Functions ---
-
-def apply_text_style(img, draw, text, font, text_color, outline_color, outline_width, position, text_style,
-                     gradient_end_color=None, depth_color=None, glow_color=None, texture_path=None,
-                     shadow_color=None, shadow_offset=(10,10), align="center"):
-    if text_style == "Normal":
-        draw_text_with_outline(draw, text, font, position, text_color, outline_color, outline_width, align)
-    elif text_style == "Gradient":
-        draw_gradient_text(draw, text, font, position, text_color, gradient_end_color, outline_color, outline_width, align)
-    elif text_style == "Neon":
-        draw_neon_text(draw, text, font, position, text_color, glow_color, outline_color, outline_width, align)
-    elif text_style == "3D":
-        draw_3d_text(draw, text, font, position, text_color, outline_color, outline_width, depth_color, align=align)
-    elif text_style == "Gold":
-        # Simulate gold with specific colors and a shadow/glow
-        gold_color = (255, 215, 0)
-        dark_gold = (184, 134, 11)
-        draw_3d_text(draw, text, font, position, gold_color, outline_color, outline_width, dark_gold, depth=7, align=align)
-    elif text_style == "Silver":
-        silver_color = (192, 192, 192)
-        dark_silver = (105, 105, 105)
-        draw_3d_text(draw, text, font, position, silver_color, outline_color, outline_width, dark_silver, depth=7, align=align)
-    elif text_style == "Rainbow":
-        # Draw each character with a different rainbow color
-        char_colors = [
-            (255, 0, 0), (255, 127, 0), (255, 255, 0), (0, 255, 0),
-            (0, 0, 255), (75, 0, 130), (143, 0, 255)
-        ]
-        char_x = position[0]
-        for i, char in enumerate(text):
-            char_font = font # Use the same font for all characters
-            char_width, _ = draw.textbbox((0, 0), char, font=char_font)[2:]
-            current_color = char_colors[i % len(char_colors)]
-            draw_text_with_outline(draw, char, char_font, (char_x, position[1]), current_color, outline_color, outline_width, align)
-            char_x += char_width # Move X for next character
-    elif text_style == "Fire":
-        # Simulate fire with gradient and glow
-        fire_colors = [(255, 0, 0), (255, 128, 0), (255, 255, 0)] # Red, Orange, Yellow
-        start_c = random.choice(fire_colors)
-        end_c = random.choice([c for c in fire_colors if c != start_c])
-        draw_gradient_text(draw, text, font, position, start_c, end_c, outline_color, outline_width, align)
-        draw_neon_text(draw, text, font, position, (255, 165, 0), (255, 100, 0), outline_color, outline_width, align) # Orange glow
-    elif text_style == "Ice":
-        ice_colors = [(0, 200, 255), (150, 230, 255), (200, 250, 255)] # Blue, light blue, very light blue
-        start_c = random.choice(ice_colors)
-        end_c = random.choice([c for c in ice_colors if c != start_c])
-        draw_gradient_text(draw, text, font, position, start_c, end_c, outline_color, outline_width, align)
-        draw_neon_text(draw, text, font, position, (0, 220, 255), (0, 150, 200), outline_color, outline_width, align) # Light blue glow
-    elif text_style == "Glowing Blue":
-        draw_neon_text(draw, text, font, position, (100, 100, 255), (0, 0, 255), outline_color, outline_width, align)
-    elif text_style == "Glowing Red":
-        draw_neon_text(draw, text, font, position, (255, 100, 100), (255, 0, 0), outline_color, outline_width, align)
-    elif text_style == "Glowing Green":
-        draw_neon_text(draw, text, font, position, (100, 255, 100), (0, 255, 0), outline_color, outline_width, align)
-    elif text_style == "Textured":
-        if texture_path:
-            draw_textured_text(draw, text, font, position, texture_path, outline_color, outline_width, align)
-        else: # Fallback if texture not found
-            draw_text_with_outline(draw, text, font, position, text_color, outline_color, outline_width, align)
-    elif text_style == "Glitch":
-        draw_glitch_text(draw, text, font, position, text_color, outline_color, outline_width, align)
-    elif text_style == "Stroked":
-        draw_stroked_text(draw, text, font, position, text_color, outline_color, outline_width, align)
-    elif text_style == "Drop Shadow":
-        draw_shadow_text(draw, text, font, position, text_color, outline_color, outline_width, shadow_color, shadow_offset, align)
-    elif text_style == "Long Shadow":
-        draw_shadow_text(draw, text, font, position, text_color, outline_color, outline_width, shadow_color, (20, 20), align) # Longer offset
-    elif text_style == "Outline Only":
-        draw_outline_only_text(draw, text, font, position, outline_color, outline_width, align)
-    elif text_style == "Distorted":
-        draw_distorted_text(draw, text, font, position, text_color, outline_color, outline_width, align)
-    elif text_style == "Wavy":
-        draw_wavy_text(draw, text, font, position, text_color, outline_color, outline_width, align)
-    else: # Default fallback
-        draw_text_with_outline(draw, text, font, position, text_color, outline_color, outline_width, align)
-
-
-def add_watermark(img, logo_path, position="bottom-right", size_factor=0.1):
-    if not logo_path or not os.path.exists(logo_path):
-        return img # Return original if logo not found
-
-    try:
-        watermark = Image.open(logo_path).convert("RGBA")
-        img_width, img_height = img.size
-        wm_width, wm_height = watermark.size
-
-        # Resize watermark
-        new_wm_width = int(img_width * size_factor)
-        new_wm_height = int(wm_height * (new_wm_width / wm_width))
-        watermark = watermark.resize((new_wm_width, new_wm_height), Image.LANCZOS)
-
-        # Calculate position
-        if position == "bottom-right":
-            x = img_width - new_wm_width - 20
-            y = img_height - new_wm_height - 20
-        elif position == "bottom-left":
-            x = 20
-            y = img_height - new_wm_height - 20
-        elif position == "top-right":
-            x = img_width - new_wm_width - 20
-            y = 20
-        elif position == "top-left":
-            x = 20
-            y = 20
-        elif position == "center":
-            x = (img_width - new_wm_width) // 2
-            y = (img_height - new_wm_height) // 2
-        else: # Default to bottom-right
-            x = img_width - new_wm_width - 20
-            y = img_height - new_wm_height - 20
-
-        # Create a transparent layer for the watermark
-        temp_img = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        temp_img.paste(watermark, (x, y), watermark)
-        return Image.alpha_composite(img.convert("RGBA"), temp_img).convert("RGB")
-    except Exception as e:
-        st.warning(f"Could not add watermark: {e}")
-        return img
-
-def add_pet_overlay(img, pet_path, position="bottom-right", size_factor=0.2):
-    if not pet_path or not os.path.exists(pet_path):
-        return img
-
-    try:
-        pet = Image.open(pet_path).convert("RGBA")
-        img_width, img_height = img.size
-        pet_width, pet_height = pet.size
-
-        new_pet_width = int(img_width * size_factor)
-        new_pet_height = int(pet_height * (new_pet_width / pet_width))
-        pet = pet.resize((new_pet_width, new_pet_height), Image.LANCZOS)
-
-        # Calculate position for pet, ensuring it doesn't overlap text areas
-        # Simple non-overlap: place pet away from main text if possible
-        # For now, default to bottom-right or a less intrusive corner
-        if position == "bottom-right":
-            x = img_width - new_pet_width - 20
-            y = img_height - new_pet_height - 20
-        elif position == "bottom-left":
-            x = 20
-            y = img_height - new_pet_height - 20
-        elif position == "top-right":
-            x = img_width - new_pet_width - 20
-            y = 20
-        elif position == "top-left":
-            x = 20
-            y = 20
-        elif position == "center":
-            x = (img_width - new_pet_width) // 2
-            y = (img_height - new_pet_height) // 2
-        else:
-            x = img_width - new_pet_width - 20
-            y = img_height - new_pet_height - 20 # Default to bottom-right
-
-        temp_img = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        temp_img.paste(pet, (x, y), pet)
-        return Image.alpha_composite(img.convert("RGBA"), temp_img).convert("RGB")
-    except Exception as e:
-        st.warning(f"Could not add pet overlay: {e}")
-        return img
-
-def add_emoji_overlay(img, emoji_path, emoji_size_factor, random_placement=False, position=(0,0)):
-    if not emoji_path or not os.path.exists(emoji_path):
-        return img
-
-    try:
-        emoji = Image.open(emoji_path).convert("RGBA")
-        img_width, img_height = img.size
-        
-        new_emoji_size = int(img_width * emoji_size_factor)
-        emoji = emoji.resize((new_emoji_size, new_emoji_size), Image.LANCZOS)
-
-        if random_placement:
-            max_x = img_width - new_emoji_size
-            max_y = img_height - new_emoji_size
-            if max_x > 0: x = random.randint(0, max_x)
-            else: x = 0
-            if max_y > 0: y = random.randint(0, max_y)
-            else: y = 0
-        else:
-            x, y = position
-
-        temp_img = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        temp_img.paste(emoji, (x, y), emoji)
-        return Image.alpha_composite(img.convert("RGBA"), temp_img).convert("RGB")
-    except Exception as e:
-        st.warning(f"Could not add emoji: {e}")
-        return img
-
-def apply_image_filter(img, filter_type, strength=1.0):
-    if filter_type == "None":
-        return img
-    elif filter_type == "Grayscale":
-        return ImageOps.grayscale(img)
-    elif filter_type == "Sepia":
-        # Simplified sepia
-        img_np = np.array(img.convert('RGB'))
-        sepia_matrix = np.array([
-            [0.393, 0.769, 0.189],
-            [0.349, 0.686, 0.168],
-            [0.272, 0.534, 0.131]
-        ])
-        new_img_np = img_np.dot(sepia_matrix.T).clip(0, 255).astype(np.uint8)
-        return Image.fromarray(new_img_np)
-    elif filter_type == "Blur":
-        return img.filter(ImageFilter.GaussianBlur(radius=strength*5)) # Strength maps to radius
-    elif filter_type == "Sharpen":
-        return img.filter(ImageFilter.UnsharpMask(radius=strength*2, percent=150, threshold=3))
-    elif filter_type == "Contour":
-        return img.filter(ImageFilter.CONTOUR)
-    elif filter_type == "Emboss":
-        return img.filter(ImageFilter.EMBOSS)
-    elif filter_type == "Detail":
-        return img.filter(ImageFilter.DETAIL)
-    elif filter_type == "Edge Enhance":
-        return img.filter(ImageFilter.EDGE_ENHANCE)
-    elif filter_type == "Find Edges":
-        return img.filter(ImageFilter.FIND_EDGES)
-    elif filter_type == "Smooth":
-        return img.filter(ImageFilter.SMOOTH)
-    elif filter_type == "Pixelate":
-        pixel_size = max(1, int(20 * strength)) # Strength maps to pixel size
-        img_small = img.resize((img.width // pixel_size, img.height // pixel_size), Image.NEAREST)
-        return img_small.resize(img.size, Image.NEAREST)
-    elif filter_type == "Duotone":
-        # Example duotone: black to a specific color
-        target_color = (0, int(255 * strength), 0) # Green intensity
-        return ImageOps.colorize(ImageOps.grayscale(img), (0,0,0), target_color)
-    elif filter_type == "Noise":
-        img_np = np.array(img)
-        noise = np.random.randint(-int(50 * strength), int(50 * strength), img_np.shape, dtype='int16')
-        noisy_img_np = np.clip(img_np + noise, 0, 255).astype(np.uint8)
-        return Image.fromarray(noisy_img_np)
-    return img
-
-def apply_image_adjustments(img, brightness, contrast, saturation, hue):
-    # Convert to HSV for hue adjustment
-    img_hsv = img.convert("HSV")
-    h, s, v = img_hsv.split()
-
-    # Apply adjustments
-    # Brightness (V channel)
-    v_np = np.array(v, dtype=np.float32)
-    v_np = np.clip(v_np * brightness, 0, 255)
-    v = Image.fromarray(v_np.astype(np.uint8))
-
-    # Saturation (S channel)
-    s_np = np.array(s, dtype=np.float32)
-    s_np = np.clip(s_np * saturation, 0, 255)
-    s = Image.fromarray(s_np.astype(np.uint8))
-
-    # Hue (H channel)
-    h_np = np.array(h, dtype=np.float32)
-    h_np = (h_np + hue * 255) % 256 # Hue is circular (0-255)
-    h = Image.fromarray(h_np.astype(np.uint8))
-
-    img_adjusted = Image.merge("HSV", (h, s, v)).convert("RGB")
-
-    # Apply contrast (more effective on RGB)
-    # Using a simple contrast adjustment
-    factor = contrast # 0.0 to 2.0, 1.0 is no change
-    enhancer = Image.ImageEnhance.Contrast(img_adjusted)
-    img_adjusted = enhancer.enhance(factor)
-
-    return img_adjusted
-
-def add_frame_to_image(img, frame_type, frame_path=None, border_color=(0,0,0), border_width=10, corner_radius=0):
-    if frame_type == "None":
-        return img
-    elif frame_type == "Solid Border":
-        return ImageOps.expand(img, border=border_width, fill=border_color)
-    elif frame_type == "Rounded Corners":
-        # Create a blank image with rounded corners mask
-        mask = Image.new('L', img.size, 0)
-        draw = ImageDraw.Draw(mask)
-        draw.rounded_rectangle((0, 0) + img.size, corner_radius=corner_radius, fill=255)
-        
-        # Apply mask to image
-        img_rgba = img.convert("RGBA")
-        img_rgba.putalpha(mask)
-        
-        # Create a background to paste onto (e.g., white or original image's background)
-        # For simplicity, let's paste on a white background or black if no background preference
-        bg_color_for_corners = (0,0,0) # Or user-defined
-        final_img = Image.new("RGBA", img.size, bg_color_for_corners + (255,))
-        final_img.paste(img_rgba, (0,0), img_rgba)
-        return final_img.convert("RGB")
-    elif frame_type == "Vignette":
-        # Create a vignette mask
-        vignette_mask = Image.new("L", img.size, 0)
-        draw_vignette = ImageDraw.Draw(vignette_mask)
-        center_x, center_y = img.width // 2, img.height // 2
-        max_dist = np.sqrt(center_x**2 + center_y**2)
-
-        for x in range(img.width):
-            for y in range(img.height):
-                dist = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-                alpha = int(255 * (dist / max_dist)**2) # Square for stronger effect
-                vignette_mask.putpixel((x, y), min(255, alpha))
-        
-        # Tint the vignette
-        vignette_color = border_color # Use border_color for vignette tint
-        vignette_layer = Image.new("RGB", img.size, vignette_color)
-        
-        # Composite
-        img_rgb = img.convert("RGB")
-        blended = Image.blend(img_rgb, vignette_layer, alpha=Image.fromarray(np.array(vignette_mask)/255.0).convert("F"))
-        return blended
-    elif frame_type == "Decorative Frame":
-        if frame_path and os.path.exists(frame_path):
-            try:
-                decorative_frame = Image.open(frame_path).convert("RGBA")
-                decorative_frame = decorative_frame.resize(img.size, Image.LANCZOS)
-                
-                # Composite the frame over the image
-                img_rgba = img.convert("RGBA")
-                final_img = Image.alpha_composite(img_rgba, decorative_frame)
-                return final_img.convert("RGB")
-            except Exception as e:
-                st.warning(f"Could not apply decorative frame: {e}")
-                return img
-        else:
-            return img # Fallback if decorative frame not found
-    return img
-
-# --- Main Image Generation Logic ---
-def create_image_with_text(
-    original_image,
-    main_text,
-    main_text_font_name,
-    main_text_size,
-    main_text_color,
-    main_text_outline_color,
-    main_text_outline_width,
-    main_text_style,
-    gradient_end_color,
-    text_depth_color,
-    text_glow_color,
-    texture_path,
-    shadow_color,
-    shadow_offset,
-    main_text_align,
-    custom_main_text_pos,
-    show_wishes,
-    wish_text,
-    wish_font_name,
-    wish_text_color,
-    wish_outline_color,
-    wish_outline_width,
-    wish_text_style,
-    wish_gradient_end_color,
-    wish_text_depth_color,
-    wish_text_glow_color,
-    wish_texture_path,
-    wish_shadow_color,
-    wish_shadow_offset,
-    wish_align,
-    show_date,
-    date_text_color,
-    date_outline_color,
-    date_outline_width,
-    date_text_style,
-    date_gradient_end_color,
-    date_text_depth_color,
-    date_text_glow_color,
-    date_texture_path,
-    date_shadow_color,
-    date_shadow_offset,
-    date_align,
-    show_quote,
-    quote_text,
-    quote_font_name,
-    quote_text_color,
-    quote_outline_color,
-    quote_outline_width,
-    quote_text_style,
-    quote_gradient_end_color,
-    quote_text_depth_color,
-    quote_text_glow_color,
-    quote_texture_path,
-    quote_shadow_color,
-    quote_shadow_offset,
-    quote_align,
-    use_watermark,
-    watermark_logo_name,
-    watermark_position,
-    use_coffee_pet,
-    coffee_pet_name,
-    coffee_pet_position,
-    apply_emoji,
-    selected_emoji,
-    emoji_size_factor,
-    emoji_random_placement,
-    image_filter_type,
-    image_filter_strength,
-    brightness,
-    contrast,
-    saturation,
-    hue,
-    frame_type,
-    border_color,
-    border_width,
-    corner_radius,
-    decorative_frame_name,
-    background_solid_color=None, # New parameter for solid background
-    fixed_width=1080,
-    fixed_height=1080
-):
-    try:
-        if original_image.mode == 'RGBA':
-            original_image = Image.alpha_composite(Image.new('RGBA', original_image.size, (255, 255, 255, 255)), original_image).convert('RGB')
-        else:
-            original_image = original_image.convert("RGB")
-
-        # Resize image to fixed dimensions
-        img = original_image.resize((fixed_width, fixed_height), Image.LANCZOS)
-        
-        # Apply solid background if selected and no image uploaded or to replace it
-        if background_solid_color and original_image is None: # Or some logic to override image
-            img = Image.new("RGB", (fixed_width, fixed_height), background_solid_color)
-        elif background_solid_color: # If image is present but solid background should replace it (user choice)
-             # This logic depends on UI. For now, solid background is primarily for *no image*
-             pass # Do nothing, original image is used
-
-        draw = ImageDraw.Draw(img)
-
-        img_width, img_height = img.size
-
-        # Determine font paths for all text elements
-        main_font_path = get_font_path(main_text_font_name)
-        wish_font_path = get_font_path(wish_font_name)
-        quote_font_path = get_font_path(quote_font_name)
-        
-        main_font = ImageFont.truetype(main_font_path, main_text_size)
-        wish_font = ImageFont.truetype(wish_font_path, int(main_text_size * 0.7))
-        date_font = ImageFont.truetype(main_font_path, int(main_text_size * 0.5))
-        quote_font = ImageFont.truetype(quote_font_path, int(main_text_size * 0.6))
-
-        # --- Text Positions (Smart Positioning to minimize overlap) ---
-        # Main Text (Greeting) - higher position
-        main_text_pos_y = int(img_height * 0.15) # Start higher
-        
-        if custom_main_text_pos:
-            main_text_pos_y = int(img_height * (custom_main_text_pos[1] / 100))
-
-        main_text_wrapped = textwrap.fill(main_text, width=get_wrapping_width(img_width, 0.7))
-        main_text_lines = main_text_wrapped.split('\n')
-        
-        # Calculate actual height of main text block
-        main_text_block_height = 0
-        for line in main_text_lines:
-            main_text_block_height += draw.textbbox((0,0), line, font=main_font)[3] - draw.textbbox((0,0), line, font=main_font)[1]
-        
-        main_text_start_y = main_text_pos_y
-        
-        # Calculate X for main text based on alignment
-        main_text_x = img_width // 2 # Default center
-        if main_text_align == "Left":
-            main_text_x = int(img_width * 0.1) # 10% from left
-        elif main_text_align == "Right":
-            main_text_x = int(img_width * 0.9) # 10% from right
-
-
-        # Wishes and Quotes will be placed below main text or at bottom
-        wish_pos_y = int(img_height * 0.7) # Default lower position
-        quote_pos_y = int(img_height * 0.8) # Default even lower
-
-        # Adjust positions if multiple elements are shown
-        elements_to_show = []
-        if show_wishes and wish_text: elements_to_show.append("wish")
-        if show_quote and quote_text: elements_to_show.append("quote")
-        if show_date: elements_to_show.append("date")
-
-        # Dynamic positioning logic to avoid overlap
-        current_y_offset = main_text_start_y + main_text_block_height + 50 # Start below main text
-
-        # Wish Text
-        if "wish" in elements_to_show:
-            wish_wrapped = textwrap.fill(wish_text, width=get_wrapping_width(img_width, 0.6))
-            wish_lines = wish_wrapped.split('\n')
-            
-            wish_text_height = 0
-            for line in wish_lines:
-                wish_text_height += draw.textbbox((0,0), line, font=wish_font)[3] - draw.textbbox((0,0), line, font=wish_font)[1]
-            
-            wish_pos_y = current_y_offset
-            current_y_offset += wish_text_height + 30 # Add padding
-
-        # Quote Text
-        if "quote" in elements_to_show:
-            quote_wrapped = textwrap.fill(quote_text, width=get_wrapping_width(img_width, 0.6))
-            quote_lines = quote_wrapped.split('\n')
-
-            quote_text_height = 0
-            for line in quote_lines:
-                quote_text_height += draw.textbbox((0,0), line, font=quote_font)[3] - draw.textbbox((0,0), line, font=quote_font)[1]
-
-            quote_pos_y = current_y_offset
-            current_y_offset += quote_text_height + 30 # Add padding
-        
-        # Date Text
-        if "date" in elements_to_show:
-            date_text_height = draw.textbbox((0,0), "YYYY-MM-DD", font=date_font)[3] - draw.textbbox((0,0), "YYYY-MM-DD", font=date_font)[1]
-            date_pos_y = current_y_offset
-            # No need to add further offset if date is last.
-
-        # --- Draw Text Elements ---
-        # Main Text
-        current_line_y = main_text_start_y
-        for line in main_text_lines:
-            line_width, line_height = draw.textbbox((0,0), line, font=main_font)[2:]
-            
-            if main_text_align == "Center":
-                line_x = img_width // 2
-            elif main_text_align == "Left":
-                line_x = int(img_width * 0.1)
-            else: # Right
-                line_x = int(img_width * 0.9)
-
-            apply_text_style(img, draw, line, main_font, main_text_color, main_text_outline_color, main_text_outline_width,
-                             (line_x, current_line_y), main_text_style, gradient_end_color, text_depth_color,
-                             text_glow_color, texture_path, shadow_color, shadow_offset,
-                             main_text_align.lower() if main_text_align != "Center" else "center")
-            current_line_y += line_height + 5 # Line spacing
-
-        # Wishes
-        if show_wishes and wish_text:
-            current_wish_y = wish_pos_y
-            for line in wish_lines:
-                line_width, line_height = draw.textbbox((0,0), line, font=wish_font)[2:]
-                
-                if wish_align == "Center":
-                    line_x = img_width // 2
-                elif wish_align == "Left":
-                    line_x = int(img_width * 0.1)
-                else: # Right
-                    line_x = int(img_width * 0.9)
-
-                apply_text_style(img, draw, line, wish_font, wish_text_color, wish_outline_color, wish_outline_width,
-                                 (line_x, current_wish_y), wish_text_style, wish_gradient_end_color, wish_text_depth_color,
-                                 wish_text_glow_color, wish_texture_path, wish_shadow_color, wish_shadow_offset,
-                                 wish_align.lower() if wish_align != "Center" else "center")
-                current_wish_y += line_height + 5
-
-        # Quotes
-        if show_quote and quote_text:
-            current_quote_y = quote_pos_y
-            for line in quote_lines:
-                line_width, line_height = draw.textbbox((0,0), line, font=quote_font)[2:]
-                
-                if quote_align == "Center":
-                    line_x = img_width // 2
-                elif quote_align == "Left":
-                    line_x = int(img_width * 0.1)
-                else: # Right
-                    line_x = int(img_width * 0.9)
-
-                apply_text_style(img, draw, line, quote_font, quote_text_color, quote_outline_color, quote_outline_width,
-                                 (line_x, current_quote_y), quote_text_style, quote_gradient_end_color, quote_text_depth_color,
-                                 quote_text_glow_color, quote_texture_path, quote_shadow_color, quote_shadow_offset,
-                                 quote_align.lower() if quote_align != "Center" else "center")
-                current_quote_y += line_height + 5
-
-        # Date
-        if show_date:
-            date_str = "© " + (datetime.now().strftime("%Y-%m-%d")) # Ensure datetime is imported
-            
-            if date_align == "Center":
-                date_x = img_width // 2
-            elif date_align == "Left":
-                date_x = int(img_width * 0.1)
-            else: # Right
-                date_x = int(img_width * 0.9)
-
-            apply_text_style(img, draw, date_str, date_font, date_text_color, date_outline_color, date_outline_width,
-                             (date_x, date_pos_y), date_text_style, date_gradient_end_color, date_text_depth_color,
-                             date_text_glow_color, date_texture_path, date_shadow_color, date_shadow_offset,
-                             date_align.lower() if date_align != "Center" else "center")
-        
-        # Apply Image Filters (before adjustments for more control)
-        img = apply_image_filter(img, image_filter_type, image_filter_strength)
-
-        # Apply Image Adjustments (Brightness, Contrast, Saturation, Hue)
-        img = apply_image_adjustments(img, brightness, contrast, saturation, hue)
-
-        # Apply Frames (applied last so they cover everything)
-        frame_path_full = get_frame_path(decorative_frame_name) if decorative_frame_name != "None" else None
-        img = add_frame_to_image(img, frame_type, frame_path_full, border_color, border_width, corner_radius)
-
-        # Add Watermark
-        if use_watermark:
-            logo_full_path = get_logo_path(watermark_logo_name)
-            img = add_watermark(img, logo_full_path, watermark_position)
-
-        # Add Coffee Pet
-        if use_coffee_pet:
-            pet_full_path = get_pet_path(coffee_pet_name)
-            img = add_pet_overlay(img, pet_full_path, coffee_pet_position)
-
-        # Add Emoji
-        if apply_emoji and selected_emoji != "None":
-            emoji_full_path = get_emoji_path(selected_emoji)
-            img = add_emoji_overlay(img, emoji_full_path, emoji_size_factor, emoji_random_placement)
-
-        return img
-
-    except Exception as e:
-        st.error(f"An error occurred during image processing: {e}")
-        return original_image
-
-
-def get_image_download_link(img, filename="edited_image", format="PNG", quality=90):
-    """Generates a download link for an image."""
-    buffered = io.BytesIO()
-    if format == "JPEG":
-        img.save(buffered, format=format, quality=quality)
-    elif format == "WebP":
-        img.save(buffered, format=format, quality=quality)
-    else: # Default to PNG
-        img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    href = f'<a href="data:image/{format.lower()};base64,{img_str}" download="{filename}.{format.lower()}">Download {format} Image</a>'
-    return href
-
-# --- Wishes and Quotes Data ---
-# Increased data for wishes and quotes
-COMMON_WISHES = [
-    "Wishing you joy and happiness!",
-    "May your day be filled with laughter.",
-    "Sending you warm wishes.",
-    "Hope you have a fantastic time!",
-    "Best wishes for a bright future.",
-    "May all your dreams come true.",
-    "Here's to a wonderful day!",
-    "May your journey be amazing.",
-    "Wishing you peace and prosperity.",
-    "Enjoy every moment.",
-    "Congratulations on your success!",
-    "Happy celebrations!",
-    "Cheers to new beginnings!",
-    "Wishing you strength and courage.",
-    "May creativity flow through you.",
-    "Sending positive vibes your way.",
-    "Hope you achieve all your goals.",
-    "Stay blessed and inspired.",
-    "Embrace the beauty of life.",
-    "Wishing you good health and fortune."
-]
-
-INSPIRATIONAL_QUOTES = [
-    "The only way to do great work is to love what you do. – Steve Jobs",
-    "Believe you can and you're halfway there. – Theodore Roosevelt",
-    "The future belongs to those who believe in the beauty of their dreams. – Eleanor Roosevelt",
-    "Strive not to be a success, but rather to be of value. – Albert Einstein",
-    "The mind is everything. What you think you become. – Buddha",
-    "I am not a product of my circumstances. I am a product of my decisions. – Stephen Covey",
-    "The best way to predict the future is to create it. – Peter Drucker",
-    "Your time is limited, don't waste it living someone else's life. – Steve Jobs",
-    "Success is not final, failure is not fatal: it is the courage to continue that counts. – Winston Churchill",
-    "It is during our darkest moments that we must focus to see the light. – Aristotle Onassis",
-    "Keep your eyes on the stars, and your feet on the ground. – Theodore Roosevelt",
-    "The only impossible journey is the one you never begin. – Tony Robbins",
-    "Happiness is not something ready made. It comes from your own actions. – Dalai Lama XIV",
-    "The journey of a thousand miles begins with a single step. – Lao Tzu",
-    "What you get by achieving your goals is not as important as what you become by achieving your goals. – Zig Ziglar",
-    "If you want to lift yourself up, lift up someone else. – Booker T. Washington",
-    "Challenges are what make life interesting and overcoming them is what makes life meaningful. – Joshua J. Marine",
-    "The only way to do great work is to love what you do. – Steve Jobs",
-    "The big secret in life is that there is no big secret. Whatever your goal, you can get there if you're willing to work. – Oprah Winfrey",
-    "The only thing we have to fear is fear itself. – Franklin D. Roosevelt",
-    "You are never too old to set another goal or to dream a new dream. – C.S. Lewis",
-    "Don't count the days, make the days count. – Muhammad Ali",
-    "The best revenge is massive success. – Frank Sinatra",
-    "Perfection is not attainable, but if we chase perfection we can catch excellence. – Vince Lombardi",
-    "The only place where success comes before work is in the dictionary. – Vidal Sassoon",
-]
-
-FUNNY_QUOTES = [
-    "I'm not lazy, I'm on energy saving mode.",
-    "I'm not a complete idiot, some parts are missing.",
-    "My bed is a magical place where I suddenly remember everything I forgot to do.",
-    "I need a six-month vacation, twice a year.",
-    "I'm an adult, but I'm not a grown-up.",
-    "I followed my heart, and it led me to the fridge.",
-    "Life is short. Smile while you still have teeth.",
-    "I love sleep. My life has a tendency to fall apart when I'm awake, you know?",
-    "I didn't choose the thug life, the thug life chose me... and then I chose to sit on the couch.",
-    "I'm on a seafood diet. I see food, and I eat it.",
-]
-
-LOVE_QUOTES = [
-    "The best thing to hold onto in life is each other. – Audrey Hepburn",
-    "You know you're in love when you can't fall asleep because reality is finally better than your dreams. – Dr. Seuss",
-    "Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope. – Maya Angelou",
-    "To love and be loved is to feel the sun from both sides. – David Viscott",
-    "We are most alive when we're in love. – John Updike",
-    "If I know what love is, it is because of you. – Hermann Hesse",
-    "Love is composed of a single soul inhabiting two bodies. – Aristotle",
-    "The greatest happiness of life is the conviction that we are loved; loved for ourselves, or rather, loved in spite of ourselves. – Victor Hugo",
-    "Where there is love, there is life. – Mahatma Gandhi",
-    "Grow old with me! The best is yet to be. – Robert Browning",
-]
-
-WISDOM_QUOTES = [
-    "Knowing yourself is the beginning of all wisdom. – Aristotle",
-    "The unexamined life is not worth living. – Socrates",
-    "The only true wisdom is in knowing you know nothing. – Socrates",
-    "It is better to be hated for what you are than to be loved for what you are not. – André Gide",
-    "Life is really simple, but we insist on making it complicated. – Confucius",
-    "The only thing that interferes with my learning is my education. – Albert Einstein",
-    "Do not go where the path may lead, go instead where there is no path and leave a trail. – Ralph Waldo Emerson",
-    "The price of anything is the amount of life you exchange for it. – Henry David Thoreau",
-    "We are what we repeatedly do. Excellence, then, is not an act, but a habit. – Aristotle",
-    "Silence is a source of great strength. – Lao Tzu",
-]
-
-
-ALL_QUOTES = {
-    "Inspirational": INSPIRATIONAL_QUOTES,
-    "Funny": FUNNY_QUOTES,
-    "Love": LOVE_QUOTES,
-    "Wisdom": WISDOM_QUOTES,
+# Map text effects to functions
+TEXT_EFFECT_FUNCTIONS = {
+    "Normal": draw_text_with_outline,
+    "Outline": draw_text_with_outline, # Same as normal but relies on outline color/width
+    "Gradient": draw_gradient_text,
+    "Neon Glow": draw_neon_text,
+    "3D": draw_3d_text,
+    "Textured": draw_textured_text,
+    "Glitch": draw_glitch_text,
+    "Stroked": draw_stroked_text,
 }
 
+# =================== IMAGE PROCESSING FUNCTIONS ===================
 
-# --- Streamlit UI ---
-import io
-from datetime import datetime
+def apply_image_enhancement(img: Image.Image, enhancement_type: str, factor: float) -> Image.Image:
+    if enhancement_type == "Brightness":
+        return ImageEnhance.Brightness(img).enhance(factor)
+    elif enhancement_type == "Contrast":
+        return ImageEnhance.Contrast(img).enhance(factor)
+    elif enhancement_type == "Sharpness":
+        return ImageEnhance.Sharpness(img).enhance(factor)
+    elif enhancement_type == "Color":
+        return ImageEnhance.Color(img).enhance(factor)
+    return img
 
-st.set_page_config(
-    page_title="ULTRA PRO MAX Image Editor",
-    page_icon="✨",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+def apply_image_filter(img: Image.Image, filter_type: str) -> Image.Image:
+    if filter_type == "BLUR":
+        return img.filter(ImageFilter.BLUR)
+    elif filter_type == "CONTOUR":
+        return img.filter(ImageFilter.CONTOUR)
+    elif filter_type == "EMBOSS":
+        return img.filter(ImageFilter.EMBOSS)
+    elif filter_type == "SHARPEN":
+        return img.filter(ImageFilter.SHARPEN)
+    elif filter_type == "SMOOTH":
+        return img.filter(ImageFilter.SMOOTH)
+    elif filter_type == "DETAIL":
+        return img.filter(ImageFilter.DETAIL)
+    elif filter_type == "EDGE_ENHANCE":
+        return img.filter(ImageFilter.EDGE_ENHANCE)
+    elif filter_type == "FIND_EDGES":
+        return img.filter(ImageFilter.FIND_EDGES)
+    return img
 
+def apply_color_effect(img: Image.Image, effect_type: str) -> Image.Image:
+    if effect_type == "Grayscale":
+        return ImageOps.grayscale(img)
+    elif effect_type == "Sepia":
+        # Simple sepia: R = (R*0.393)+(G*0.769)+(B*0.189), G = (R*0.349)+(G*0.686)+(B*0.168), B = (R*0.272)+(G*0.534)+(B*0.131)
+        sepia_matrix = (
+            0.393, 0.769, 0.189, 0,
+            0.349, 0.686, 0.168, 0,
+            0.272, 0.534, 0.131, 0
+        )
+        return img.convert("RGB", sepia_matrix)
+    elif effect_type == "Invert":
+        return ImageOps.invert(img.convert("RGB"))
+    elif effect_type == "Solarize":
+        return ImageOps.solarize(img.convert("RGB"))
+    elif effect_type == "Posterize":
+        return ImageOps.posterize(img.convert("RGB"), random.randint(2, 6)) # Random levels
+    elif effect_type == "Colorize (Random)":
+        # Apply a random hue shift, maintaining lightness/saturation
+        h, s, v = img.convert("HSV").split()
+        random_hue_offset = random.randint(0, 255)
+        h_array = np.array(h)
+        h_array = (h_array + random_hue_offset) % 256
+        h = Image.fromarray(np.uint8(h_array))
+        return Image.merge("HSV", (h, s, v)).convert("RGB")
+    return img
+
+def apply_image_transform(img: Image.Image, transform_type: str, angle: int = 0) -> Image.Image:
+    if transform_type == "Rotate":
+        return img.rotate(angle, expand=True)
+    elif transform_type == "Flip (Vertical)":
+        return ImageOps.flip(img)
+    elif transform_type == "Mirror (Horizontal)":
+        return ImageOps.mirror(img)
+    return img
+
+def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
+    """Smart crop to maintain aspect ratio"""
+    w, h = img.size
+    if w/h > target_ratio:
+        new_w = int(h * target_ratio)
+        left = (w - new_w) // 2
+        return img.crop((left, 0, left + new_w, h))
+    else:
+        new_h = int(w / target_ratio)
+        top = (h - new_h) // 2
+        return img.crop((0, top, w, top + new_h))
+
+def add_image_overlay(base_img: Image.Image, overlay_path: str, position_type: str, x_offset: int, y_offset: int, size_factor: float = 1.0, opacity: float = 1.0) -> Image.Image:
+    try:
+        overlay_img = Image.open(overlay_path).convert("RGBA")
+        
+        # Resize overlay
+        original_width, original_height = overlay_img.size
+        new_width = int(original_width * size_factor)
+        new_height = int(original_height * size_factor)
+        if new_width == 0: new_width = 1 # Prevent zero division
+        if new_height == 0: new_height = 1
+        overlay_img = overlay_img.resize((new_width, new_height), Image.LANCZOS)
+
+        # Apply opacity
+        if opacity < 1.0:
+            alpha = overlay_img.split()[3]
+            alpha = ImageEnhance.Brightness(alpha).enhance(opacity)
+            overlay_img.putalpha(alpha)
+
+        # Calculate position
+        img_width, img_height = base_img.size
+        overlay_width, overlay_height = overlay_img.size
+
+        if position_type == "Center":
+            paste_x = (img_width - overlay_width) // 2 + x_offset
+            paste_y = (img_height - overlay_height) // 2 + y_offset
+        elif position_type == "Top-Left":
+            paste_x = x_offset
+            paste_y = y_offset
+        elif position_type == "Top-Right":
+            paste_x = img_width - overlay_width + x_offset
+            paste_y = y_offset
+        elif position_type == "Bottom-Left":
+            paste_x = x_offset
+            paste_y = img_height - overlay_height + y_offset
+        elif position_type == "Bottom-Right":
+            paste_x = img_width - overlay_width + x_offset
+            paste_y = img_height - overlay_height + y_offset
+        elif position_type == "Random":
+            paste_x = random.randint(0, max(0, img_width - overlay_width))
+            paste_y = random.randint(0, max(0, img_height - overlay_height))
+        else: # Manual
+            paste_x = x_offset
+            paste_y = y_offset
+        
+        # Ensure coordinates are within bounds
+        paste_x = max(0, min(paste_x, img_width - overlay_width))
+        paste_y = max(0, min(paste_y, img_height - overlay_height))
+
+        # Create a blank RGBA image to paste the base_img onto, if base_img is not RGBA
+        if base_img.mode != 'RGBA':
+            base_img_rgba = base_img.convert('RGBA')
+        else:
+            base_img_rgba = base_img.copy()
+
+        base_img_rgba.paste(overlay_img, (paste_x, paste_y), overlay_img)
+        return base_img_rgba
+
+    except Exception as e:
+        st.error(f"Error adding overlay: {e}. Please check the overlay file.")
+        return base_img
+
+def apply_frame(base_img: Image.Image, frame_path: str, frame_thickness: int = 20, blend_opacity: float = 1.0) -> Image.Image:
+    try:
+        frame_img = Image.open(frame_path).convert("RGBA")
+        
+        # Ensure frame_img is suitable (e.g., has transparent areas for overlay)
+        # If it's a solid image, it will just cover.
+        
+        # Resize frame to match base image
+        frame_img = frame_img.resize(base_img.size, Image.LANCZOS)
+        
+        # Apply opacity
+        if blend_opacity < 1.0:
+            alpha = frame_img.split()[3]
+            alpha = ImageEnhance.Brightness(alpha).enhance(blend_opacity)
+            frame_img.putalpha(alpha)
+
+        # Composite frame onto the base image
+        if base_img.mode != 'RGBA':
+            base_img = base_img.convert('RGBA')
+        
+        # For frames, we want to overlay. Image.alpha_composite works best for RGBA on RGBA.
+        # If the frame has transparent areas, the base_img will show through.
+        final_img = Image.alpha_composite(base_img, frame_img)
+        return final_img
+
+    except Exception as e:
+        st.error(f"Error applying frame: {e}. Please check the frame file.")
+        return base_img
+
+# This function is a placeholder for actual background removal.
+# A real implementation would involve a robust ML model or an API.
+def remove_background_placeholder(img: Image.Image) -> Image.Image:
+    st.info("Background removal is a complex task. This is a placeholder function.")
+    st.info("For a real solution, consider integrating an external API (e.g., remove.bg) or an ML model (e.g., U-Net).")
+    # For demonstration, we'll just make the image slightly transparent or grayscale
+    img_rgba = img.convert("RGBA")
+    # Make all pixels slightly transparent as a "background removed" visual cue
+    # alpha = img_rgba.split()[3]
+    # alpha = ImageEnhance.Brightness(alpha).enhance(0.8) # 80% opaque
+    # img_rgba.putalpha(alpha)
+    # Or simply return the image as is, or with a solid background as a demo
+    # For now, just convert to RGBA, making transparent if it was originally opaque background (e.g. white becomes transparent)
+    datas = img_rgba.getdata()
+    newData = []
+    for item in datas:
+        # Change all white (ish) pixels to transparent. This is a very crude "background removal".
+        if item[0] > 200 and item[1] > 200 and item[2] > 200: # Example for white-ish background
+            newData.append((255, 255, 255, 0)) # Make transparent
+        else:
+            newData.append(item)
+    img_rgba.putdata(newData)
+    return img_rgba
+
+# =================== MAIN APP LOGIC ===================
+
+if 'original_image' not in st.session_state:
+    st.session_state.original_image = None
+if 'processed_image' not in st.session_state:
+    st.session_state.processed_image = None
+if 'text_positions' not in st.session_state:
+    st.session_state.text_positions = {} # {text_id: (x, y)}
+if 'image_variants' not in st.session_state:
+    st.session_state.image_variants = []
+
+def get_current_image():
+    return st.session_state.processed_image if st.session_state.processed_image else st.session_state.original_image
+
+def save_image_to_session(img):
+    st.session_state.processed_image = img
+
+def clear_all():
+    st.session_state.original_image = None
+    st.session_state.processed_image = None
+    st.session_state.text_positions = {}
+    st.session_state.image_variants = []
+    st.rerun()
+
+# --- HEADER ---
 st.markdown("""
-<style>
-    .reportview-container .main .block-container {
-        padding-top: 2rem;
-        padding-right: 2rem;
-        padding-left: 2rem;
-        padding-bottom: 2rem;
-    }
-    .stApp {
-        background-color: #f0f2f6; /* Light gray background */
-    }
-    .sidebar .sidebar-content {
-        background-color: #ffffff; /* White sidebar */
-    }
-    .css-1d391kg { /* Target for main content block */
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-    }
-    h1, h2, h3, h4, h5, h6 {
-        color: #1e3a8a; /* Dark blue for headings */
-    }
-    .stButton>button {
-        background-color: #4CAF50; /* Green */
-        color: white;
-        border-radius: 8px;
-        border: none;
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-        transition: all 0.2s ease-in-out;
-    }
-    .stButton>button:hover {
-        background-color: #45a049; /* Darker green on hover */
-        transform: translateY(-2px);
-    }
-    .stFileUploader {
-        border: 2px dashed #a0a0a0;
-        padding: 20px;
-        text-align: center;
-        border-radius: 10px;
-        background-color: #e6e9f0;
-    }
-    .stMarkdown a {
-        color: #1e3a8a;
-        text-decoration: none;
-    }
-    .stMarkdown a:hover {
-        text-decoration: underline;
-    }
-    /* Custom Styling for Sections */
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #1a2a4a;
-        margin-top: 20px;
-        margin-bottom: 10px;
-        border-bottom: 2px solid #ccc;
-        padding-bottom: 5px;
-    }
-    .stTextInput label, .stSelectbox label, .stSlider label, .stColorPicker label, .stCheckbox label {
-        font-weight: 600;
-        color: #333;
-    }
-</style>
+    <div class='header-container'>
+        <h1 style='color: #ffcc00; margin: 0;'>⚡ ULTIMATE IMAGE & TEXT EDITOR v4 ⚡</h1>
+        <p style='color: #ccc;'>एक कॉम्पैक्ट पैकेज में Deepseek और Gemini की सभी सुविधाएँ!</p>
+    </div>
 """, unsafe_allow_html=True)
 
-st.title("✨ ULTIMATE PRO MAX Image Editor ✨")
-st.markdown("Unleash your creativity with advanced text effects, filters, and overlays!")
-
-# --- File Uploader ---
-uploaded_file = st.file_uploader("Upload an image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
-
-# --- Main Layout ---
-col1, col2 = st.columns([1, 1])
-
-edited_image = None
-original_image = None
-
-if uploaded_file:
-    original_image = Image.open(uploaded_file)
-    with col1:
-        st.subheader("Original Image")
-        st.image(original_image, use_column_width=True)
-
-# --- Sidebar for Controls ---
+# --- LEFT SIDEBAR: Deepseek Features (Image Upload & Basic Adjustments) ---
 with st.sidebar:
-    st.header("🎨 Editor Controls")
-
-    with st.expander("🖼️ Image Basic Adjustments", expanded=True):
-        brightness = st.slider("Brightness", 0.0, 2.0, 1.0, 0.05)
-        contrast = st.slider("Contrast", 0.0, 2.0, 1.0, 0.05)
-        saturation = st.slider("Saturation", 0.0, 2.0, 1.0, 0.05)
-        hue = st.slider("Hue", -0.5, 0.5, 0.0, 0.01) # Hue shift in radians/factor
-
-    with st.expander("📸 Image Filters"):
-        image_filter_type = st.selectbox(
-            "Select Filter",
-            [
-                "None", "Grayscale", "Sepia", "Blur", "Sharpen", "Contour",
-                "Emboss", "Detail", "Edge Enhance", "Find Edges", "Smooth",
-                "Pixelate", "Duotone", "Noise"
-            ]
-        )
-        if image_filter_type != "None":
-            image_filter_strength = st.slider(f"{image_filter_type} Strength", 0.1, 1.0, 0.5, 0.05)
-        else:
-            image_filter_strength = 0.0
-
-    with st.expander("🖼️ Frames & Borders"):
-        frame_type = st.selectbox(
-            "Frame Type",
-            ["None", "Solid Border", "Rounded Corners", "Vignette", "Decorative Frame"]
-        )
-        if frame_type == "Solid Border":
-            border_width = st.slider("Border Width", 0, 50, 10)
-            border_color_hex = st.color_picker("Border Color", "#000000")
-            border_color = hex_to_rgb(border_color_hex)
-        elif frame_type == "Rounded Corners":
-            corner_radius = st.slider("Corner Radius", 0, 100, 30)
-        elif frame_type == "Vignette":
-            vignette_color_hex = st.color_picker("Vignette Color", "#000000")
-            border_color = hex_to_rgb(vignette_color_hex) # Using border_color for vignette tint
-        elif frame_type == "Decorative Frame":
-            decorative_frame_options = [f.split('.')[0] for f in os.listdir(FRAMES_DIR) if f.endswith(('.png', '.jpg'))]
-            if decorative_frame_options:
-                decorative_frame_name = st.selectbox("Select Decorative Frame", ["None"] + decorative_frame_options)
-            else:
-                st.warning(f"No decorative frames found in {FRAMES_DIR}. Please add some image files (.png/.jpg).")
-                decorative_frame_name = "None"
-        else:
-            border_color = (0,0,0)
-            border_width = 0
-            corner_radius = 0
-            decorative_frame_name = "None"
-
-    with st.expander("💬 Main Text (Greeting) Settings", expanded=True):
-        main_text = st.text_input("Enter your main text (Greeting)", "Happy Day!")
-        main_text_font_name = st.selectbox("Font", ["Poppins-Bold", "OpenSans-Bold", "Roboto-Bold", "Arial-Bold", "TimesNewRoman-Bold", "DancingScript-Bold", "Montserrat-Bold", "IndieFlower", "Pacifico", "Lobster", "PermanentMarker"], key='main_font')
-        main_text_size = st.slider("Size", 10, 200, 80, key='main_size')
-        
-        main_text_style = st.selectbox(
-            "Text Style",
-            [
-                "Normal", "Gradient", "Neon", "3D", "Gold", "Silver", "Rainbow", "Fire", "Ice",
-                "Glowing Blue", "Glowing Red", "Glowing Green", "Textured", "Glitch", "Stroked",
-                "Drop Shadow", "Long Shadow", "Outline Only", "Distorted", "Wavy"
-            ], key='main_style'
-        )
-        
-        # Style-specific color pickers
-        if main_text_style == "Gradient":
-            main_text_color_hex = st.color_picker("Start Color", "#FFFFFF", key='main_color')
-            gradient_end_color_hex = st.color_picker("End Color (Gradient)", rgb_to_hex(get_random_bright_color()), key='main_grad_end')
-            main_text_color = hex_to_rgb(main_text_color_hex)
-            gradient_end_color = hex_to_rgb(gradient_end_color_hex)
-        elif main_text_style == "Neon":
-            main_text_color_hex = st.color_picker("Text Color", "#FFFFFF", key='main_color_neon')
-            text_glow_color_hex = st.color_picker("Glow Color", "#00FFFF", key='main_glow_color')
-            main_text_color = hex_to_rgb(main_text_color_hex)
-            text_glow_color = hex_to_rgb(text_glow_color_hex)
-        elif main_text_style == "3D":
-            main_text_color_hex = st.color_picker("Text Color", "#FFFFFF", key='main_color_3d')
-            text_depth_color_hex = st.color_picker("Depth Color", "#808080", key='main_depth_color')
-            main_text_color = hex_to_rgb(main_text_color_hex)
-            text_depth_color = hex_to_rgb(text_depth_color_hex)
-        elif main_text_style in ["Drop Shadow", "Long Shadow"]:
-            main_text_color_hex = st.color_picker("Text Color", "#FFFFFF", key='main_color_shadow')
-            shadow_color_hex = st.color_picker("Shadow Color", "#404040", key='main_shadow_color')
-            main_text_color = hex_to_rgb(main_text_color_hex)
-            shadow_color = hex_to_rgb(shadow_color_hex)
-            shadow_offset_x = st.slider("Shadow Offset X", 0, 50, 10, key='main_shadow_x')
-            shadow_offset_y = st.slider("Shadow Offset Y", 0, 50, 10, key='main_shadow_y')
-            shadow_offset = (shadow_offset_x, shadow_offset_y)
-        elif main_text_style == "Textured":
-            main_text_color_hex = st.color_picker("Fallback Text Color", "#FFFFFF", key='main_color_textured')
-            main_text_color = hex_to_rgb(main_text_color_hex)
-            texture_options = [f.split('.')[0] for f in os.listdir(TEXTURE_DIR) if f.endswith(('.png', '.jpg'))]
-            if texture_options:
-                selected_texture = st.selectbox("Select Texture", ["None"] + texture_options, key='main_texture')
-                texture_path = get_texture_path(selected_texture) if selected_texture != "None" else None
-            else:
-                st.warning(f"No textures found in {TEXTURE_DIR}. Please add some image files (.png/.jpg).")
-                texture_path = None
-        else: # For Normal, Gold, Silver, Rainbow, Fire, Ice, Glowing, Glitch, Stroked, Outline Only, Distorted, Wavy
-            main_text_color_hex = st.color_picker("Text Color", "#FFFFFF", key='main_color_normal')
-            main_text_color = hex_to_rgb(main_text_color_hex)
-            gradient_end_color = None # Reset
-            text_depth_color = None # Reset
-            text_glow_color = None # Reset
-            texture_path = None # Reset
-            shadow_color = None # Reset
-            shadow_offset = (0,0) # Reset
-
-
-        main_text_outline_color_hex = st.color_picker("Outline Color", "#000000", key='main_outline_color')
-        main_text_outline_color = hex_to_rgb(main_text_outline_color_hex)
-        main_text_outline_width = st.slider("Outline Width", 0, 10, 2, key='main_outline_width')
-        
-        main_text_align = st.radio("Text Alignment", ["Left", "Center", "Right"], key='main_align', index=1)
-        
-        # Custom Position Toggle
-        use_custom_main_pos = st.checkbox("Custom Main Text Position", value=False)
-        custom_main_text_pos = None
-        if use_custom_main_pos:
-            custom_main_text_x = st.slider("Custom X (Percentage)", 0, 100, 50, key='custom_main_x')
-            custom_main_text_y = st.slider("Custom Y (Percentage)", 0, 100, 15, key='custom_main_y')
-            custom_main_text_pos = (custom_main_text_x, custom_main_text_y)
-
-
-    with st.expander("✨ Additional Text Elements"):
-        show_wishes = st.checkbox("Show Wishes", value=True)
-        if show_wishes:
-            wish_text = st.text_area("Enter your wish", random.choice(COMMON_WISHES), key='wish_input')
-            wish_font_name = st.selectbox("Wish Font", ["OpenSans-Bold", "Poppins-Bold", "DancingScript-Bold", "IndieFlower", "Pacifico", "Lobster", "PermanentMarker"], key='wish_font')
-            wish_text_style = st.selectbox("Wish Text Style", ["Normal", "Gradient", "Neon", "3D", "Gold", "Silver", "Rainbow"], key='wish_style')
-            
-            if wish_text_style == "Gradient":
-                wish_text_color_hex = st.color_picker("Wish Start Color", "#FFFFFF", key='wish_color_grad')
-                wish_gradient_end_color_hex = st.color_picker("Wish End Color (Gradient)", rgb_to_hex(get_random_bright_color()), key='wish_grad_end')
-                wish_text_color = hex_to_rgb(wish_text_color_hex)
-                wish_gradient_end_color = hex_to_rgb(wish_gradient_end_color_hex)
-            elif wish_text_style == "Neon":
-                wish_text_color_hex = st.color_picker("Wish Text Color", "#FFFFFF", key='wish_color_neon')
-                wish_text_glow_color_hex = st.color_picker("Wish Glow Color", "#00FFFF", key='wish_glow_color')
-                wish_text_color = hex_to_rgb(wish_text_color_hex)
-                wish_text_glow_color = hex_to_rgb(wish_text_glow_color_hex)
-            elif wish_text_style == "3D":
-                wish_text_color_hex = st.color_picker("Wish Text Color", "#FFFFFF", key='wish_color_3d')
-                wish_text_depth_color_hex = st.color_picker("Wish Depth Color", "#808080", key='wish_depth_color')
-                wish_text_color = hex_to_rgb(wish_text_color_hex)
-                wish_text_depth_color = hex_to_rgb(wish_text_depth_color_hex)
-            else:
-                wish_text_color_hex = st.color_picker("Wish Text Color", "#FFFF00", key='wish_color_normal')
-                wish_text_color = hex_to_rgb(wish_text_color_hex)
-                wish_gradient_end_color = None
-                wish_text_depth_color = None
-                wish_text_glow_color = None
-
-            wish_outline_color_hex = st.color_picker("Wish Outline Color", "#000000", key='wish_outline_color')
-            wish_outline_color = hex_to_rgb(wish_outline_color_hex)
-            wish_outline_width = st.slider("Wish Outline Width", 0, 5, 1, key='wish_outline_width')
-            wish_align = st.radio("Wish Alignment", ["Left", "Center", "Right"], key='wish_align', index=1)
-            
-            wish_texture_path = None # Not implemented for wishes to keep options manageable
-            wish_shadow_color = None # Not implemented
-            wish_shadow_offset = (0,0) # Not implemented
-
-
-        show_quote = st.checkbox("Show Quote", value=True)
-        if show_quote:
-            quote_category = st.selectbox("Quote Category", ["Inspirational", "Funny", "Love", "Wisdom"], key='quote_cat')
-            quote_text = st.text_area("Enter your quote", random.choice(ALL_QUOTES[quote_category]), key='quote_input')
-            quote_font_name = st.selectbox("Quote Font", ["Roboto-Bold", "OpenSans-Bold", "DancingScript-Bold", "IndieFlower", "Pacifico", "Lobster", "PermanentMarker"], key='quote_font')
-            quote_text_style = st.selectbox("Quote Text Style", ["Normal", "Gradient", "Neon", "3D", "Gold", "Silver"], key='quote_style')
-            
-            if quote_text_style == "Gradient":
-                quote_text_color_hex = st.color_picker("Quote Start Color", "#FFFFFF", key='quote_color_grad')
-                quote_gradient_end_color_hex = st.color_picker("Quote End Color (Gradient)", rgb_to_hex(get_random_bright_color()), key='quote_grad_end')
-                quote_text_color = hex_to_rgb(quote_text_color_hex)
-                quote_gradient_end_color = hex_to_rgb(quote_gradient_end_color_hex)
-            elif quote_text_style == "Neon":
-                quote_text_color_hex = st.color_picker("Quote Text Color", "#FFFFFF", key='quote_color_neon')
-                quote_text_glow_color_hex = st.color_picker("Quote Glow Color", "#00FFFF", key='quote_glow_color')
-                quote_text_color = hex_to_rgb(quote_text_color_hex)
-                quote_text_glow_color = hex_to_rgb(quote_text_glow_color_hex)
-            elif quote_text_style == "3D":
-                quote_text_color_hex = st.color_picker("Quote Text Color", "#FFFFFF", key='quote_color_3d')
-                quote_text_depth_color_hex = st.color_picker("Quote Depth Color", "#808080", key='quote_depth_color')
-                quote_text_color = hex_to_rgb(quote_text_color_hex)
-                quote_text_depth_color = hex_to_rgb(quote_text_depth_color_hex)
-            else:
-                quote_text_color_hex = st.color_picker("Quote Text Color", "#00FF00", key='quote_color_normal')
-                quote_text_color = hex_to_rgb(quote_text_color_hex)
-                quote_gradient_end_color = None
-                quote_text_depth_color = None
-                quote_text_glow_color = None
-
-            quote_outline_color_hex = st.color_picker("Quote Outline Color", "#000000", key='quote_outline_color')
-            quote_outline_color = hex_to_rgb(quote_outline_color_hex)
-            quote_outline_width = st.slider("Quote Outline Width", 0, 5, 1, key='quote_outline_width')
-            quote_align = st.radio("Quote Alignment", ["Left", "Center", "Right"], key='quote_align', index=1)
-
-            quote_texture_path = None
-            quote_shadow_color = None
-            quote_shadow_offset = (0,0)
-
-        show_date = st.checkbox("Show Date", value=True)
-        if show_date:
-            date_text_style = st.selectbox("Date Text Style", ["Normal", "Gradient"], key='date_style')
-            
-            if date_text_style == "Gradient":
-                date_text_color_hex = st.color_picker("Date Start Color", "#FFFFFF", key='date_color_grad')
-                date_gradient_end_color_hex = st.color_picker("Date End Color (Gradient)", rgb_to_hex(get_random_bright_color()), key='date_grad_end')
-                date_text_color = hex_to_rgb(date_text_color_hex)
-                date_gradient_end_color = hex_to_rgb(date_gradient_end_color_hex)
-            else:
-                date_text_color_hex = st.color_picker("Date Text Color", "#ADD8E6", key='date_color_normal')
-                date_text_color = hex_to_rgb(date_text_color_hex)
-                date_gradient_end_color = None
-
-            date_outline_color_hex = st.color_picker("Date Outline Color", "#000000", key='date_outline_color')
-            date_outline_color = hex_to_rgb(date_outline_color_hex)
-            date_outline_width = st.slider("Date Outline Width", 0, 5, 1, key='date_outline_width')
-            date_align = st.radio("Date Alignment", ["Left", "Center", "Right"], key='date_align', index=1)
-            
-            date_text_depth_color = None
-            date_text_glow_color = None
-            date_texture_path = None
-            date_shadow_color = None
-            date_shadow_offset = (0,0)
-
-
-    with st.expander("™️ Overlays"):
-        use_watermark = st.checkbox("Add Watermark Logo", value=False)
-        if use_watermark:
-            logo_options = [f.split('.')[0] for f in os.listdir(LOGO_DIR) if f.endswith(('.png', '.jpg'))]
-            if logo_options:
-                watermark_logo_name = st.selectbox("Select Watermark Logo", logo_options)
-                watermark_position = st.selectbox("Watermark Position", ["bottom-right", "bottom-left", "top-right", "top-left", "center"])
-            else:
-                st.warning(f"No logos found in {LOGO_DIR}. Please add some image files (.png/.jpg).")
-                watermark_logo_name = None
-
-        use_coffee_pet = st.checkbox("Add Coffee Pet", value=False)
-        if use_coffee_pet:
-            pet_options = [f.split('.')[0] for f in os.listdir(PET_DIR) if f.endswith(('.png', '.jpg'))]
-            if pet_options:
-                coffee_pet_name = st.selectbox("Select Coffee Pet", pet_options)
-                coffee_pet_position = st.selectbox("Coffee Pet Position", ["bottom-right", "bottom-left", "top-right", "top-left", "center"])
-            else:
-                st.warning(f"No pets found in {PET_DIR}. Please add some image files (.png/.jpg).")
-                coffee_pet_name = None
-
-        apply_emoji = st.checkbox("Add Emoji", value=False)
-        if apply_emoji:
-            emoji_options = [f.replace('emoji_', '').split('.')[0] for f in os.listdir(EMOJI_DIR) if f.startswith('emoji_') and f.endswith(('.png', '.jpg'))]
-            if emoji_options:
-                selected_emoji = st.selectbox("Select Emoji", ["None"] + emoji_options)
-                emoji_size_factor = st.slider("Emoji Size Factor", 0.05, 0.5, 0.15, 0.01)
-                emoji_random_placement = st.checkbox("Random Emoji Placement", value=False)
-            else:
-                st.warning(f"No emojis found in {EMOJI_DIR}. Please add some image files (e.g., emoji_heart.png).")
-                selected_emoji = "None"
+    st.header("🖼️ इमेज अपलोड और मूल समायोजन")
     
-    with st.expander("Background Settings"):
-        use_solid_background = st.checkbox("Use Solid Background (if no image or override)")
-        if use_solid_background:
-            background_solid_color_hex = st.color_picker("Background Color", "#CCCCCC")
-            background_solid_color = hex_to_rgb(background_solid_color_hex)
-        else:
-            background_solid_color = None
+    uploaded_files = st.file_uploader("अपनी इमेज अपलोड करें (JPG, PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-    st.subheader("⚙️ Generation Options")
-    generate_variants = st.checkbox("Generate Multiple Variants (Experimental)", value=False)
-    num_variants = 1
-    if generate_variants:
-        num_variants = st.slider("Number of Variants", 1, 5, 3)
-
-    output_format = st.selectbox("Output Format", ["PNG", "JPEG", "WebP"])
-    if output_format in ["JPEG", "WebP"]:
-        bulk_quality = st.slider("Output Quality (JPEG/WebP)", 10, 100, 90)
-    else:
-        bulk_quality = 90 # Default for PNG
-
-    fixed_width = st.slider("Output Image Width", 500, 2000, 1080)
-    fixed_height = st.slider("Output Image Height", 500, 2000, 1080)
-
-    st.markdown("---")
-    st.markdown("Made with ✨ by Gemini")
-
-
-if uploaded_file and main_text:
-    st.subheader("Processed Image(s)")
-    if generate_variants:
-        for i in range(num_variants):
-            st.markdown(f"#### Variant {i+1}")
-            # For variants, randomly change some parameters slightly for diversity
-            variant_main_text_color = hex_to_rgb(st.session_state.get('main_color', '#FFFFFF')) if i == 0 else get_random_bright_color()
-            variant_gradient_end_color = hex_to_rgb(st.session_state.get('main_grad_end', rgb_to_hex(get_random_bright_color()))) if i == 0 else get_random_bright_color()
-            variant_outline_color = hex_to_rgb(st.session_state.get('main_outline_color', '#000000'))
+    if uploaded_files:
+        if len(uploaded_files) > 1:
+            st.session_state.multi_images_mode = True
+            st.info(f"{len(uploaded_files)} इमेज अपलोड की गईं। बैच प्रोसेसिंग मोड सक्रिय।")
+            if 'original_image_list' not in st.session_state:
+                st.session_state.original_image_list = []
+                st.session_state.processed_image_list = []
+                for u_file in uploaded_files:
+                    img = Image.open(u_file).convert("RGB")
+                    st.session_state.original_image_list.append(img)
+                    st.session_state.processed_image_list.append(img.copy())
             
-            variant_main_text_style = main_text_style
-            if i > 0: # Randomize style for variants, but keep base style for first
-                variant_main_text_style = random.choice([
-                    "Normal", "Gradient", "Neon", "3D", "Gold", "Silver", "Rainbow", "Fire", "Ice",
-                    "Glowing Blue", "Glowing Red", "Glowing Green", "Textured", "Glitch", "Stroked",
-                    "Drop Shadow", "Long Shadow", "Outline Only", "Distorted", "Wavy"
-                ])
-            
-            # Re-fetch specific colors based on the chosen variant style
-            current_text_color = variant_main_text_color
-            current_grad_end_color = variant_gradient_end_color
-            current_depth_color = hex_to_rgb(st.session_state.get('main_depth_color', '#808080')) if i == 0 else (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-            current_glow_color = hex_to_rgb(st.session_state.get('main_glow_color', '#00FFFF')) if i == 0 else (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-            current_texture_path = texture_path if i == 0 else (random.choice([get_texture_path(t) for t in texture_options if t != "None"]) if texture_options else None)
-            current_shadow_color = hex_to_rgb(st.session_state.get('main_shadow_color', '#404040')) if i == 0 else (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-            current_shadow_offset = shadow_offset if i == 0 else (random.randint(5,20), random.randint(5,20))
-
-            edited_image = create_image_with_text(
-                original_image,
-                main_text,
-                main_text_font_name,
-                main_text_size,
-                current_text_color,
-                variant_outline_color,
-                main_text_outline_width,
-                variant_main_text_style,
-                current_grad_end_color,
-                current_depth_color,
-                current_glow_color,
-                current_texture_path,
-                current_shadow_color,
-                current_shadow_offset,
-                main_text_align,
-                custom_main_text_pos,
-                show_wishes,
-                wish_text if show_wishes else "",
-                wish_font_name if show_wishes else "OpenSans-Bold",
-                wish_text_color if show_wishes else (255,255,0),
-                wish_outline_color if show_wishes else (0,0,0),
-                wish_outline_width if show_wishes else 1,
-                wish_text_style if show_wishes else "Normal",
-                wish_gradient_end_color if show_wishes else None,
-                wish_text_depth_color if show_wishes else None,
-                wish_text_glow_color if show_wishes else None,
-                wish_texture_path if show_wishes else None,
-                wish_shadow_color if show_wishes else None,
-                wish_shadow_offset if show_wishes else (0,0),
-                wish_align if show_wishes else "Center",
-                show_date,
-                date_text_color if show_date else (173,216,230),
-                date_outline_color if show_date else (0,0,0),
-                date_outline_width if show_date else 1,
-                date_text_style if show_date else "Normal",
-                date_gradient_end_color if show_date else None,
-                date_text_depth_color if show_date else None,
-                date_text_glow_color if show_date else None,
-                date_texture_path if show_date else None,
-                date_shadow_color if show_date else None,
-                date_shadow_offset if show_date else (0,0),
-                date_align if show_date else "Center",
-                show_quote,
-                quote_text if show_quote else "",
-                quote_font_name if show_quote else "Roboto-Bold",
-                quote_text_color if show_quote else (0,255,0),
-                quote_outline_color if show_quote else (0,0,0),
-                quote_outline_width if show_quote else 1,
-                quote_text_style if show_quote else "Normal",
-                quote_gradient_end_color if show_quote else None,
-                quote_text_depth_color if show_quote else None,
-                quote_text_glow_color if show_quote else None,
-                quote_texture_path if show_quote else None,
-                quote_shadow_color if show_quote else None,
-                quote_shadow_offset if show_quote else (0,0),
-                quote_align if show_quote else "Center",
-                use_watermark,
-                watermark_logo_name,
-                watermark_position if use_watermark else "bottom-right",
-                use_coffee_pet,
-                coffee_pet_name,
-                coffee_pet_position if use_coffee_pet else "bottom-right",
-                apply_emoji,
-                selected_emoji if apply_emoji else "None",
-                emoji_size_factor if apply_emoji else 0.15,
-                emoji_random_placement if apply_emoji else False,
-                image_filter_type,
-                image_filter_strength,
-                brightness,
-                contrast,
-                saturation,
-                hue,
-                frame_type,
-                border_color,
-                border_width,
-                corner_radius,
-                decorative_frame_name,
-                background_solid_color,
-                fixed_width,
-                fixed_height
+            selected_image_idx = st.selectbox(
+                "संपादित करने के लिए इमेज चुनें:",
+                list(range(len(uploaded_files))),
+                format_func=lambda idx: f"Image {idx + 1}: {uploaded_files[idx].name}"
             )
-            with col2:
-                st.image(edited_image, use_column_width=True)
-                st.markdown(get_image_download_link(edited_image, f"variant_{i+1}", output_format, bulk_quality), unsafe_allow_html=True)
-    else:
-        edited_image = create_image_with_text(
-            original_image,
-            main_text,
-            main_text_font_name,
-            main_text_size,
-            main_text_color,
-            main_text_outline_color,
-            main_text_outline_width,
-            main_text_style,
-            gradient_end_color,
-            text_depth_color,
-            text_glow_color,
-            texture_path,
-            shadow_color,
-            shadow_offset,
-            main_text_align,
-            custom_main_text_pos,
-            show_wishes,
-            wish_text if show_wishes else "",
-            wish_font_name if show_wishes else "OpenSans-Bold",
-            wish_text_color if show_wishes else (255,255,0),
-            wish_outline_color if show_wishes else (0,0,0),
-            wish_outline_width if show_wishes else 1,
-            wish_text_style if show_wishes else "Normal",
-            wish_gradient_end_color if show_wishes else None,
-            wish_text_depth_color if show_wishes else None,
-            wish_text_glow_color if show_wishes else None,
-            wish_texture_path if show_wishes else None,
-            wish_shadow_color if show_wishes else None,
-            wish_shadow_offset if show_wishes else (0,0),
-            wish_align if show_wishes else "Center",
-            show_date,
-            date_text_color if show_date else (173,216,230),
-            date_outline_color if show_date else (0,0,0),
-            date_outline_width if show_date else 1,
-            date_text_style if show_date else "Normal",
-            date_gradient_end_color if show_date else None,
-            date_text_depth_color if show_date else None,
-            date_text_glow_color if show_date else None,
-            date_texture_path if show_date else None,
-            date_shadow_color if show_date else None,
-            date_shadow_offset if show_date else (0,0),
-            date_align if show_date else "Center",
-            show_quote,
-            quote_text if show_quote else "",
-            quote_font_name if show_quote else "Roboto-Bold",
-            quote_text_color if show_quote else (0,255,0),
-            quote_outline_color if show_quote else (0,0,0),
-            quote_outline_width if show_quote else 1,
-            quote_text_style if show_quote else "Normal",
-            quote_gradient_end_color if show_quote else None,
-            quote_text_depth_color if show_quote else None,
-            quote_text_glow_color if show_quote else None,
-            quote_texture_path if show_quote else None,
-            quote_shadow_color if show_quote else None,
-            quote_shadow_offset if show_quote else (0,0),
-            quote_align if show_quote else "Center",
-            use_watermark,
-            watermark_logo_name,
-            watermark_position if use_watermark else "bottom-right",
-            use_coffee_pet,
-            coffee_pet_name,
-            coffee_pet_position if use_coffee_pet else "bottom-right",
-            apply_emoji,
-            selected_emoji if apply_emoji else "None",
-            emoji_size_factor if apply_emoji else 0.15,
-            emoji_random_placement if apply_emoji else False,
-            image_filter_type,
-            image_filter_strength,
-            brightness,
-            contrast,
-            saturation,
-            hue,
-            frame_type,
-            border_color,
-            border_width,
-            corner_radius,
-            decorative_frame_name,
-            background_solid_color,
-            fixed_width,
-            fixed_height
+            st.session_state.original_image = st.session_state.original_image_list[selected_image_idx]
+            st.session_state.processed_image = st.session_state.processed_image_list[selected_image_idx]
+
+        else:
+            st.session_state.multi_images_mode = False
+            uploaded_file = uploaded_files[0]
+            if st.session_state.original_image is None or st.session_state.original_image.tobytes() != Image.open(uploaded_file).convert("RGB").tobytes():
+                st.session_state.original_image = Image.open(uploaded_file).convert("RGB")
+                st.session_state.processed_image = st.session_state.original_image.copy()
+                st.session_state.text_positions = {} # Clear text positions on new image upload
+                st.session_state.image_variants = []
+                st.success("इमेज सफलतापूर्वक अपलोड हुई!")
+    
+    if st.session_state.original_image:
+        st.subheader("इमेज एन्हांसमेंट")
+        enhance_type = st.selectbox("एन्हांसमेंट प्रकार", ["None", "Brightness", "Contrast", "Sharpness", "Color"])
+        enhance_factor = st.slider("एन्हांसमेंट फैक्टर", 0.0, 2.0, 1.0, 0.05) if enhance_type != "None" else 1.0
+
+        st.subheader("इमेज फिल्टर्स")
+        filter_type = st.selectbox("फ़िल्टर प्रकार", ["None", "BLUR", "CONTOUR", "EMBOSS", "SHARPEN", "SMOOTH", "DETAIL", "EDGE_ENHANCE", "FIND_EDGES"])
+        
+        st.subheader("कलर इफेक्ट्स")
+        color_effect = st.selectbox("कलर इफेक्ट", ["None", "Grayscale", "Sepia", "Invert", "Solarize", "Posterize", "Colorize (Random)"])
+        
+        st.subheader("इमेज ट्रांसफॉर्मेशन")
+        transform_type = st.selectbox("ट्रांसफॉर्मेशन प्रकार", ["None", "Rotate", "Flip (Vertical)", "Mirror (Horizontal)"])
+        rotation_angle = st.slider("घुमाव का कोण", 0, 360, 0, 5) if transform_type == "Rotate" else 0
+
+        crop_ratio_options = {"None": None, "3:4": 3/4, "4:3": 4/3, "1:1 (Square)": 1/1, "16:9": 16/9, "9:16": 9/16}
+        selected_crop_ratio_label = st.selectbox("स्मार्ट क्रॉप अनुपात", list(crop_ratio_options.keys()))
+        crop_target_ratio = crop_ratio_options[selected_crop_ratio_label]
+        
+        if st.button("इमेज पर बदलाव लागू करें"):
+            current_img = st.session_state.original_image.copy()
+            if enhance_type != "None":
+                current_img = apply_image_enhancement(current_img, enhance_type, enhance_factor)
+            if filter_type != "None":
+                current_img = apply_image_filter(current_img, filter_type)
+            if color_effect != "None":
+                current_img = apply_color_effect(current_img, color_effect)
+            if transform_type != "None":
+                current_img = apply_image_transform(current_img, transform_type, rotation_angle)
+            if crop_target_ratio:
+                current_img = smart_crop(current_img, crop_target_ratio)
+            
+            save_image_to_session(current_img)
+            st.success("इमेज पर बदलाव लागू हो गए हैं!")
+            st.session_state.text_positions = {} # Reset text positions on major image changes
+            st.rerun() # Rerun to update the main display
+
+        # Background Removal (Placeholder)
+        st.subheader("बैकग्राउंड रिमूवर")
+        if st.button("बैकग्राउंड हटाएँ (प्रयोगात्मक)"):
+            if get_current_image():
+                st.session_state.processed_image = remove_background_placeholder(get_current_image())
+                st.success("बैकग्राउंड हटाने का प्रयास किया गया।")
+                st.rerun()
+            else:
+                st.warning("बैकग्राउंड हटाने के लिए पहले एक इमेज अपलोड करें।")
+        
+        st.subheader("बैच प्रोसेसिंग")
+        if st.session_state.multi_images_mode and st.session_state.processed_image_list:
+            st.info("आपने मल्टीपल इमेज अपलोड की हैं।")
+            st.markdown("---")
+            st.subheader("वर्तमान इमेज पर लागू इफेक्ट्स:")
+            st.write(f"इन्हांसमेंट: {enhance_type} (Factor: {enhance_factor})")
+            st.write(f"फ़िल्टर: {filter_type}")
+            st.write(f"कलर इफेक्ट: {color_effect}")
+            st.write(f"ट्रांसफॉर्मेशन: {transform_type} (Angle: {rotation_angle})")
+            st.write(f"क्रॉप अनुपात: {selected_crop_ratio_label}")
+            
+            if st.button("सभी इमेजेस पर लागू करें और डाउनलोड करें"):
+                if st.session_state.original_image_list:
+                    output_zip = io.BytesIO()
+                    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                        for i, original_img in enumerate(st.session_state.original_image_list):
+                            progress_bar = st.progress(0, text=f"इमेज {i+1}/{len(st.session_state.original_image_list)} प्रोसेस हो रही है...")
+                            processed_batch_img = original_img.copy()
+
+                            if enhance_type != "None":
+                                processed_batch_img = apply_image_enhancement(processed_batch_img, enhance_type, enhance_factor)
+                            if filter_type != "None":
+                                processed_batch_img = apply_image_filter(processed_batch_img, filter_type)
+                            if color_effect != "None":
+                                processed_batch_img = apply_color_effect(processed_batch_img, color_effect)
+                            if transform_type != "None":
+                                processed_batch_img = apply_image_transform(processed_batch_img, transform_type, rotation_angle)
+                            if crop_target_ratio:
+                                processed_batch_img = smart_crop(processed_batch_img, crop_target_ratio)
+                            
+                            # Integrate text/overlay features for batch processing if needed (complex, currently not implemented for batch)
+                            # This part would require careful state management for each image's text/overlay.
+                            # For simplicity, batch applies only image adjustments.
+
+                            img_byte_arr = io.BytesIO()
+                            processed_batch_img.save(img_byte_arr, format="PNG")
+                            zf.writestr(f"processed_image_{i+1}.png", img_byte_arr.getvalue())
+                            progress_bar.progress((i + 1) / len(st.session_state.original_image_list), text=f"इमेज {i+1}/{len(st.session_state.original_image_list)} प्रोसेस हो रही है...")
+                    st.success("सभी इमेजेस सफलतापूर्वक प्रोसेस की गईं!")
+                    st.download_button(
+                        label="प्रोसेस्ड इमेजेस डाउनलोड करें (ZIP)",
+                        data=output_zip.getvalue(),
+                        file_name="processed_images.zip",
+                        mime="application/zip"
+                    )
+                else:
+                    st.warning("बैच प्रोसेसिंग के लिए कोई इमेज अपलोड नहीं की गई है।")
+        else:
+            if st.button("सभी इमेजेस रीसेट करें"):
+                clear_all()
+    
+# --- MAIN CONTENT AREA ---
+st.markdown("<div class='main-content'>", unsafe_allow_html=True) # Custom class for potential right alignment
+
+col1, col2 = st.columns([3, 2]) # Image preview on left, Text/Overlay controls on right
+
+with col1:
+    st.subheader("आपकी इमेज प्रीव्यू")
+    current_image = get_current_image()
+    if current_image:
+        st.image(current_image, use_column_width=True, caption="संपादित इमेज")
+        
+        # Download button for single image
+        buf = io.BytesIO()
+        current_image.save(buf, format="PNG")
+        byte_im = buf.getvalue()
+        st.download_button(
+            label="डाउनलोड इमेज",
+            data=byte_im,
+            file_name="edited_image.png",
+            mime="image/png"
         )
-        with col2:
-            st.image(edited_image, use_column_width=True)
-            st.markdown(get_image_download_link(edited_image, "final_image", output_format, bulk_quality), unsafe_allow_html=True)
-elif not uploaded_file:
-    st.info("👆 Please upload an image to start editing!")
-else:
-    st.warning("Please provide main text to generate an image.")
+    else:
+        st.info("कृपया शुरुआत करने के लिए साइडबार से एक इमेज अपलोड करें।")
+        # Suggest random image if no image is uploaded
+        if st.button("रैंडम बैकग्राउंड के साथ शुरू करें"):
+            random_bg_path = get_random_background_path()
+            if random_bg_path:
+                try:
+                    st.session_state.original_image = Image.open(random_bg_path).convert("RGB")
+                    st.session_state.processed_image = st.session_state.original_image.copy()
+                    st.success("रैंडम बैकग्राउंड इमेज अपलोड हुई!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"रैंडम बैकग्राउंड लोड करने में त्रुटि: {e}")
+            else:
+                st.warning("रैंडम बैकग्राउंड उपलब्ध नहीं हैं। कृपया 'assets/backgrounds' फोल्डर में इमेज जोड़ें।")
+
+
+with col2: # Right-side controls (Gemini Features)
+    st.subheader("✍️ टेक्स्ट और ओवरले प्रभाव")
+
+    with st.expander("टेक्स्ट जोड़ें और संपादित करें", expanded=True):
+        text_input = st.text_area("टेक्स्ट दर्ज करें", value=st.session_state.get('last_text_input', ""), key="text_input")
+        st.session_state.last_text_input = text_input # Save for persistence
+        
+        col_font, col_size = st.columns(2)
+        with col_font:
+            font_files = list_files(FONT_DIR, [".ttf", ".otf"])
+            font_options = ["Poppins-Bold", "OpenSans-Bold", "Roboto-Bold", "Arial-Bold", "TimesNewRoman-Bold", "DancingScript-Bold", "Montserrat-Bold", "IndieFlower", "Pacifico", "Lobster", "PermanentMarker"] + [f.split('.')[0] for f in font_files if f.split('.')[0] not in ["Poppins-Bold", "OpenSans-Bold", "Roboto-Bold", "Arial-Bold", "TimesNewRoman-Bold", "DancingScript-Bold", "Montserrat-Bold", "IndieFlower", "Pacifico", "Lobster", "PermanentMarker"]]
+            selected_font_name = st.selectbox("फ़ॉन्ट चुनें", font_options, index=font_options.index("Poppins-Bold") if "Poppins-Bold" in font_options else 0)
+            custom_font_path = get_font_path(selected_font_name) if selected_font_name in ["Poppins-Bold", "OpenSans-Bold", "Roboto-Bold", "Arial-Bold", "TimesNewRoman-Bold", "DancingScript-Bold", "Montserrat-Bold", "IndieFlower", "Pacifico", "Lobster", "PermanentMarker"] else os.path.join(FONT_DIR, selected_font_name + ".ttf")
+
+            if st.button("रैंडम फ़ॉन्ट"):
+                random_font = get_random_font_path()
+                if random_font:
+                    st.session_state.random_font_path = random_font
+                    st.info(f"रैंडम फ़ॉन्ट: {os.path.basename(random_font)}")
+                else:
+                    st.warning("कोई कस्टम फ़ॉन्ट नहीं मिला। 'assets/fonts' में फ़ॉन्ट जोड़ें।")
+
+            font_to_use = st.session_state.get('random_font_path') if st.session_state.get('random_font_path') else custom_font_path
+            try:
+                if font_to_use and os.path.exists(font_to_use):
+                    font_obj = ImageFont.truetype(font_to_use, get_font_size_for_image(current_image.width if current_image else 1000))
+                else:
+                    font_obj = ImageFont.load_default()
+            except Exception:
+                st.warning("चयनित फ़ॉन्ट लोड करने में त्रुटि। डिफ़ॉल्ट फ़ॉन्ट का उपयोग किया जा रहा है।")
+                font_obj = ImageFont.load_default()
+
+        with col_size:
+            font_size = st.slider("फ़ॉन्ट साइज़", 10, 200, 50)
+            font_obj = ImageFont.truetype(font_to_use, font_size) if font_to_use and os.path.exists(font_to_use) else ImageFont.load_default()
+
+
+        text_color = st.color_picker("टेक्स्ट कलर", "#FFFFFF")
+        text_align = st.selectbox("टेक्स्ट अलाइनमेंट", ["center", "left", "right"])
+
+        text_effect = st.selectbox("टेक्स्ट इफेक्ट", list(TEXT_EFFECT_FUNCTIONS.keys()))
+
+        outline_color = st.color_picker("आउटलाइन कलर", "#000000")
+        outline_width = st.slider("आउटलाइन चौड़ाई", 0, 10, 2)
+
+        if text_effect == "Gradient":
+            gradient_start_color = st.color_picker("ग्रेडिएंट स्टार्ट कलर", rgb_to_hex(get_random_bright_color()))
+            gradient_end_color = st.color_picker("ग्रेडिएंट एंड कलर", rgb_to_hex(get_random_bright_color()))
+        if text_effect == "Neon Glow":
+            glow_color = st.color_picker("ग्लो कलर", rgb_to_hex(get_random_bright_color()))
+        if text_effect == "3D":
+            depth_color = st.color_picker("डेप्थ कलर", "#555555")
+            depth_amount = st.slider("डेप्थ मात्रा", 1, 20, 5)
+        if text_effect == "Textured":
+            texture_files = list_files(TEXTURE_DIR, [".png", ".jpg", ".jpeg"])
+            texture_options = ["None"] + [f.split('.')[0] for f in texture_files]
+            selected_texture_name = st.selectbox("टेक्सचर चुनें", texture_options)
+            texture_path_selected = get_texture_path(selected_texture_name) if selected_texture_name != "None" else None
+        
+        if st.button("टेक्स्ट रैंडमाइज़ करें"):
+            st.session_state.random_text_color = rgb_to_hex(get_random_bright_color())
+            st.session_state.random_outline_color = rgb_to_hex(get_random_bright_color())
+            st.session_state.random_glow_color = rgb_to_hex(get_random_bright_color())
+            st.session_state.random_gradient_start = rgb_to_hex(get_random_bright_color())
+            st.session_state.random_gradient_end = rgb_to_hex(get_random_bright_color())
+            st.session_state.random_depth_color = rgb_to_hex(get_random_bright_color())
+            st.session_state.random_font_path = get_random_font_path()
+            st.session_state.random_font_size = random.randint(30, 150)
+            st.rerun() # Rerun to apply random values to widgets
+
+        # Apply random values if they exist in session state
+        text_color = st.session_state.get('random_text_color', text_color)
+        outline_color = st.session_state.get('random_outline_color', outline_color)
+        glow_color = st.session_state.get('random_glow_color', glow_color)
+        gradient_start_color = st.session_state.get('random_gradient_start', gradient_start_color)
+        gradient_end_color = st.session_state.get('random_gradient_end', gradient_end_color)
+        depth_color = st.session_state.get('random_depth_color', depth_color)
+        font_size = st.session_state.get('random_font_size', font_size)
+
+        # Quote Maker integration
+        st.markdown("---")
+        st.subheader("कोट मेकर")
+        greeting_type = st.selectbox("कोट/शुभकामना का प्रकार", [
+            "None", "Good Morning", "Good Afternoon", "Good Evening", "Good Night",
+            "Birthday Wish", "Anniversary Wish", "Motivation Quote", "Inspirational Quote"
+        ])
+        if greeting_type != "None" and st.button(f"{greeting_type} के लिए कोट जनरेट करें"):
+            generated_quote = get_random_wish(greeting_type)
+            st.session_state.text_input_for_quote = generated_quote # Update text input directly
+            st.session_state.last_text_input = generated_quote # Also save for persistence
+            st.info(f"जनरेटेड कोट: {generated_quote}")
+            st.rerun() # Rerun to update the text_area
+
+        # Use the generated quote if available
+        text_to_render = st.session_state.get('text_input_for_quote', text_input)
+        # Clear the temporary state after using it to avoid re-applying on next interaction
+        if 'text_input_for_quote' in st.session_state:
+            del st.session_state.text_input_for_quote
+
+        # Text Position
+        st.markdown("---")
+        st.subheader("टेक्स्ट पोजीशनिंग")
+        text_pos_type = st.radio("टेक्स्ट पोजीशन", ["Manual", "Top-Left", "Top-Right", "Center", "Bottom-Left", "Bottom-Right", "Random"])
+        x_pos, y_pos = st.session_state.text_positions.get('main_text', (50, 50))
+        if text_pos_type == "Manual":
+            x_pos = st.slider("X पोजीशन", 0, current_image.width if current_image else 1000, x_pos)
+            y_pos = st.slider("Y पोजीशन", 0, current_image.height if current_image else 1000, y_pos)
+        
+        if st.button("टेक्स्ट लागू करें"):
+            if current_image and text_to_render:
+                processed_img = current_image.copy()
+                draw = ImageDraw.Draw(processed_img)
+
+                wrapping_width = get_wrapping_width(processed_img.width, font_size)
+                wrapped_text = textwrap.fill(text_to_render, width=wrapping_width)
+
+                # Get the function for the selected effect
+                effect_function = TEXT_EFFECT_FUNCTIONS.get(text_effect, draw_text_with_outline)
+
+                # Prepare arguments based on effect
+                kwargs = {
+                    "draw": draw,
+                    "text": wrapped_text,
+                    "font": font_obj,
+                    "position": (x_pos, y_pos),
+                    "fill_color": hex_to_rgb(text_color),
+                    "outline_color": hex_to_rgb(outline_color),
+                    "outline_width": outline_width,
+                    "align": text_align
+                }
+
+                if text_effect == "Gradient":
+                    kwargs["start_color"] = hex_to_rgb(gradient_start_color)
+                    kwargs["end_color"] = hex_to_rgb(gradient_end_color)
+                elif text_effect == "Neon Glow":
+                    kwargs["glow_color"] = hex_to_rgb(glow_color)
+                elif text_effect == "3D":
+                    kwargs["depth_color"] = hex_to_rgb(depth_color)
+                    kwargs["depth"] = depth_amount
+                elif text_effect == "Textured":
+                    if texture_path_selected:
+                        kwargs["texture_path"] = texture_path_selected
+                    else:
+                        st.warning("टेक्सचर्ड इफेक्ट के लिए कोई टेक्सचर नहीं चुना गया है।")
+                        # Fallback to normal text if texture is not selected
+                        effect_function = draw_text_with_outline
+                        kwargs["fill_color"] = hex_to_rgb(text_color)
+                elif text_effect == "Stroked":
+                    kwargs["stroke_color"] = hex_to_rgb(outline_color) # Outline acts as stroke
+                    kwargs["stroke_width"] = outline_width
+
+                # Handle dynamic positioning for non-manual types
+                if text_pos_type != "Manual":
+                    text_w, text_h = get_text_size(draw, wrapped_text, font_obj)
+                    img_w, img_h = processed_img.size
+                    
+                    if text_pos_type == "Top-Left":
+                        x_pos, y_pos = 0, 0
+                    elif text_pos_type == "Top-Right":
+                        x_pos, y_pos = img_w - text_w, 0
+                    elif text_pos_type == "Center":
+                        x_pos, y_pos = (img_w - text_w) // 2, (img_h - text_h) // 2
+                    elif text_pos_type == "Bottom-Left":
+                        x_pos, y_pos = 0, img_h - text_h
+                    elif text_pos_type == "Bottom-Right":
+                        x_pos, y_pos = img_w - text_w, img_h - text_h
+                    elif text_pos_type == "Random":
+                        x_pos = random.randint(0, max(0, img_w - text_w))
+                        y_pos = random.randint(0, max(0, img_h - text_h))
+                    kwargs["position"] = (x_pos, y_pos)
+
+                # Call the effect function
+                effect_function(**kwargs)
+                
+                st.session_state.text_positions['main_text'] = (x_pos, y_pos) # Save position
+                save_image_to_session(processed_img)
+                st.success("टेक्स्ट सफलतापूर्वक जोड़ा गया!")
+                st.rerun()
+            else:
+                st.warning("कृपया पहले एक इमेज अपलोड करें और टेक्स्ट दर्ज करें।")
+
+    with st.expander("इमेज ओवरले और फ्रेम्स", expanded=True):
+        st.subheader("लोगो ओवरले")
+        logo_files = list_files(LOGO_DIR, [".png", ".jpg"])
+        logo_options = ["None"] + [f.split('.')[0] for f in logo_files]
+        selected_logo_name = st.selectbox("लोगो चुनें", logo_options)
+        logo_path_selected = get_logo_path(selected_logo_name) if selected_logo_name != "None" else None
+
+        st.subheader("पेट ओवरले")
+        pet_files = list_files(PET_DIR, [".png", ".jpg"])
+        pet_options = ["None"] + [f.split('.')[0] for f in pet_files]
+        selected_pet_name = st.selectbox("पेट इमेज चुनें", pet_options)
+        pet_path_selected = get_pet_path(selected_pet_name) if selected_pet_name != "None" else None
+
+        st.subheader("इमोजी ओवरले")
+        emoji_files = list_files(EMOJI_DIR, [".png"])
+        emoji_options = ["None"] + [f.split('.')[0] for f in emoji_files]
+        selected_emoji_name = st.selectbox("इमोजी चुनें", emoji_options)
+        emoji_path_selected = get_emoji_path(selected_emoji_name) if selected_emoji_name != "None" else None
+
+        # General overlay controls
+        overlay_size_factor = st.slider("ओवरले साइज़ फैक्टर", 0.1, 2.0, 0.5, 0.05)
+        overlay_opacity = st.slider("ओवरले ओपेसिटी", 0.1, 1.0, 1.0, 0.05)
+        overlay_pos_type = st.radio("ओवरले पोजीशन", ["Center", "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right", "Random"])
+        overlay_x_offset = st.slider("ओवरले X ऑफसेट", -200, 200, 0)
+        overlay_y_offset = st.slider("ओवरले Y ऑफसेट", -200, 200, 0)
+
+        if st.button("ओवरले लागू करें"):
+            if current_image:
+                processed_img = current_image.copy()
+                if logo_path_selected:
+                    processed_img = add_image_overlay(processed_img, logo_path_selected, overlay_pos_type, overlay_x_offset, overlay_y_offset, overlay_size_factor, overlay_opacity)
+                if pet_path_selected:
+                    processed_img = add_image_overlay(processed_img, pet_path_selected, overlay_pos_type, overlay_x_offset, overlay_y_offset, overlay_size_factor, overlay_opacity)
+                if emoji_path_selected:
+                    processed_img = add_image_overlay(processed_img, emoji_path_selected, overlay_pos_type, overlay_x_offset, overlay_y_offset, overlay_size_factor, overlay_opacity)
+                
+                save_image_to_session(processed_img)
+                st.success("ओवरले सफलतापूर्वक जोड़े गए!")
+                st.rerun()
+            else:
+                st.warning("ओवरले जोड़ने के लिए पहले एक इमेज अपलोड करें।")
+
+        st.markdown("---")
+        st.subheader("फ्रेम/बॉर्डर")
+        frame_files = list_files(FRAMES_DIR, [".png", ".jpg"])
+        frame_options = ["None"] + [f.split('.')[0] for f in frame_files]
+        selected_frame_name = st.selectbox("फ्रेम चुनें", frame_options)
+        frame_path_selected = get_frame_path(selected_frame_name) if selected_frame_name != "None" else None
+        
+        frame_opacity = st.slider("फ्रेम ओपेसिटी", 0.1, 1.0, 1.0, 0.05, key="frame_opacity")
+
+        if st.button("फ्रेम लागू करें"):
+            if current_image and frame_path_selected:
+                processed_img = current_image.copy()
+                processed_img = apply_frame(processed_img, frame_path_selected, blend_opacity=frame_opacity)
+                save_image_to_session(processed_img)
+                st.success("फ्रेम सफलतापूर्वक लागू हुआ!")
+                st.rerun()
+            else:
+                st.warning("फ्रेम लागू करने के लिए पहले एक इमेज अपलोड करें और एक फ्रेम चुनें।")
+
+st.markdown("</div>", unsafe_allow_html=True) # Close main-content div
+
+# --- Footer ---
+st.markdown("""
+    <div class='fixed-bottom'>
+        <p style='color: #888; font-size: 0.8em; margin: 0;'>
+            Developed with ❤️ using Streamlit, Deepseek features, and Gemini enhancements.
+        </p>
+    </div>
+""", unsafe_allow_html=True)
