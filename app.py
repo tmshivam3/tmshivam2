@@ -390,17 +390,15 @@ def get_random_color() -> Tuple[int, int, int]:
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
 def get_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Returns a list of gradient colors (white + one random color)"""
-    base_colors = [
-        (255, 0, 0),    # Red
-        (0, 255, 0),    # Green
-        (0, 0, 255),    # Blue
-        (255, 255, 0),  # Yellow
-        (255, 0, 255),  # Magenta
-        (0, 255, 255),  # Cyan
-        (255, 165, 0)   # Orange
-    ]
-    return [(255, 255, 255), random.choice(base_colors)]
+    """Returns a list of gradient colors (white + any truly random color)"""
+    white = (255, 255, 255)
+    random_color = (
+        random.randint(0, 255),
+        random.randint(0, 255),
+        random.randint(0, 255)
+    )
+    return [white, random_color]
+
 
 def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
     """Create a gradient mask image"""
