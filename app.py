@@ -637,31 +637,40 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         
     elif effect_type == 'rainbow':
         # Draw rainbow effect
-        for i, char in enumerate(text):
+        for i in range(len(text)):
+            char = text[i]
             char_color = (
                 int(255 * abs(math.sin(i * 0.3))),
                 int(255 * abs(math.sin(i * 0.3 + 2))),
                 int(255 * abs(math.sin(i * 0.3 + 4)))
             )
-            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=char_color)
+            char_width, _ = get_text_size(draw, char, font)
+            draw.text((x, y), char, font=font, fill=char_color)
+            x += char_width
             
     elif effect_type == 'fire':
         # Fire effect (orange-yellow gradient)
-        for i, char in enumerate(text):
+        for i in range(len(text)):
+            char = text[i]
             ratio = i / len(text)
             r = int(255 * ratio + 200 * (1 - ratio))
             g = int(100 * ratio + 50 * (1 - ratio))
             b = int(50 * ratio)
-            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=(r, g, b))
+            char_width, _ = get_text_size(draw, char, font)
+            draw.text((x, y), char, font=font, fill=(r, g, b))
+            x += char_width
             
     elif effect_type == 'ice':
         # Ice effect (blue-cyan gradient)
-        for i, char in enumerate(text):
+        for i in range(len(text)):
+            char = text[i]
             ratio = i / len(text)
             r = int(100 * ratio)
             g = int(200 * ratio + 200 * (1 - ratio))
             b = int(255 * ratio + 200 * (1 - ratio))
-            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=(r, g, b))
+            char_width, _ = get_text_size(draw, char, font)
+            draw.text((x, y), char, font=font, fill=(r, g, b))
+            x += char_width
             
     elif effect_type == 'glowing_blue':
         # Blue glow effect
