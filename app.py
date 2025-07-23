@@ -390,7 +390,7 @@ def get_random_color() -> Tuple[int, int, int]:
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
 def get_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Return white + bright or two vibrant colors randomly"""
+    """Return white + bright color combination (always unique)"""
     import colorsys
     def random_bright_color():
         h = random.random()
@@ -398,6 +398,8 @@ def get_gradient_colors() -> List[Tuple[int, int, int]]:
         v = 0.9 + random.random() * 0.1
         rgb = colorsys.hsv_to_rgb(h, s, v)
         return tuple(int(x * 255) for x in rgb)
+
+    return [(255, 255, 255), random_bright_color()]
 
     if random.random() < 0.6:
         return [(255, 255, 255), random_bright_color()]
