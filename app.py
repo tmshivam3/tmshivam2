@@ -975,28 +975,15 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         
     elif effect_type == 'space':
         # Space effect with stars
-    elif effect_type == 'gradient':
-    colors = get_gradient_colors()  # white + random color
-    gradient = create_gradient_mask(text_width, text_height, colors)
-    gradient_text = Image.new('RGBA', (text_width, text_height))
-    
-    temp_img = Image.new('RGBA', (text_width, text_height))
-    temp_draw = ImageDraw.Draw(temp_img)
-    temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-    gradient_text.paste(gradient, (0, 0), temp_img)
-
-    # Draw black outline
-    outline_size = effect_settings.get('outline_size', 2)
-    for ox in range(-outline_size, outline_size + 1):
-        for oy in range(-outline_size, outline_size + 1):
-            if ox != 0 or oy != 0:
-                draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0))
-
-    # Properly draw the gradient with color
-    img_with_text = Image.new("RGBA", draw.im.size)
-    img_with_text.paste(gradient_text, (x, y), temp_img)
-    draw.im.paste(img_with_text, (0, 0), img_with_text)
-
+        # Draw text
+        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        
+        # Add stars
+        for _ in range(50):
+            star_x = random.randint(x, x + text_width)
+            star_y = random.randint(y, y + text_height)
+            size = random.randint(1, 3)
+            draw.ellipse([(star_x, star_y), (star_x+size, star_y+size)], fill=(255, 255, 255))
         
     else:  # Default effect (white with black outline)
         shadow_offset = 3
