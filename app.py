@@ -1,4 +1,11 @@
 
+def get_dominant_color(image: Image.Image) -> Tuple[int, int, int]:
+    """Get the average color of the background image."""
+    small_img = image.resize((1, 1))
+    return small_img.getpixel((0, 0))
+
+
+
 def create_50_50_gradient(width, height, colors):
     """Create 50% white and 50% colored gradient from left to right."""
     base = Image.new('RGB', (width, height))
