@@ -390,7 +390,7 @@ def get_random_color() -> Tuple[int, int, int]:
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
 def get_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Always return white + random bright color (never repeat same combo)"""
+    """Return white + bright or two vibrant colors randomly"""
     import colorsys
     def random_bright_color():
         h = random.random()
@@ -399,9 +399,9 @@ def get_gradient_colors() -> List[Tuple[int, int, int]]:
         rgb = colorsys.hsv_to_rgb(h, s, v)
         return tuple(int(x * 255) for x in rgb)
 
-    return [(255, 255, 255), random_bright_color()]
+    if random.random() < 0.6:
+        return [(255, 255, 255), random_bright_color()]
     else:
-        # 40% chance: 2 vibrant colors
         return [random_bright_color(), random_bright_color()]
 
 def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
