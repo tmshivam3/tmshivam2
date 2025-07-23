@@ -1,3 +1,21 @@
+
+def create_50_50_gradient(width, height, colors):
+    """Create 50% white and 50% colored gradient from left to right."""
+    base = Image.new('RGB', (width, height))
+    half = width // 2
+    for x in range(width):
+        if x < half:
+            r, g, b = colors[0]
+        else:
+            ratio = (x - half) / (width - half - 1)
+            r = int(colors[0][0] * (1 - ratio) + colors[1][0] * ratio)
+            g = int(colors[0][1] * (1 - ratio) + colors[1][1] * ratio)
+            b = int(colors[0][2] * (1 - ratio) + colors[1][2] * ratio)
+        for y in range(height):
+            base.putpixel((x, y), (r, g, b))
+    return base
+
+
 def get_gradient_colors():
     """Return white + one fixed bright color (chosen randomly from list)"""
     fixed_colors = [
