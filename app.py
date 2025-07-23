@@ -1,4 +1,4 @@
-def get_gradient_colors() -> List[Tuple[int, int, int]]:
+def get_gradient_colors():
     """Return white + bright color combination (always unique)"""
     import colorsys
     def random_bright_color():
