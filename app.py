@@ -1,3 +1,15 @@
+def get_gradient_colors() -> List[Tuple[int, int, int]]:
+    """Return white + bright color combination (always unique)"""
+    import colorsys
+    def random_bright_color():
+        h = random.random()
+        s = 0.8 + random.random() * 0.2
+        v = 0.9 + random.random() * 0.1
+        rgb = colorsys.hsv_to_rgb(h, s, v)
+        return tuple(int(x * 255) for x in rgb)
+
+    return [(255, 255, 255), random_bright_color()]
+
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
 import os
