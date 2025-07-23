@@ -970,7 +970,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                     draw.text((x+ox, y+oy), text, font=font, fill=(255, 255, 255))
         
         
-        # Gradient fill
+        
+        # Gradient fill with stroke
         import colorsys
         def random_bright_color():
             h = random.random()
@@ -984,10 +985,20 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         bubble_text = Image.new('RGBA', (text_width, text_height))
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
+
+        # Draw stroke (black outline)
+        outline_range = 2
+        for ox in range(-outline_range, outline_range + 1):
+            for oy in range(-outline_range, outline_range + 1):
+                if ox != 0 or oy != 0:
+                    temp_draw.text((ox, oy), text, font=font, fill=(0, 0, 0, 255))
+
+        # Draw center white fill for gradient mask
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
         bubble_text.paste(gradient, (0, 0), temp_img)
 
         draw.bitmap((x, y), bubble_text.convert('L'), fill=None)
+    
     
         
     elif effect_type == 'space':
