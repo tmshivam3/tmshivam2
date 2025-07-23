@@ -652,8 +652,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
             r = int(255 * ratio + 200 * (1 - ratio))
             g = int(100 * ratio + 50 * (1 - ratio))
             b = int(50 * ratio)
-            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=(r, g, b))
-            
+            draw.text((x + i * (text_width // len(text)), y), char, font=font, fill=(r, g, b))
+        
     elif effect_type == 'ice':
         # Ice effect (blue-cyan gradient)
         for i, char in enumerate(text):
