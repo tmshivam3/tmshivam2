@@ -13,7 +13,7 @@ import colorsys
 import traceback
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="⚡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
+st.set_page_config(page_title="âš¡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
 
 # Custom CSS for professional theme
 st.markdown("""
@@ -761,7 +761,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 text_y = 10  # Moved text higher
             elif settings['text_position'] == "bottom_center":
                 text_x = (img.width - text_width) // 2
-                text_y = img.height - text_height - 50  # Moved text higher
+                text_y = img.height - text_height - 100  # Adjusted to prevent cropping
             else:
                 max_text_x = max(20, img.width - text_width - 20)
                 text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
@@ -927,16 +927,16 @@ if 'watermark_groups' not in st.session_state:
 st.markdown("""
     <div class='header-container'>
         <h1 style='text-align: center; color: #ffcc00; margin: 0;'>
-            ⚡ ULTRA PRO MAX IMAGE EDITOR
+            âš¡ ULTRA PRO MAX IMAGE EDITOR
         </h1>
         <p style='text-align: center; color: #ffffff;'>Professional Image Processing Tool</p>
     </div>
 """, unsafe_allow_html=True)
 
-uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_images = st.file_uploader("ðŸ“ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 with st.sidebar:
-    st.markdown("### ⚙️ ULTRA PRO SETTINGS")
+    st.markdown("### âš™ï¸ ULTRA PRO SETTINGS")
     
     greeting_type = st.selectbox("Greeting Type", 
                                ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
@@ -966,7 +966,7 @@ with st.sidebar:
     
     outline_size = st.slider("Text Outline Size", 1, 5, 2)
     
-    st.markdown("### 🎨 MANUAL TEXT POSITIONING")
+    st.markdown("### ðŸŽ¨ MANUAL TEXT POSITIONING")
     custom_position = st.checkbox("Enable Manual Positioning", value=False)
     if custom_position:
         text_x = st.slider("Text X Position", 0, 1000, 100)
@@ -996,7 +996,7 @@ with st.sidebar:
     show_quote = st.checkbox("Add Quote", value=False)
     if show_quote:
         quote_size = st.slider("Quote Text Size", 10, 100, 40)
-        st.markdown("### ✨ QUOTE DATABASE")
+        st.markdown("### âœ¨ QUOTE DATABASE")
         st.markdown("<div class='quote-display'>" + get_random_quote() + "</div>", unsafe_allow_html=True)
         if st.button("Refresh Quote"):
             st.experimental_rerun()
@@ -1025,7 +1025,7 @@ with st.sidebar:
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
     st.markdown("---")
-    st.markdown("### 🎭 PRO EFFECTS")
+    st.markdown("### ðŸŽ­ PRO EFFECTS")
     apply_vignette = st.checkbox("Vignette Effect", value=False)
     apply_sketch = st.checkbox("Pencil Sketch", value=False)
     apply_cartoon = st.checkbox("Cartoon Effect", value=False)
@@ -1034,7 +1034,7 @@ with st.sidebar:
     apply_snow = st.checkbox("Snow Effect", value=False)
     
     st.markdown("---")
-    st.markdown("### ☕🐾 PRO OVERLAYS")
+    st.markdown("### â˜•ðŸ¾ PRO OVERLAYS")
     use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
     if use_coffee_pet:
         pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
@@ -1051,17 +1051,17 @@ with st.sidebar:
     else:
         selected_pet = None
             
-    st.markdown("### 😊 EMOJI STICKERS")
+    st.markdown("### ðŸ˜Š EMOJI STICKERS")
     apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
     if apply_emoji:
-        emojis = st.multiselect("Select Emojis", ["😊", "👍", "❤️", "🌟", "🎉", "🔥", "🌈", "✨", "💯"], default=["😊", "❤️", "🌟"])
+        emojis = st.multiselect("Select Emojis", ["ðŸ˜Š", "ðŸ‘", "â¤ï¸", "ðŸŒŸ", "ðŸŽ‰", "ðŸ”¥", "ðŸŒˆ", "âœ¨", "ðŸ’¯"], default=["ðŸ˜Š", "â¤ï¸", "ðŸŒŸ"])
     else:
         emojis = []
     
-    st.markdown("### ⚡ BULK PROCESSING")
+    st.markdown("### âš¡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
     
-if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True):
+if st.button("âœ¨ ULTRA PRO GENERATE", key="generate", use_container_width=True):
     if uploaded_images:
         with st.spinner("Processing images with ULTRA PRO quality..."):
             processed_images = []
@@ -1185,7 +1185,11 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'use_coffee_pet': use_coffee_pet,
                                 'pet_size': pet_size if use_coffee_pet else 0.3,
                                 'selected_pet': selected_pet,
-                                'text_effect': text_effect,
+                                'text_effect': random.choice([
+        "White Only", "White with Black Outline", "Gradient", "Neon", "3D", 
+        "Colorful", "Gold", "Silver", "Rainbow", "Fire", "Ice", 
+        "Glowing Blue", "Glowing Red", "Glowing Green"
+    ]) if text_effect == "Full Random" else text_effect,
                                 'custom_position': custom_position,
                                 'text_x': text_x if custom_position else 100,
                                 'text_y': text_y if custom_position else 100,
@@ -1215,7 +1219,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
             st.session_state.generated_images = processed_images + variant_images
             
             if st.session_state.generated_images:
-                st.success(f"✅ Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
+                st.success(f"âœ… Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
             else:
                 st.warning("No images were processed.")
     else:
@@ -1240,7 +1244,7 @@ if st.session_state.generated_images:
                         continue
             
             st.download_button(
-                label=f"⬇️ Download {group_name} Photos",
+                label=f"â¬‡ï¸ Download {group_name} Photos",
                 data=zip_buffer.getvalue(),
                 file_name=f"{group_name.replace(' ', '_').lower()}_photos.zip",
                 mime="application/zip",
@@ -1263,7 +1267,7 @@ if st.session_state.generated_images:
                 continue
     
     st.download_button(
-        label="⬇️ Download All Photos (ULTRA PRO QUALITY)",
+        label="â¬‡ï¸ Download All Photos (ULTRA PRO QUALITY)",
         data=zip_buffer.getvalue(),
         file_name="ultra_pro_photos.zip",
         mime="application/zip",
@@ -1272,7 +1276,7 @@ if st.session_state.generated_images:
     
     st.markdown("""
         <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #ffcc00; margin: 0;'>😇 ULTRA PRO RESULTS</h2>
+            <h2 style='text-align: center; color: #ffcc00; margin: 0;'>ðŸ˜‡ ULTRA PRO RESULTS</h2>
         </div>
     """, unsafe_allow_html=True)
     
@@ -1296,7 +1300,7 @@ if st.session_state.generated_images:
                         st.caption(filename)
                         
                         st.download_button(
-                            label="⬇️ Download",
+                            label="â¬‡ï¸ Download",
                             data=img_bytes.getvalue(),
                             file_name=filename,
                             mime="image/jpeg",
