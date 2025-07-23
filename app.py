@@ -643,63 +643,55 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 int(255 * abs(math.sin(i * 0.3 + 2))),
                 int(255 * abs(math.sin(i * 0.3 + 4)))
             )
-            draw.text((x + i * (text_width // len(text)), y), char, font=font, fill=char_color)
+            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=char_color)
             
     elif effect_type == 'fire':
-    elif effect_type == 'fire':
-    # Fire effect (orange-yellow gradient)
-    for i, char in enumerate(text):
-        ratio = i / len(text)
-        r = int(255 * ratio + 200 * (1 - ratio))
-        g = int(100 * ratio + 50 * (1 - ratio))
-        b = int(50 * ratio)
-        draw.text((x + i * (text_width // len(text)), y), char, font=font, fill=(r, g, b))
-
-elif effect_type == 'ice':
-    # Ice effect (blue-cyan gradient)
-    for i, char in enumerate(text):
-        ratio = i / len(text)
-        r = int(100 * ratio)
-        g = int(200 * ratio + 200 * (1 - ratio))
-        b = int(255 * ratio + 200 * (1 - ratio))
-        draw.text((x + i * (text_width // len(text)), y), char, font=font, fill=(r, g, b))
-
-elif effect_type == 'glowing_blue':
-    # Blue glow effect
-    glow_size = 3
-    glow_color = (0, 100, 255)
-
-    for i in range(glow_size, 0, -1):
-        alpha = int(255 * (i / glow_size))
-        temp_glow = Image.new('RGBA', (text_width + i * 2, text_height + i * 2))
-        temp_glow_draw = ImageDraw.Draw(temp_glow)
-        temp_glow_draw.text((i, i), text, font=font, fill=(*glow_color, alpha))
-
-        for _ in range(2):
-            temp_glow = temp_glow.filter(ImageFilter.BLUR)
-
-        draw.bitmap((x - i, y - i), temp_glow.convert('L'), fill=None)
-
-    draw.text((x, y), text, font=font, fill=(100, 200, 255))
-
-elif effect_type == 'glowing_red':
-    # Red glow effect
-    glow_size = 3
-    glow_color = (255, 50, 50)
-
-    for i in range(glow_size, 0, -1):
-        alpha = int(255 * (i / glow_size))
-        temp_glow = Image.new('RGBA', (text_width + i * 2, text_height + i * 2))
-        temp_glow_draw = ImageDraw.Draw(temp_glow)
-        temp_glow_draw.text((i, i), text, font=font, fill=(*glow_color, alpha))
-
-        for _ in range(2):
-            temp_glow = temp_glow.filter(ImageFilter.BLUR)
-
-        draw.bitmap((x - i, y - i), temp_glow.convert('L'), fill=None)
-
-    draw.text((x, y), text, font=font, fill=(255, 100, 100))
-
+        # Fire effect (orange-yellow gradient)
+        for i, char in enumerate(text):
+            ratio = i / len(text)
+            r = int(255 * ratio + 200 * (1 - ratio))
+            g = int(100 * ratio + 50 * (1 - ratio))
+            b = int(50 * ratio)
+            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=(r, g, b))
+            
+    elif effect_type == 'ice':
+        # Ice effect (blue-cyan gradient)
+        for i, char in enumerate(text):
+            ratio = i / len(text)
+            r = int(100 * ratio)
+            g = int(200 * ratio + 200 * (1 - ratio))
+            b = int(255 * ratio + 200 * (1 - ratio))
+            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=(r, g, b))
+            
+    elif effect_type == 'glowing_blue':
+        # Blue glow effect
+        glow_size = 3
+        glow_color = (0, 100, 255)
+        
+        for i in range(glow_size, 0, -1):
+            alpha = int(255 * (i/glow_size))
+            temp_glow = Image.new('RGBA', (text_width + i*2, text_height + i*2))
+            temp_glow_draw = ImageDraw.Draw(temp_glow)
+            temp_glow_draw.text((i, i), text, font=font, fill=(*glow_color, alpha))
+            
+            for _ in range(2):
+                temp_glow = temp_glow.filter(ImageFilter.BLUR)
+            
+            draw.bitmap((x-i, y-i), temp_glow.convert('L'), fill=None)
+        
+        draw.text((x, y), text, font=font, fill=(100, 200, 255))
+        
+    elif effect_type == 'glowing_red':
+        # Red glow effect
+        glow_size = 3
+        glow_color = (255, 50, 50)
+        
+        for i in range(glow_size, 0, -1):
+            alpha = int(255 * (i/glow_size))
+            temp_glow = Image.new('RGBA', (text_width + i*2, text_height + i*2))
+            temp_glow_draw = ImageDraw.Draw(temp_glow)
+            temp_glow_draw.text((i, i), text, font=font, fill=(*glow_color, alpha))
+            
             for _ in range(2):
                 temp_glow = temp_glow.filter(ImageFilter.BLUR)
             
