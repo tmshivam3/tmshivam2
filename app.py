@@ -761,7 +761,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 text_y = 10  # Moved text higher
             elif settings['text_position'] == "bottom_center":
                 text_x = (img.width - text_width) // 2
-                text_y = img.height - text_height - 100  # Adjusted to prevent cropping
+                text_y = img.height - text_height - 120  # Final adjustment to stay clear of watermark
             else:
                 max_text_x = max(20, img.width - text_width - 20)
                 text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
@@ -947,7 +947,18 @@ with st.sidebar:
         custom_greeting = None
     
     generate_variants = st.checkbox("Generate Multiple Variants", value=False)  # Default unchecked
-    if generate_variants:
+    
+# Determine final text effect
+if text_effect == "Full Random":
+    selected_effect = random.choice([
+        "White Only", "White with Black Outline", "Gradient", "Neon", "3D", 
+        "Colorful", "Gold", "Silver", "Rainbow", "Fire", "Ice", 
+        "Glowing Blue", "Glowing Red", "Glowing Green"
+    ])
+else:
+    selected_effect = text_effect
+
+if generate_variants:
         num_variants = st.slider("Variants per Image", 1, 5, 3)
     
     # Expanded text styles (12+ options)
@@ -1110,7 +1121,18 @@ if st.button("âœ¨ ULTRA PRO GENERATE", key="generate", use_container_width=Tr
                         img = smart_crop(img)
                         img = enhance_image_quality(img)
                         
-                        if generate_variants:
+                        
+# Determine final text effect
+if text_effect == "Full Random":
+    selected_effect = random.choice([
+        "White Only", "White with Black Outline", "Gradient", "Neon", "3D", 
+        "Colorful", "Gold", "Silver", "Rainbow", "Fire", "Ice", 
+        "Glowing Blue", "Glowing Red", "Glowing Green"
+    ])
+else:
+    selected_effect = text_effect
+
+if generate_variants:
                             variants = []
                             for i in range(num_variants):
                                 # For full random, select a random effect for each variant
@@ -1144,7 +1166,7 @@ if st.button("âœ¨ ULTRA PRO GENERATE", key="generate", use_container_width=Tr
                                     'use_coffee_pet': use_coffee_pet,
                                     'pet_size': pet_size if use_coffee_pet else 0.3,
                                     'selected_pet': selected_pet,
-                                    'text_effect': effect,
+                                    'text_effect': selected_effect,
                                     'custom_position': custom_position,
                                     'text_x': text_x if custom_position else 100,
                                     'text_y': text_y if custom_position else 100,
