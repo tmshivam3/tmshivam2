@@ -13,7 +13,7 @@ import colorsys
 import traceback
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="âœ¨ ULTRA PRO MAX IMAGE EDITOR", layout="wide", page_icon="ðŸŽ¨")
+st.set_page_config(page_title=" ULTRA PRO MAX IMAGE EDITOR", layout="wide", page_icon="")
 
 # Custom CSS for premium look
 st.markdown("""
@@ -1199,55 +1199,18 @@ if 'watermark_groups' not in st.session_state:
 st.markdown("""
     <div class='header-container'>
         <h1 style='text-align: center; color: #ffcc00; margin: 0;'>
-            âœ¨ ULTRA PRO MAX IMAGE EDITOR
+             ULTRA PRO MAX IMAGE EDITOR
         </h1>
         <p style='text-align: center; color: #ffffff;'>Professional Image Processing with 50+ Premium Features</p>
     </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-    <div class='feature-card'>
-        <h3>ðŸŽ¨ ULTRA PRO FEATURES</h3>
-        <div style="column-count: 3; column-gap: 20px;">
-            <p>âœ… 20+ Text Effects</p>
-            <p>âœ… Smart Watermark Placement</p>
-            <p>âœ… Gradient Text Styles</p>
-            <p>âœ… Custom Text Positioning</p>
-            <p>âœ… Neon & 3D Effects</p>
-            <p>âœ… Gold/Silver Text</p>
-            <p>âœ… Rainbow Text</p>
-            <p>âœ… Fire & Ice Effects</p>
-            <p>âœ… Vintage & Grunge Styles</p>
-            <p>âœ… Comic & Sticker Text</p>
-            <p>âœ… Chrome & Metal Effects</p>
-            <p>âœ… Hologram Text</p>
-            <p>âœ… Luxury Gold Text</p>
-            <p>âœ… Cyberpunk Style</p>
-            <p>âœ… Bubble Text</p>
-            <p>âœ… Space Text Effect</p>
-            <p>âœ… Anime Style Effect</p>
-            <p>âœ… Cartoon Effect</p>
-            <p>âœ… Pencil Sketch</p>
-            <p>âœ… Rain & Snow Effects</p>
-            <p>âœ… Emoji Stickers</p>
-            <p>âœ… Multiple Watermarks</p>
-            <p>âœ… Custom Greeting Messages</p>
-            <p>âœ… Date & Time Stamps</p>
-            <p>âœ… Pet & Coffee PNG Overlays</p>
-            <p>âœ… Vignette Effect</p>
-            <p>âœ… Batch Processing</p>
-            <p>âœ… Multiple Variants</p>
-            <p>âœ… High-Quality Output</p>
-            <p>âœ… Custom Wishes</p>
-            <p>âœ… Quote Database</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
 
-uploaded_images = st.file_uploader("ðŸ“ Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
+uploaded_images = st.file_uploader(" Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 with st.sidebar:
-    st.markdown("### âš™ï¸ ULTRA PRO SETTINGS")
+    st.markdown("###  ULTRA PRO SETTINGS")
     
     greeting_type = st.selectbox("Greeting Type", 
                                ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
@@ -1280,7 +1243,7 @@ with st.sidebar:
         "White with Black Outline", "Gradient", "Neon", "3D", "Gold", "Silver", 
         "Comic", "Vintage", "Ice", "Bubble", "Luxury Gold"] else 2
     
-    st.markdown("### ðŸ“ MANUAL TEXT POSITIONING")
+    st.markdown("###  MANUAL TEXT POSITIONING")
     custom_position = st.checkbox("Enable Manual Positioning", value=False)
     if custom_position:
         text_x = st.slider("Text X Position", 0, 1000, 100)
@@ -1310,7 +1273,7 @@ with st.sidebar:
     show_quote = st.checkbox("Add Quote", value=False)
     if show_quote:
         quote_size = st.slider("Quote Text Size", 10, 100, 40)
-        st.markdown("### âœ¨ QUOTE DATABASE")
+        st.markdown("###  QUOTE DATABASE")
         st.markdown("<div class='quote-display'>" + get_random_quote() + "</div>", unsafe_allow_html=True)
         if st.button("Refresh Quote"):
             st.experimental_rerun()
@@ -1339,7 +1302,7 @@ with st.sidebar:
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
     st.markdown("---")
-    st.markdown("### ðŸŽ¨ PRO EFFECTS")
+    st.markdown("###  PRO EFFECTS")
     apply_vignette = st.checkbox("Vignette Effect", value=False)
     apply_sketch = st.checkbox("Pencil Sketch", value=False)
     apply_cartoon = st.checkbox("Cartoon Effect", value=False)
@@ -1348,7 +1311,7 @@ with st.sidebar:
     apply_snow = st.checkbox("Snow Effect", value=False)
     
     st.markdown("---")
-    st.markdown("### â˜• PRO OVERLAYS")
+    st.markdown("###  PRO OVERLAYS")
     use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
     if use_coffee_pet:
         pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
@@ -1365,17 +1328,17 @@ with st.sidebar:
     else:
         selected_pet = None
             
-    st.markdown("### ðŸ˜Š EMOJI STICKERS")
+    st.markdown("###  EMOJI STICKERS")
     apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
     if apply_emoji:
-        emojis = st.multiselect("Select Emojis", ["ðŸ˜Š", "ðŸ‘", "â¤ï¸", "ðŸŒŸ", "ðŸŽ‰", "ðŸ”¥", "ðŸŒ„", "âœ¨", "ðŸ’¯"], default=["ðŸ˜Š", "â¤ï¸", "ðŸŒŸ"])
+        emojis = st.multiselect("Select Emojis", ["", "", "", "", "", "", "", "", ""], default=["", "", ""])
     else:
         emojis = []
     
-    st.markdown("### ðŸš€ BULK PROCESSING")
+    st.markdown("###  BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
     
-if st.button("âœ¨ ULTRA PRO GENERATE", key="generate", use_container_width=True):
+if st.button(" ULTRA PRO GENERATE", key="generate", use_container_width=True):
     if uploaded_images:
         with st.spinner("Processing images with ULTRA PRO quality..."):
             processed_images = []
@@ -1549,7 +1512,7 @@ if st.button("âœ¨ ULTRA PRO GENERATE", key="generate", use_container_width=Tr
             st.session_state.generated_images = processed_images + variant_images
             
             if st.session_state.generated_images:
-                st.success(f"âœ… Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
+                st.success(f" Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
             else:
                 st.warning("No images were processed.")
     else:
@@ -1574,7 +1537,7 @@ if st.session_state.generated_images:
                         continue
             
             st.download_button(
-                label=f"â¬‡ï¸ Download {group_name} Photos",
+                label=f" Download {group_name} Photos",
                 data=zip_buffer.getvalue(),
                 file_name=f"{group_name.replace(' ', '_').lower()}_photos.zip",
                 mime="application/zip",
@@ -1597,7 +1560,7 @@ if st.session_state.generated_images:
                 continue
     
     st.download_button(
-        label="â¬‡ï¸ Download All Photos (ULTRA PRO QUALITY)",
+        label=" Download All Photos (ULTRA PRO QUALITY)",
         data=zip_buffer.getvalue(),
         file_name="ultra_pro_photos.zip",
         mime="application/zip",
@@ -1606,7 +1569,7 @@ if st.session_state.generated_images:
     
     st.markdown("""
         <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #ffcc00; margin: 0;'>ðŸŽ¨ ULTRA PRO RESULTS</h2>
+            <h2 style='text-align: center; color: #ffcc00; margin: 0;'> ULTRA PRO RESULTS</h2>
         </div>
     """, unsafe_allow_html=True)
     
@@ -1630,7 +1593,7 @@ if st.session_state.generated_images:
                         st.caption(filename)
                         
                         st.download_button(
-                            label="â¬‡ï¸ Download",
+                            label=" Download",
                             data=img_bytes.getvalue(),
                             file_name=filename,
                             mime="image/jpeg",
