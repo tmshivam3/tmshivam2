@@ -10,6 +10,7 @@ import textwrap
 from typing import Tuple, List, Optional
 import math
 import colorsys
+import traceback
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
@@ -148,6 +149,17 @@ st.markdown("""
         padding: 5px;
         background-color: rgba(0,0,0,0.5);
     }
+    .fixed-bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #0a0a0a;
+        padding: 10px;
+        text-align: center;
+        border-top: 2px solid #ffcc00;
+        z-index: 1000;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -174,11 +186,13 @@ def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
         return img.crop((0, top, w, top + new_h))
 
 def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
-    """Get text dimensions"""
+    """Get text dimensions with None check"""
+    if text is None:
+        return 0, 0
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font() -> Optional[ImageFont.FreeTypeFont]:
+def get_random_font() -> ImageFont.FreeTypeFont:
     """Get a random font from assets"""
     try:
         fonts = list_files("assets/fonts", [".ttf", ".otf"])
@@ -559,6 +573,9 @@ def apply_snow_effect(img: Image.Image) -> Image.Image:
 
 def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
     """Add emoji stickers to image"""
+    if not emojis:  # Fix for NoneType error
+        return img
+        
     draw = ImageDraw.Draw(img)
     for _ in range(5):
         x = random.randint(20, img.width-40)
@@ -573,6 +590,10 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     """Apply advanced text effects"""
     x, y = position
     effect_type = effect_settings['type']
+    
+    if text is None or text.strip() == "":
+        return effect_settings
+    
     text_width, text_height = get_text_size(draw, text, font)
     
     if effect_type == 'gradient':
@@ -680,6 +701,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         if settings['show_text']:
             font_main = font.font_variant(size=settings['main_size'])
             text = settings['greeting_type']
+            if text is None:
+                text = "ULTRA PRO"
             text_width, text_height = get_text_size(draw, text, font_main)
             
             if settings.get('custom_position', False):
@@ -706,7 +729,9 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         
         if settings['show_wish']:
             font_wish = font.font_variant(size=settings['wish_size'])
-            wish_text = settings.get('custom_wish', get_random_wish(settings['greeting_type']))
+            wish_text = settings.get('custom_wish', None)
+            if wish_text is None or wish_text.strip() == "":
+                wish_text = get_random_wish(settings['greeting_type'])
             wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
             
             if settings['show_text']:
@@ -830,7 +855,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         if settings.get('apply_snow', False):
             img = apply_snow_effect(img)
             
-        if settings.get('apply_emoji', False):
+        if settings.get('apply_emoji', False) and settings.get('emojis'):
             img = apply_emoji_stickers(img, settings['emojis'])
         
         img = enhance_image_quality(img)
@@ -840,6 +865,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
     
     except Exception as e:
         st.error(f"Error creating variant: {str(e)}")
+        st.error(traceback.format_exc())
         return None
 
 # =================== MAIN APP ===================
@@ -893,6 +919,8 @@ with st.sidebar:
                                 "Happy Birthday", "Merry Christmas", "Custom Greeting"])
     if greeting_type == "Custom Greeting":
         custom_greeting = st.text_input("Enter Custom Greeting", "Awesome Day!")
+    else:
+        custom_greeting = None
     
     generate_variants = st.checkbox("Generate Multiple Variants", value=True)
     if generate_variants:
@@ -925,6 +953,8 @@ with st.sidebar:
         custom_wish = st.checkbox("Custom Wish", value=False)
         if custom_wish:
             wish_text = st.text_area("Enter Custom Wish", "Have a wonderful day!")
+        else:
+            wish_text = None
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
@@ -980,15 +1010,24 @@ with st.sidebar:
     if use_coffee_pet:
         pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
         pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
-        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
-        
-        if selected_pet == "Random":
-            selected_pet = random.choice(pet_files) if pet_files else None
+        if pet_files:
+            selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
+            if selected_pet == "Random":
+                selected_pet = random.choice(pet_files)
+            else:
+                selected_pet = selected_pet
+        else:
+            selected_pet = None
+            st.warning("No pet PNGs found in assets/pets")
+    else:
+        selected_pet = None
             
     st.markdown("### 😊 EMOJI STICKERS")
     apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
     if apply_emoji:
         emojis = st.multiselect("Select Emojis", ["😊", "👍", "❤️", "🌟", "🎉", "🔥", "🌈", "✨", "💯"], default=["😊", "❤️", "🌟"])
+    else:
+        emojis = []
     
     st.markdown("### ⚡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
@@ -1013,18 +1052,24 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
             selected_effect = effect_mapping[text_effect]
             
             watermark_groups = {}
-            if len(watermark_images) > 1:
-                group_size = len(uploaded_images) // len(watermark_images)
-                for i, watermark in enumerate(watermark_images):
-                    start_idx = i * group_size
-                    end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(uploaded_images)
-                    watermark_groups[f"Group {i+1}"] = {
-                        'watermark': watermark,
-                        'images': uploaded_images[start_idx:end_idx]
+            if watermark_images:
+                if len(watermark_images) > 1:
+                    group_size = len(uploaded_images) // len(watermark_images)
+                    for i, watermark in enumerate(watermark_images):
+                        start_idx = i * group_size
+                        end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(uploaded_images)
+                        watermark_groups[f"Group {i+1}"] = {
+                            'watermark': watermark,
+                            'images': uploaded_images[start_idx:end_idx]
+                        }
+                else:
+                    watermark_groups["All Images"] = {
+                        'watermark': watermark_images[0],
+                        'images': uploaded_images
                     }
             else:
                 watermark_groups["All Images"] = {
-                    'watermark': watermark_images[0] if watermark_images else None,
+                    'watermark': None,
                     'images': uploaded_images
                 }
             
@@ -1058,7 +1103,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                     'outline_size': outline_size,
                                     'show_wish': show_wish,
                                     'wish_size': wish_size if show_wish else 60,
-                                    'custom_wish': wish_text if show_wish and custom_wish else None,
+                                    'custom_wish': wish_text,
                                     'show_date': show_date,
                                     'show_day': show_day if show_date else False,
                                     'date_size': date_size if show_date else 30,
@@ -1071,7 +1116,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                     'watermark_opacity': watermark_opacity if use_watermark else 1.0,
                                     'use_coffee_pet': use_coffee_pet,
                                     'pet_size': pet_size if use_coffee_pet else 0.3,
-                                    'selected_pet': selected_pet if use_coffee_pet else None,
+                                    'selected_pet': selected_pet,
                                     'text_effect': selected_effect,
                                     'custom_position': custom_position,
                                     'text_x': text_x if custom_position else 100,
@@ -1083,7 +1128,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                     'apply_rain': apply_rain,
                                     'apply_snow': apply_snow,
                                     'apply_emoji': apply_emoji,
-                                    'emojis': emojis if apply_emoji else []
+                                    'emojis': emojis
                                 }
                                 
                                 variant = create_variant(img, settings)
@@ -1099,7 +1144,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'outline_size': outline_size,
                                 'show_wish': show_wish,
                                 'wish_size': wish_size if show_wish else 60,
-                                'custom_wish': wish_text if show_wish and custom_wish else None,
+                                'custom_wish': wish_text,
                                 'show_date': show_date,
                                 'show_day': show_day if show_date else False,
                                 'date_size': date_size if show_date else 30,
@@ -1112,7 +1157,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'watermark_opacity': watermark_opacity if use_watermark else 1.0,
                                 'use_coffee_pet': use_coffee_pet,
                                 'pet_size': pet_size if use_coffee_pet else 0.3,
-                                'selected_pet': selected_pet if use_coffee_pet else None,
+                                'selected_pet': selected_pet,
                                 'text_effect': selected_effect,
                                 'custom_position': custom_position,
                                 'text_x': text_x if custom_position else 100,
@@ -1124,7 +1169,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'apply_rain': apply_rain,
                                 'apply_snow': apply_snow,
                                 'apply_emoji': apply_emoji,
-                                'emojis': emojis if apply_emoji else []
+                                'emojis': emojis
                             }
                             
                             processed_img = create_variant(img, settings)
@@ -1137,6 +1182,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                     
                     except Exception as e:
                         st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+                        st.error(traceback.format_exc())
                         continue
 
             st.session_state.generated_images = processed_images + variant_images
@@ -1232,3 +1278,10 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
+# Footer with instructions
+st.markdown("""
+    <div class='fixed-bottom'>
+        <p style='color: #ffcc00; font-weight: bold;'>Instructions: Upload images → Adjust settings → Click GENERATE → Download results</p>
+    </div>
+""", unsafe_allow_html=True)
