@@ -389,17 +389,6 @@ def get_random_color() -> Tuple[int, int, int]:
     """Generate random RGB color"""
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-def get_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Return white + bright color combination (always unique)"""
-    import colorsys
-    def random_bright_color():
-        h = random.random()
-        s = 0.8 + random.random() * 0.2
-        v = 0.9 + random.random() * 0.1
-        rgb = colorsys.hsv_to_rgb(h, s, v)
-        return tuple(int(x * 255) for x in rgb)
-
-    return [(255, 255, 255), random_bright_color()]
 
     if random.random() < 0.6:
         return [(255, 255, 255), random_bright_color()]
@@ -968,16 +957,26 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=(255, 255, 255))
         
+        
         # Gradient fill
-        colors = [(255, 0, 0), (0, 0, 255)]  # Red to blue
+        import colorsys
+        def random_bright_color():
+            h = random.random()
+            s = 0.8 + random.random() * 0.2
+            v = 0.9 + random.random() * 0.1
+            rgb = colorsys.hsv_to_rgb(h, s, v)
+            return tuple(int(x * 255) for x in rgb)
+
+        colors = [(255, 255, 255), random_bright_color()]
         gradient = create_gradient_mask(text_width, text_height, colors)
         bubble_text = Image.new('RGBA', (text_width, text_height))
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
         bubble_text.paste(gradient, (0, 0), temp_img)
-        
+
         draw.bitmap((x, y), bubble_text.convert('L'), fill=None)
+    
         
     elif effect_type == 'space':
         # Space effect with stars
