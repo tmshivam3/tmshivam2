@@ -962,17 +962,20 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=(255, 255, 255))
         
-        # Gradient fill
-        colors = [(255, 0, 0), (0, 0, 255)]  # Red to blue
-        gradient = create_gradient_mask(text_width, text_height, colors)
-        bubble_text = Image.new('RGBA', (text_width, text_height))
-        temp_img = Image.new('RGBA', (text_width, text_height))
-        temp_draw = ImageDraw.Draw(temp_img)
-        temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        bubble_text.paste(gradient, (0, 0), temp_img)
-        
-        draw.bitmap((x, y), bubble_text.convert('L'), fill=None)
-        
+# Gradient fill (white + random color)
+colors = get_gradient_colors()  # Use random white + color
+gradient = create_gradient_mask(text_width, text_height, colors)
+bubble_text = Image.new('RGBA', (text_width, text_height))
+temp_img = Image.new('RGBA', (text_width, text_height))
+temp_draw = ImageDraw.Draw(temp_img)
+temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
+bubble_text.paste(gradient, (0, 0), temp_img)
+
+# Paste full colored gradient text (not just mask)
+img_with_text = Image.new("RGBA", draw.im.size)
+img_with_text.paste(bubble_text, (x, y), temp_img)
+draw.im.paste(img_with_text, (0, 0), img_with_text)
+     
     elif effect_type == 'space':
         # Space effect with stars
         # Draw text
