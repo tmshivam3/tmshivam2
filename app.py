@@ -1663,3 +1663,31 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+    elif effect_type == 'white+auto':
+        if bg_image:
+            color2 = get_dominant_color(bg_image)
+        else:
+            color2 = (255, 0, 0)
+
+        colors = [(255, 255, 255), color2]
+        gradient = create_50_50_gradient(text_width + 10, text_height + 10, colors[0], colors[1])
+
+        stroke_img = Image.new("L", (text_width + 10, text_height + 10), 0)
+        stroke_draw = ImageDraw.Draw(stroke_img)
+        for ox in range(-2, 3):
+            for oy in range(-2, 3):
+                stroke_draw.text((5 + ox, 5 + oy), text, font=font, fill=255)
+
+        fill_img = Image.new("L", (text_width + 10, text_height + 10), 0)
+        fill_draw = ImageDraw.Draw(fill_img)
+        fill_draw.text((5, 5), text, font=font, fill=255)
+
+        gradient.putalpha(fill_img)
+
+        stroke_layer = Image.new("RGBA", gradient.size, (0, 0, 0, 255))
+        bubble_text = Image.new("RGBA", gradient.size, (0, 0, 0, 0))
+        bubble_text.paste(stroke_layer, (0, 0), stroke_img)
+        bubble_text.paste(gradient, (0, 0), gradient)
+
+        draw.bitmap((x, y), bubble_text, fill=None)
+    
