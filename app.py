@@ -1,14 +1,20 @@
 def get_gradient_colors():
-    """Return white + bright color combination (always unique)"""
-    import colorsys
-    def random_bright_color():
-        h = random.random()
-        s = 0.8 + random.random() * 0.2
-        v = 0.9 + random.random() * 0.1
-        rgb = colorsys.hsv_to_rgb(h, s, v)
-        return tuple(int(x * 255) for x in rgb)
-
-    return [(255, 255, 255), random_bright_color()]
+    """Return white + one fixed bright color (chosen randomly from list)"""
+    fixed_colors = [
+        (255, 0, 0),       # Red
+        (255, 165, 0),     # Orange
+        (255, 255, 0),     # Yellow
+        (0, 255, 0),       # Lime
+        (0, 255, 255),     # Cyan
+        (0, 128, 255),     # Sky Blue
+        (0, 0, 255),       # Blue
+        (128, 0, 255),     # Purple
+        (255, 0, 255),     # Magenta
+        (255, 105, 180),   # Hot Pink
+        (255, 192, 203),   # Pink
+        (255, 215, 0),     # Gold
+    ]
+    return [(255, 255, 255), random.choice(fixed_colors)]
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
