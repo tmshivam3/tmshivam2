@@ -661,9 +661,10 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
             r = int(100 * ratio)
             g = int(200 * ratio + 200 * (1 - ratio))
             b = int(255 * ratio + 200 * (1 - ratio))
-            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=(r, g, b))
-            
-    elif effect_type == 'glowing_blue':
+            draw.text((x + i * (text_width // len(text)), y), char, font=font, fill=(r, g, b))
+
+       
+ elif effect_type == 'glowing_blue':
         # Blue glow effect
         glow_size = 3
         glow_color = (0, 100, 255)
