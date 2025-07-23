@@ -178,7 +178,7 @@ def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont)
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font() -> Optional[ImageFont.FreeTypeFont]:
+def get_random_font() -> ImageFont.FreeTypeFont:
     """Get a random font from assets"""
     try:
         fonts = list_files("assets/fonts", [".ttf", ".otf"])
@@ -559,6 +559,9 @@ def apply_snow_effect(img: Image.Image) -> Image.Image:
 
 def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
     """Add emoji stickers to image"""
+    if not emojis:  # Fix for NoneType error
+        return img
+        
     draw = ImageDraw.Draw(img)
     for _ in range(5):
         x = random.randint(20, img.width-40)
@@ -830,7 +833,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         if settings.get('apply_snow', False):
             img = apply_snow_effect(img)
             
-        if settings.get('apply_emoji', False):
+        if settings.get('apply_emoji', False) and settings.get('emojis'):
             img = apply_emoji_stickers(img, settings['emojis'])
         
         img = enhance_image_quality(img)
@@ -840,6 +843,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
     
     except Exception as e:
         st.error(f"Error creating variant: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
         return None
 
 # =================== MAIN APP ===================
@@ -980,15 +985,19 @@ with st.sidebar:
     if use_coffee_pet:
         pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
         pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
-        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
+        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + (pet_files if pet_files else []))
         
-        if selected_pet == "Random":
-            selected_pet = random.choice(pet_files) if pet_files else None
+        if selected_pet == "Random" and pet_files:
+            selected_pet = random.choice(pet_files)
+        elif not pet_files:
+            selected_pet = None
             
     st.markdown("### 😊 EMOJI STICKERS")
     apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
     if apply_emoji:
         emojis = st.multiselect("Select Emojis", ["😊", "👍", "❤️", "🌟", "🎉", "🔥", "🌈", "✨", "💯"], default=["😊", "❤️", "🌟"])
+    else:
+        emojis = []
     
     st.markdown("### ⚡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
@@ -1013,18 +1022,24 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
             selected_effect = effect_mapping[text_effect]
             
             watermark_groups = {}
-            if len(watermark_images) > 1:
-                group_size = len(uploaded_images) // len(watermark_images)
-                for i, watermark in enumerate(watermark_images):
-                    start_idx = i * group_size
-                    end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(uploaded_images)
-                    watermark_groups[f"Group {i+1}"] = {
-                        'watermark': watermark,
-                        'images': uploaded_images[start_idx:end_idx]
+            if watermark_images:
+                if len(watermark_images) > 1:
+                    group_size = len(uploaded_images) // len(watermark_images)
+                    for i, watermark in enumerate(watermark_images):
+                        start_idx = i * group_size
+                        end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(uploaded_images)
+                        watermark_groups[f"Group {i+1}"] = {
+                            'watermark': watermark,
+                            'images': uploaded_images[start_idx:end_idx]
+                        }
+                else:
+                    watermark_groups["All Images"] = {
+                        'watermark': watermark_images[0],
+                        'images': uploaded_images
                     }
             else:
                 watermark_groups["All Images"] = {
-                    'watermark': watermark_images[0] if watermark_images else None,
+                    'watermark': None,
                     'images': uploaded_images
                 }
             
@@ -1083,7 +1098,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                     'apply_rain': apply_rain,
                                     'apply_snow': apply_snow,
                                     'apply_emoji': apply_emoji,
-                                    'emojis': emojis if apply_emoji else []
+                                    'emojis': emojis
                                 }
                                 
                                 variant = create_variant(img, settings)
@@ -1124,7 +1139,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'apply_rain': apply_rain,
                                 'apply_snow': apply_snow,
                                 'apply_emoji': apply_emoji,
-                                'emojis': emojis if apply_emoji else []
+                                'emojis': emojis
                             }
                             
                             processed_img = create_variant(img, settings)
