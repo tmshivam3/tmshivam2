@@ -643,7 +643,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 int(255 * abs(math.sin(i * 0.3 + 2))),
                 int(255 * abs(math.sin(i * 0.3 + 4)))
             )
-            draw.text((x + i * (text_width // len(text)), y, char, font=font, fill=char_color)
+            draw.text((x + i * (text_width // len(text)), y), char, font=font, fill=char_color)
             
     elif effect_type == 'fire':
         # Fire effect (orange-yellow gradient)
