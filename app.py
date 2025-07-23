@@ -10,6 +10,7 @@ import textwrap
 from typing import Tuple, List, Optional
 import math
 import colorsys
+import traceback
 
 # =================== CONFIG ===================
 st.set_page_config(page_title="⚡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
@@ -148,6 +149,17 @@ st.markdown("""
         padding: 5px;
         background-color: rgba(0,0,0,0.5);
     }
+    .fixed-bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #0a0a0a;
+        padding: 10px;
+        text-align: center;
+        border-top: 2px solid #ffcc00;
+        z-index: 1000;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -174,7 +186,9 @@ def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
         return img.crop((0, top, w, top + new_h))
 
 def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
-    """Get text dimensions"""
+    """Get text dimensions with None check"""
+    if text is None:
+        return 0, 0
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
@@ -576,6 +590,10 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     """Apply advanced text effects"""
     x, y = position
     effect_type = effect_settings['type']
+    
+    if text is None or text.strip() == "":
+        return effect_settings
+    
     text_width, text_height = get_text_size(draw, text, font)
     
     if effect_type == 'gradient':
@@ -683,6 +701,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         if settings['show_text']:
             font_main = font.font_variant(size=settings['main_size'])
             text = settings['greeting_type']
+            if text is None:
+                text = "ULTRA PRO"
             text_width, text_height = get_text_size(draw, text, font_main)
             
             if settings.get('custom_position', False):
@@ -709,7 +729,9 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         
         if settings['show_wish']:
             font_wish = font.font_variant(size=settings['wish_size'])
-            wish_text = settings.get('custom_wish', get_random_wish(settings['greeting_type']))
+            wish_text = settings.get('custom_wish', None)
+            if wish_text is None or wish_text.strip() == "":
+                wish_text = get_random_wish(settings['greeting_type'])
             wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
             
             if settings['show_text']:
@@ -843,7 +865,6 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
     
     except Exception as e:
         st.error(f"Error creating variant: {str(e)}")
-        import traceback
         st.error(traceback.format_exc())
         return None
 
@@ -898,6 +919,8 @@ with st.sidebar:
                                 "Happy Birthday", "Merry Christmas", "Custom Greeting"])
     if greeting_type == "Custom Greeting":
         custom_greeting = st.text_input("Enter Custom Greeting", "Awesome Day!")
+    else:
+        custom_greeting = None
     
     generate_variants = st.checkbox("Generate Multiple Variants", value=True)
     if generate_variants:
@@ -930,6 +953,8 @@ with st.sidebar:
         custom_wish = st.checkbox("Custom Wish", value=False)
         if custom_wish:
             wish_text = st.text_area("Enter Custom Wish", "Have a wonderful day!")
+        else:
+            wish_text = None
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
@@ -985,12 +1010,17 @@ with st.sidebar:
     if use_coffee_pet:
         pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
         pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
-        selected_pet = st.selectbox("Select Pet PNG", ["Random"] + (pet_files if pet_files else []))
-        
-        if selected_pet == "Random" and pet_files:
-            selected_pet = random.choice(pet_files)
-        elif not pet_files:
+        if pet_files:
+            selected_pet = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
+            if selected_pet == "Random":
+                selected_pet = random.choice(pet_files)
+            else:
+                selected_pet = selected_pet
+        else:
             selected_pet = None
+            st.warning("No pet PNGs found in assets/pets")
+    else:
+        selected_pet = None
             
     st.markdown("### 😊 EMOJI STICKERS")
     apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
@@ -1073,7 +1103,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                     'outline_size': outline_size,
                                     'show_wish': show_wish,
                                     'wish_size': wish_size if show_wish else 60,
-                                    'custom_wish': wish_text if show_wish and custom_wish else None,
+                                    'custom_wish': wish_text,
                                     'show_date': show_date,
                                     'show_day': show_day if show_date else False,
                                     'date_size': date_size if show_date else 30,
@@ -1086,7 +1116,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                     'watermark_opacity': watermark_opacity if use_watermark else 1.0,
                                     'use_coffee_pet': use_coffee_pet,
                                     'pet_size': pet_size if use_coffee_pet else 0.3,
-                                    'selected_pet': selected_pet if use_coffee_pet else None,
+                                    'selected_pet': selected_pet,
                                     'text_effect': selected_effect,
                                     'custom_position': custom_position,
                                     'text_x': text_x if custom_position else 100,
@@ -1114,7 +1144,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'outline_size': outline_size,
                                 'show_wish': show_wish,
                                 'wish_size': wish_size if show_wish else 60,
-                                'custom_wish': wish_text if show_wish and custom_wish else None,
+                                'custom_wish': wish_text,
                                 'show_date': show_date,
                                 'show_day': show_day if show_date else False,
                                 'date_size': date_size if show_date else 30,
@@ -1127,7 +1157,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                                 'watermark_opacity': watermark_opacity if use_watermark else 1.0,
                                 'use_coffee_pet': use_coffee_pet,
                                 'pet_size': pet_size if use_coffee_pet else 0.3,
-                                'selected_pet': selected_pet if use_coffee_pet else None,
+                                'selected_pet': selected_pet,
                                 'text_effect': selected_effect,
                                 'custom_position': custom_position,
                                 'text_x': text_x if custom_position else 100,
@@ -1152,6 +1182,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                     
                     except Exception as e:
                         st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+                        st.error(traceback.format_exc())
                         continue
 
             st.session_state.generated_images = processed_images + variant_images
@@ -1247,3 +1278,10 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
+# Footer with instructions
+st.markdown("""
+    <div class='fixed-bottom'>
+        <p style='color: #ffcc00; font-weight: bold;'>Instructions: Upload images → Adjust settings → Click GENERATE → Download results</p>
+    </div>
+""", unsafe_allow_html=True)
