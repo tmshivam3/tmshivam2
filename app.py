@@ -599,12 +599,34 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     if effect_type == 'random':
         available_effects = [
             'white_only', 'white_black_outline', 'gradient', 
-            'multi_gradient', 'neon', '3d', 'colorful', 'full_random'
+            'multi_gradient', 'neon', '3d', 'colorful', 'full_random',
+            'white_black_gradient'  # Added new effect type
         ]
         effect_type = random.choice(available_effects)
         effect_settings['type'] = effect_type
     
-    if effect_type == 'gradient':
+    # FIX: Remove background color from text rendering
+    if effect_type == 'white_black_gradient':
+        # New text style: Black outline + white to vibrant gradient
+        colors = [(255, 255, 255), get_vibrant_color()]
+        gradient = create_gradient_mask(text_width, text_height, colors)
+        gradient_text = Image.new('RGBA', (text_width, text_height))
+        temp_img = Image.new('RGBA', (text_width, text_height))
+        temp_draw = ImageDraw.Draw(temp_img)
+        temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
+        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
+        
+        # Draw black outline
+        outline_size = effect_settings.get('outline_size', 2)
+        for ox in range(-outline_size, outline_size+1):
+            for oy in range(-outline_size, outline_size+1):
+                if ox != 0 or oy != 0:
+                    draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+        
+        # Draw the gradient text without background
+        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
+    
+    elif effect_type == 'gradient':
         colors = get_gradient_colors()
         gradient = create_gradient_mask(text_width, text_height, colors)
         gradient_text = Image.new('RGBA', (text_width, text_height))
@@ -620,7 +642,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
-        # Draw the gradient text on the main image
+        # Draw the gradient text without background
         draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
     elif effect_type == 'multi_gradient':
@@ -639,7 +661,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
-        # Draw the gradient text on the main image
+        # Draw the gradient text without background
         draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
     elif effect_type == 'neon':
@@ -701,6 +723,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         draw.text((x, y), text, font=font, fill=main_color)
         
     else:
+        # FIX: Remove background color from text rendering
+        # Only draw shadow for simple effects
         shadow_offset = 3
         draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(50, 50, 50))
         
@@ -960,16 +984,18 @@ with st.sidebar:
     if generate_variants:
         num_variants = st.slider("Variants per Image", 1, 5, 3)
     
+    # Added new text style option
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Gradient", "Multi-Color Gradient", "Neon", "3D", "Colorful", "Full Random", "RANDOM"],
+        ["White Only", "White with Black Outline", "Gradient", "Multi-Color Gradient", 
+         "Neon", "3D", "Colorful", "Full Random", "RANDOM", "White with Black Outline and Gradient"],
         index=2
     )
     
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
     text_position = text_position.lower().replace(" ", "_")
     
-    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Multi-Color Gradient", "Neon", "3D", "Colorful"] else 2
+    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Multi-Color Gradient", "Neon", "3D", "Colorful", "White with Black Outline and Gradient"] else 2
     
     st.markdown("### 🎨 MANUAL TEXT POSITIONING")
     custom_position = st.checkbox("Enable Manual Positioning", value=False)
@@ -1074,6 +1100,7 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
             progress_bar = st.progress(0)
             total_images = len(uploaded_images)
             
+            # Updated effect mapping with new text style
             effect_mapping = {
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
@@ -1083,7 +1110,8 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                 "3D": "3d",
                 "Colorful": "colorful",
                 "Full Random": "full_random",
-                "RANDOM": "random"
+                "RANDOM": "random",
+                "White with Black Outline and Gradient": "white_black_gradient"  # Added new effect
             }
             selected_effect = effect_mapping[text_effect]
             
