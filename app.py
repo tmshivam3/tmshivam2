@@ -591,7 +591,7 @@ def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
     return img
 
 def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
-                     effect_settings: dict) -> dict:
+                     effect_settings: dict, img: Image.Image) -> dict:
     """Apply advanced text effects"""
     x, y = position
     effect_type = effect_settings['type']
@@ -618,7 +618,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text.paste(gradient, (0, 0), temp_img)
+        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
         
         outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
@@ -626,7 +626,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
         
-        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
+        # Paste the gradient text on the main image
+        img.paste(gradient_text, (x, y), gradient_text)
         
     elif effect_type == 'multi_gradient':
         # 2-3 high contrast colors
@@ -636,7 +637,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text.paste(gradient, (0, 0), temp_img)
+        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
         
         outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
@@ -644,7 +645,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
         
-        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
+        # Paste the gradient text on the main image
+        img.paste(gradient_text, (x, y), gradient_text)
         
     elif effect_type == 'neon':
         glow_size = effect_settings.get('glow_size', 5)
@@ -757,7 +759,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 (text_x, text_y), 
                 text, 
                 font_main,
-                effect_settings
+                effect_settings,
+                img  # Pass the image to apply_text_effect
             )
         
         if settings['show_wish']:
@@ -780,7 +783,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 (wish_x, wish_y), 
                 wish_text, 
                 font_wish,
-                effect_settings
+                effect_settings,
+                img  # Pass the image to apply_text_effect
             )
         
         if settings['show_date']:
@@ -812,7 +816,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 (date_x, date_y), 
                 date_text, 
                 font_date,
-                effect_settings
+                effect_settings,
+                img  # Pass the image to apply_text_effect
             )
         
         if settings['show_quote']:
@@ -840,7 +845,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                     (line_x, quote_y), 
                     line, 
                     font_quote,
-                    effect_settings
+                    effect_settings,
+                    img  # Pass the image to apply_text_effect
                 )
                 quote_y += line_heights[i] + 10
         
