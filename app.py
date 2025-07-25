@@ -387,38 +387,35 @@ def get_random_quote() -> str:
 
 def get_random_color() -> Tuple[int, int, int]:
     """Generate random RGB color"""
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    return (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
+
+def get_vibrant_color() -> Tuple[int, int, int]:
+    """Generate vibrant RGB color"""
+    hue = random.random()
+    r, g, b = [int(255 * c) for c in colorsys.hsv_to_rgb(hue, 0.9, 0.9)]
+    return (r, g, b)
 
 def get_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Returns a list of gradient colors (white + one random color)"""
-    base_colors = [
-        (255, 0, 0),    # Red
-        (0, 255, 0),    # Green
-        (0, 0, 255),    # Blue
-        (255, 255, 0),  # Yellow
-        (255, 0, 255),  # Magenta
-        (0, 255, 255),  # Cyan
-        (255, 165, 0)   # Orange
-    ]
-    return [(255, 255, 255), random.choice(base_colors)]
+    """Returns a list of gradient colors (white + one vibrant color)"""
+    return [(255, 255, 255), get_vibrant_color()]
 
 def get_multi_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Returns 2-3 random high contrast colors for gradient"""
+    """Returns 2-3 vibrant high contrast colors for gradient"""
     color_sets = [
-        [(255, 0, 0), (255, 255, 0)],   # Red to Yellow
-        [(0, 0, 255), (0, 255, 255)],    # Blue to Cyan
-        [(128, 0, 128), (255, 0, 255)],  # Purple to Pink
-        [(0, 128, 0), (0, 255, 0)],      # Green to Lime
-        [(255, 0, 0), (255, 255, 0), (0, 255, 0)],  # Red to Yellow to Green
-        [(75, 0, 130), (0, 0, 255), (0, 255, 255)], # Indigo to Blue to Cyan
-        [(255, 165, 0), (255, 0, 0), (128, 0, 128)] # Orange to Red to Purple
+        [(255, 50, 50), (255, 255, 50)],   # Red to Yellow
+        [(50, 50, 255), (50, 255, 255)],    # Blue to Cyan
+        [(180, 50, 180), (255, 50, 255)],   # Purple to Pink
+        [(50, 180, 50), (50, 255, 50)],     # Green to Lime
+        [(255, 50, 50), (255, 255, 50), (50, 255, 50)],  # Red to Yellow to Green
+        [(130, 50, 200), (50, 50, 255), (50, 255, 255)], # Indigo to Blue to Cyan
+        [(255, 150, 50), (255, 50, 50), (180, 50, 180)] # Orange to Red to Purple
     ]
     return random.choice(color_sets)
 
 def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
     """Create a gradient mask image"""
     if len(colors) < 2:
-        colors = [(255, 255, 255), (255, 0, 0)]  # Default to white + red if not enough colors
+        colors = [(255, 255, 255), get_vibrant_color()]  # Default to white + vibrant color
     
     gradient = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(gradient)
@@ -608,46 +605,46 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         effect_settings['type'] = effect_type
     
     if effect_type == 'gradient':
-        # Fixed white + random color
         colors = get_gradient_colors()
         gradient = create_gradient_mask(text_width, text_height, colors)
         gradient_text = Image.new('RGBA', (text_width, text_height))
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text.paste(gradient, (0, 0), temp_img)
+        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
         
         outline_size = effect_settings.get('outline_size', 2)
+        outline_color = get_vibrant_color()
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
-        # Draw the gradient text directly
+        # Draw the gradient text on the main image
         draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
     elif effect_type == 'multi_gradient':
-        # 2-3 high contrast colors
         colors = get_multi_gradient_colors()
         gradient = create_gradient_mask(text_width, text_height, colors)
         gradient_text = Image.new('RGBA', (text_width, text_height))
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text.paste(gradient, (0, 0), temp_img)
+        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
         
         outline_size = effect_settings.get('outline_size', 2)
+        outline_color = get_vibrant_color()
         for ox in range(-outline_size, outline_size+1):
             for oy in range(-outline_size, outline_size+1):
                 if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
-        # Draw the gradient text directly
+        # Draw the gradient text on the main image
         draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
     elif effect_type == 'neon':
         glow_size = effect_settings.get('glow_size', 5)
-        glow_color = effect_settings.get('glow_color', (0, 255, 255))
+        glow_color = get_vibrant_color()
         
         for i in range(glow_size, 0, -1):
             alpha = int(255 * (i/glow_size))
@@ -665,20 +662,21 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     elif effect_type == '3d':
         depth = effect_settings.get('depth', 5)
         light_angle = effect_settings.get('light_angle', 45)
+        base_color = get_vibrant_color()
         
         for i in range(1, depth+1):
             angle_color = (
-                int(255 * math.cos(math.radians(light_angle))),
-                int(255 * math.sin(math.radians(light_angle))),
-                100
+                int(base_color[0] * math.cos(math.radians(light_angle))),
+                int(base_color[1] * math.sin(math.radians(light_angle))),
+                base_color[2]
             )
             draw.text((x+i, y+i), text, font=font, fill=angle_color)
         
-        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        draw.text((x, y), text, font=font, fill=base_color)
         
     elif effect_type == 'colorful':
-        main_color = effect_settings.get('main_color', get_random_color())
-        outline_color = (0, 0, 0)
+        main_color = effect_settings.get('main_color', get_vibrant_color())
+        outline_color = get_vibrant_color()
         
         outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
@@ -690,8 +688,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         draw.text((x, y), text, font=font, fill=main_color)
         
     elif effect_type == 'full_random':
-        main_color = get_random_color()
-        outline_color = get_random_color()
+        main_color = get_vibrant_color()
+        outline_color = get_vibrant_color()
         
         outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
@@ -704,14 +702,15 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         
     else:
         shadow_offset = 3
-        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(25, 25, 25))
+        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(50, 50, 50))
         
         if effect_type == "white_black_outline":
             outline_size = effect_settings.get('outline_size', 2)
+            outline_color = get_vibrant_color()
             for ox in range(-outline_size, outline_size+1):
                 for oy in range(-outline_size, outline_size+1):
                     if ox != 0 or oy != 0:
-                        draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+                        draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
         # Draw filled text with white color
         draw.text((x, y), text, font=font, fill=(255, 255, 255))
