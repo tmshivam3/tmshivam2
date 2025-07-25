@@ -398,10 +398,7 @@ def get_gradient_colors() -> List[Tuple[int, int, int]]:
         (255, 255, 0),  # Yellow
         (255, 0, 255),  # Magenta
         (0, 255, 255),  # Cyan
-        (255, 165, 0),  # Orange
-        (255, 192, 203), # Pink
-        (138, 43, 226), # Purple
-        (0, 128, 0)     # Dark Green
+        (255, 165, 0)   # Orange
     ]
     return [(255, 255, 255), random.choice(base_colors)]
 
@@ -591,7 +588,7 @@ def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
     return img
 
 def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
-                     effect_settings: dict, img: Image.Image) -> dict:
+                     effect_settings: dict) -> dict:
     """Apply advanced text effects"""
     x, y = position
     effect_type = effect_settings['type']
@@ -618,7 +615,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
+        gradient_text.paste(gradient, (0, 0), temp_img)
         
         outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
@@ -626,8 +623,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
         
-        # Paste the gradient text on the main image
-        img.paste(gradient_text, (x, y), gradient_text)
+        # Draw the gradient text directly
+        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
     elif effect_type == 'multi_gradient':
         # 2-3 high contrast colors
@@ -637,7 +634,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         temp_img = Image.new('RGBA', (text_width, text_height))
         temp_draw = ImageDraw.Draw(temp_img)
         temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
+        gradient_text.paste(gradient, (0, 0), temp_img)
         
         outline_size = effect_settings.get('outline_size', 2)
         for ox in range(-outline_size, outline_size+1):
@@ -645,8 +642,8 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
         
-        # Paste the gradient text on the main image
-        img.paste(gradient_text, (x, y), gradient_text)
+        # Draw the gradient text directly
+        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
         
     elif effect_type == 'neon':
         glow_size = effect_settings.get('glow_size', 5)
@@ -689,6 +686,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
+        # Draw filled text with main color
         draw.text((x, y), text, font=font, fill=main_color)
         
     elif effect_type == 'full_random':
@@ -701,6 +699,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                 if ox != 0 or oy != 0:
                     draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
         
+        # Draw filled text with main color
         draw.text((x, y), text, font=font, fill=main_color)
         
     else:
@@ -714,6 +713,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
                     if ox != 0 or oy != 0:
                         draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
         
+        # Draw filled text with white color
         draw.text((x, y), text, font=font, fill=(255, 255, 255))
     
     return effect_settings
@@ -759,8 +759,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 (text_x, text_y), 
                 text, 
                 font_main,
-                effect_settings,
-                img  # Pass the image to apply_text_effect
+                effect_settings
             )
         
         if settings['show_wish']:
@@ -783,8 +782,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 (wish_x, wish_y), 
                 wish_text, 
                 font_wish,
-                effect_settings,
-                img  # Pass the image to apply_text_effect
+                effect_settings
             )
         
         if settings['show_date']:
@@ -816,8 +814,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 (date_x, date_y), 
                 date_text, 
                 font_date,
-                effect_settings,
-                img  # Pass the image to apply_text_effect
+                effect_settings
             )
         
         if settings['show_quote']:
@@ -845,8 +842,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                     (line_x, quote_y), 
                     line, 
                     font_quote,
-                    effect_settings,
-                    img  # Pass the image to apply_text_effect
+                    effect_settings
                 )
                 quote_y += line_heights[i] + 10
         
