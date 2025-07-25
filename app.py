@@ -149,17 +149,6 @@ st.markdown("""
         padding: 5px;
         background-color: rgba(0,0,0,0.5);
     }
-    .fixed-bottom {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: #0a0a0a;
-        padding: 10px;
-        text-align: center;
-        border-top: 2px solid #ffcc00;
-        z-index: 1000;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -409,9 +398,25 @@ def get_gradient_colors() -> List[Tuple[int, int, int]]:
         (255, 255, 0),  # Yellow
         (255, 0, 255),  # Magenta
         (0, 255, 255),  # Cyan
-        (255, 165, 0)   # Orange
+        (255, 165, 0),  # Orange
+        (255, 192, 203), # Pink
+        (138, 43, 226), # Purple
+        (0, 128, 0)     # Dark Green
     ]
     return [(255, 255, 255), random.choice(base_colors)]
+
+def get_multi_gradient_colors() -> List[Tuple[int, int, int]]:
+    """Returns 2-3 random high contrast colors for gradient"""
+    color_sets = [
+        [(255, 0, 0), (255, 255, 0)],   # Red to Yellow
+        [(0, 0, 255), (0, 255, 255)],    # Blue to Cyan
+        [(128, 0, 128), (255, 0, 255)],  # Purple to Pink
+        [(0, 128, 0), (0, 255, 0)],      # Green to Lime
+        [(255, 0, 0), (255, 255, 0), (0, 255, 0)],  # Red to Yellow to Green
+        [(75, 0, 130), (0, 0, 255), (0, 255, 255)], # Indigo to Blue to Cyan
+        [(255, 165, 0), (255, 0, 0), (128, 0, 128)] # Orange to Red to Purple
+    ]
+    return random.choice(color_sets)
 
 def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
     """Create a gradient mask image"""
@@ -596,8 +601,36 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     
     text_width, text_height = get_text_size(draw, text, font)
     
+    # Handle RANDOM effect type
+    if effect_type == 'random':
+        available_effects = [
+            'white_only', 'white_black_outline', 'gradient', 
+            'multi_gradient', 'neon', '3d', 'colorful', 'full_random'
+        ]
+        effect_type = random.choice(available_effects)
+        effect_settings['type'] = effect_type
+    
     if effect_type == 'gradient':
+        # Fixed white + random color
         colors = get_gradient_colors()
+        gradient = create_gradient_mask(text_width, text_height, colors)
+        gradient_text = Image.new('RGBA', (text_width, text_height))
+        temp_img = Image.new('RGBA', (text_width, text_height))
+        temp_draw = ImageDraw.Draw(temp_img)
+        temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
+        gradient_text.paste(gradient, (0, 0), temp_img)
+        
+        outline_size = effect_settings.get('outline_size', 2)
+        for ox in range(-outline_size, outline_size+1):
+            for oy in range(-outline_size, outline_size+1):
+                if ox != 0 or oy != 0:
+                    draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
+        
+        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
+        
+    elif effect_type == 'multi_gradient':
+        # 2-3 high contrast colors
+        colors = get_multi_gradient_colors()
         gradient = create_gradient_mask(text_width, text_height, colors)
         gradient_text = Image.new('RGBA', (text_width, text_height))
         temp_img = Image.new('RGBA', (text_width, text_height))
@@ -928,14 +961,14 @@ with st.sidebar:
     
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Gradient", "Neon", "3D", "Full Random", "Colorful"],
+        ["White Only", "White with Black Outline", "Gradient", "Multi-Color Gradient", "Neon", "3D", "Colorful", "Full Random", "RANDOM"],
         index=2
     )
     
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
     text_position = text_position.lower().replace(" ", "_")
     
-    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Neon", "3D", "Colorful"] else 2
+    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Multi-Color Gradient", "Neon", "3D", "Colorful"] else 2
     
     st.markdown("### 🎨 MANUAL TEXT POSITIONING")
     custom_position = st.checkbox("Enable Manual Positioning", value=False)
@@ -1044,10 +1077,12 @@ if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True)
                 "White Only": "white_only",
                 "White with Black Outline": "white_black_outline",
                 "Gradient": "gradient",
+                "Multi-Color Gradient": "multi_gradient",
                 "Neon": "neon",
                 "3D": "3d",
+                "Colorful": "colorful",
                 "Full Random": "full_random",
-                "Colorful": "colorful"
+                "RANDOM": "random"
             }
             selected_effect = effect_mapping[text_effect]
             
@@ -1278,10 +1313,3 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
-
-# Footer with instructions
-st.markdown("""
-    <div class='fixed-bottom'>
-        <p style='color: #ffcc00; font-weight: bold;'>Instructions: Upload images → Adjust settings → Click GENERATE → Download results</p>
-    </div>
-""", unsafe_allow_html=True)
