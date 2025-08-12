@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
 import os
 import io
 import random
-import datetime
+from datetime import datetime, timedelta
 import zipfile
 import numpy as np
 import textwrap
@@ -11,9 +11,192 @@ from typing import Tuple, List, Optional
 import math
 import colorsys
 import traceback
+# ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
+import json, uuid, hashlib
+from datetime import datetime, timedelta
+
+DATA_DIR = "data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+
+def _auth_hash(pw: str) -> str:
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def _auth_load_users():
+    try:
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"users": {}}
+
+def _auth_save_users(data):
+    with open(USERS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def _auth_load_settings():
+    try:
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00"}
+
+def _auth_save_settings(s):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(s, f, indent=2)
+
+def _auth_ensure_files():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    users = _auth_load_users()
+    if "admin" not in users.get("users", {}):
+        default_pw = "admin123"
+        users.setdefault("users", {})["admin"] = {
+            "password_hash": _auth_hash(default_pw),
+            "is_admin": True,
+            "device_token": None,
+            "last_login": None,
+            "expires_at": None
+        }
+        _auth_save_users(users)
+    settings = _auth_load_settings()
+    _auth_save_settings(settings)
+
+_auth_ensure_files()
+_users_db = _auth_load_users()
+_settings = _auth_load_settings()
+
+def _auth_logout_and_rerun():
+    for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
+        if k in st.session_state:
+            del st.session_state[k]
+    st.rerun()
+
+def _auth_check_session():
+    # If user logged in in this session, validate against stored user record
+    username = st.session_state.get("_auth_user")
+    if not username:
+        return
+    users = _auth_load_users()
+    u = users.get("users", {}).get(username)
+    if not u:
+        st.warning("Your account was removed. Logging out.")
+        _auth_logout_and_rerun()
+    # expiry check
+    if u.get("expires_at"):
+        try:
+            exp = datetime.fromisoformat(u["expires_at"])
+            if datetime.utcnow() > exp:
+                st.warning("Session expired — please login again.")
+                _auth_logout_and_rerun()
+        except:
+            pass
+    # device-token check (single device enforcement)
+    token = st.session_state.get("_auth_device")
+    if u.get("device_token") and token and u.get("device_token") != token:
+        st.warning("You were logged in from another device. This session is logged out.")
+        _auth_logout_and_rerun()
+
+# If not authenticated, show login UI and stop further execution
+if "_auth_user" not in st.session_state:
+    st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
+    left, right = st.columns([2,1])
+    with left:
+        login_id = st.text_input("Enter ID")
+        login_pw = st.text_input("Password", type="password")
+    with right:
+        if st.button("Login"):
+            db = _auth_load_users()
+            user = db.get("users", {}).get(login_id)
+            if not user or user.get("password_hash") != _auth_hash(login_pw or ""):
+                st.error("Invalid ID or Password. Contact dev: +91 9140588751")
+            else:
+                token = str(uuid.uuid4())
+                now = datetime.utcnow()
+                user["device_token"] = token
+                user["last_login"] = now.isoformat()
+                user["expires_at"] = (now + timedelta(days=7)).isoformat()
+                _auth_save_users(db)
+                st.session_state["_auth_user"] = login_id
+                st.session_state["_auth_device"] = token
+                st.session_state["_auth_login_time"] = now.isoformat()
+                st.success(f"Welcome {login_id} — logged in!")
+                st.rerun()
+    st.stop()
+
+# If we reach here, user is logged in; validate session
+_auth_check_session()
+CURRENT_USER = st.session_state.get("_auth_user")
+USERS_DB = _auth_load_users()
+CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
+IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
+
+# Admin toggle in sidebar
+if IS_ADMIN:
+    if "_auth_show_admin" not in st.session_state:
+        st.session_state["_auth_show_admin"] = False
+    if st.sidebar.button("🔧 Open Admin Panel"):
+        st.session_state["_auth_show_admin"] = not st.session_state["_auth_show_admin"]
+
+# Show Admin Panel (only for admin users)
+if st.session_state.get("_auth_show_admin"):
+    st.markdown("## ⚙️ ADMIN PANEL")
+    # Noticeboard
+    st.markdown("### Noticeboard")
+    new_notice = st.text_area("Global notice (shows on main page)", value=_settings.get("notice",""))
+    if st.button("Save Notice"):
+        _settings["notice"] = new_notice
+        _auth_save_settings(_settings)
+        st.success("Notice saved.")
+    st.markdown("---")
+    # Create user
+    st.markdown("### Create / Manage Users")
+    c1,c2 = st.columns(2)
+    with c1:
+        new_id = st.text_input("New ID", key="__new_id")
+        new_pw = st.text_input("New Password", type="password", key="__new_pw")
+    with c2:
+        new_admin = st.checkbox("Is Admin?", key="__new_admin")
+        if st.button("Create User"):
+            db = _auth_load_users()
+            if new_id in db.get("users", {}):
+                st.error("User already exists.")
+            else:
+                db.setdefault("users", {})[new_id] = {
+                    "password_hash": _auth_hash(new_pw or "12345"),
+                    "is_admin": bool(new_admin),
+                    "device_token": None,
+                    "last_login": None,
+                    "expires_at": None
+                }
+                _auth_save_users(db)
+                st.success(f"User {new_id} created.")
+    st.markdown("#### Existing users")
+    db = _auth_load_users()
+    for uname, udata in list(db.get("users", {}).items()):
+        cols = st.columns([3,1,1,1])
+        cols[0].write(f"**{uname}** {'(admin)' if udata.get('is_admin') else ''}")
+        if cols[1].button("Reset PW", key=f"reset_{uname}"):
+            db["users"][uname]["password_hash"] = _auth_hash("admin123")
+            _auth_save_users(db)
+            st.success(f"{uname} password reset to admin123")
+        if cols[2].button("Expire Now", key=f"expire_{uname}"):
+            db["users"][uname]["expires_at"] = datetime.utcnow().isoformat()
+            _auth_save_users(db)
+            st.success(f"{uname} expired")
+        if cols[3].button("Delete", key=f"del_{uname}"):
+            del db["users"][uname]
+            _auth_save_users(db)
+            st.rerun()
+    st.markdown("---")
+    st.write("Contact developer: +91 9140588751")
+    st.stop()
+
+# Show public notice on top of main app if set
+if _settings.get("notice"):
+    st.info(_settings.get("notice"))
+# ========== END AUTH / ADMIN BLOCK ==========
 
 # =================== CONFIG ===================
-st.set_page_config(page_title="⚡ ULTRA PRO MAX IMAGE EDITOR", layout="wide")
+st.set_page_config(page_title="⚡ 100+ EDIT IN 1 CLICK", layout="wide")
 
 # Custom CSS for professional theme
 st.markdown("""
@@ -470,13 +653,15 @@ def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5) -> I
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
+from datetime import datetime, timedelta
+import random
+
 def generate_filename() -> str:
     """Generate unique filename"""
-    now = datetime.datetime.now()
     future_minutes = random.randint(1, 10)
-    future_time = now + datetime.timedelta(minutes=future_minutes)
+    now = datetime.now()
+    future_time = now + timedelta(minutes=future_minutes)
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
-
 def get_watermark_position(img: Image.Image, watermark: Image.Image) -> Tuple[int, int]:
     """Get watermark position (90% bottom)"""
     x = random.choice([20, img.width - watermark.width - 20])
@@ -937,40 +1122,18 @@ if 'watermark_groups' not in st.session_state:
 st.markdown("""
     <div class='header-container'>
         <h1 style='text-align: center; color: #ffcc00; margin: 0;'>
-            ⚡ ULTRA PRO MAX IMAGE EDITOR
+            ⚡ 100+ EDIT IN 1 CLICK
         </h1>
         <p style='text-align: center; color: #ffffff;'>Professional Image Processing Tool</p>
     </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-    <div class='feature-card'>
-        <h3>🌟 ULTRA PRO FEATURES</h3>
-        <div style="column-count: 2; column-gap: 20px;">
-            <p>Manual Text Positioning</p>
-            <p>300+ Inspirational Quotes</p>
-            <p>140+ Custom Wishes</p>
-            <p>Anime Style Effect</p>
-            <p>Cartoon Effect</p>
-            <p>Pencil Sketch</p>
-            <p>Rain & Snow Effects</p>
-            <p>Emoji Stickers</p>
-            <p>Smart Gradient Text</p>
-            <p>Multiple Watermarks</p>
-            <p>Custom Greeting Messages</p>
-            <p>Date & Time Stamps</p>
-            <p>Pet & Coffee PNG Overlays</p>
-            <p>Vignette Effect</p>
-            <p>Batch Processing</p>
-            <p>Multiple Variants</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+
 
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 with st.sidebar:
-    st.markdown("### ⚙️ ULTRA PRO SETTINGS")
+    st.markdown("### ⚙️  SETTINGS")
     
     greeting_type = st.selectbox("Greeting Type", 
                                ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
@@ -980,7 +1143,7 @@ with st.sidebar:
     else:
         custom_greeting = None
     
-    generate_variants = st.checkbox("Generate Multiple Variants", value=True)
+    generate_variants = st.checkbox("Generate Multiple Variants", value=False)
     if generate_variants:
         num_variants = st.slider("Variants per Image", 1, 5, 3)
     
@@ -1030,7 +1193,7 @@ with st.sidebar:
         st.markdown("### ✨ QUOTE DATABASE")
         st.markdown("<div class='quote-display'>" + get_random_quote() + "</div>", unsafe_allow_html=True)
         if st.button("Refresh Quote"):
-            st.experimental_rerun()
+            st.rerun()
     
     use_watermark = st.checkbox("Add Watermark", value=True)
     watermark_images = []
@@ -1092,7 +1255,7 @@ with st.sidebar:
     st.markdown("### ⚡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
     
-if st.button("✨ ULTRA PRO GENERATE", key="generate", use_container_width=True):
+if st.button("✨ GENERATE", key="generate", use_container_width=True):
     if uploaded_images:
         with st.spinner("Processing images with ULTRA PRO quality..."):
             processed_images = []
@@ -1300,7 +1463,7 @@ if st.session_state.generated_images:
                 continue
     
     st.download_button(
-        label="⬇️ Download All Photos (ULTRA PRO QUALITY)",
+        label="⬇️ Download All Photos ",
         data=zip_buffer.getvalue(),
         file_name="ultra_pro_photos.zip",
         mime="application/zip",
@@ -1309,7 +1472,7 @@ if st.session_state.generated_images:
     
     st.markdown("""
         <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #ffcc00; margin: 0;'>😇 ULTRA PRO RESULTS</h2>
+            <h2 style='text-align: center; color: #ffcc00; margin: 0;'>😇  RESULTS</h2>
         </div>
     """, unsafe_allow_html=True)
     
