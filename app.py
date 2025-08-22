@@ -11,6 +11,7 @@ from typing import Tuple, List, Optional
 import math
 import colorsys
 import traceback
+from collections import Counter
 # ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
 import json, uuid, hashlib
 from datetime import datetime, timedelta
@@ -71,7 +72,6 @@ def _auth_logout_and_rerun():
     st.rerun()
 
 def _auth_check_session():
-    # If user logged in in this session, validate against stored user record
     username = st.session_state.get("_auth_user")
     if not username:
         return
@@ -80,7 +80,6 @@ def _auth_check_session():
     if not u:
         st.warning("Your account was removed. Logging out.")
         _auth_logout_and_rerun()
-    # expiry check
     if u.get("expires_at"):
         try:
             exp = datetime.fromisoformat(u["expires_at"])
@@ -89,13 +88,11 @@ def _auth_check_session():
                 _auth_logout_and_rerun()
         except:
             pass
-    # device-token check (single device enforcement)
     token = st.session_state.get("_auth_device")
     if u.get("device_token") and token and u.get("device_token") != token:
         st.warning("You were logged in from another device. This session is logged out.")
         _auth_logout_and_rerun()
 
-# If not authenticated, show login UI and stop further execution
 if "_auth_user" not in st.session_state:
     st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
     left, right = st.columns([2,1])
@@ -122,24 +119,20 @@ if "_auth_user" not in st.session_state:
                 st.rerun()
     st.stop()
 
-# If we reach here, user is logged in; validate session
 _auth_check_session()
 CURRENT_USER = st.session_state.get("_auth_user")
 USERS_DB = _auth_load_users()
 CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
 IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
 
-# Admin toggle in sidebar
 if IS_ADMIN:
     if "_auth_show_admin" not in st.session_state:
         st.session_state["_auth_show_admin"] = False
     if st.sidebar.button("🔧 Open Admin Panel"):
         st.session_state["_auth_show_admin"] = not st.session_state["_auth_show_admin"]
 
-# Show Admin Panel (only for admin users)
 if st.session_state.get("_auth_show_admin"):
     st.markdown("## ⚙️ ADMIN PANEL")
-    # Noticeboard
     st.markdown("### Noticeboard")
     new_notice = st.text_area("Global notice (shows on main page)", value=_settings.get("notice",""))
     if st.button("Save Notice"):
@@ -147,7 +140,6 @@ if st.session_state.get("_auth_show_admin"):
         _auth_save_settings(_settings)
         st.success("Notice saved.")
     st.markdown("---")
-    # Create user
     st.markdown("### Create / Manage Users")
     c1,c2 = st.columns(2)
     with c1:
@@ -190,7 +182,6 @@ if st.session_state.get("_auth_show_admin"):
     st.write("Contact developer: +91 9140588751")
     st.stop()
 
-# Show public notice on top of main app if set
 if _settings.get("notice"):
     st.info(_settings.get("notice"))
 # ========== END AUTH / ADMIN BLOCK ==========
@@ -337,7 +328,6 @@ st.markdown("""
 
 # =================== UTILS ===================
 def list_files(folder: str, exts: List[str]) -> List[str]:
-    """List files in folder with given extensions"""
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
         return []
@@ -345,8 +335,13 @@ def list_files(folder: str, exts: List[str]) -> List[str]:
     return [f for f in files 
            if any(f.lower().endswith(ext.lower()) for ext in exts)]
 
+def list_subfolders(folder: str) -> List[str]:
+    if not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+        return []
+    return [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d))]
+
 def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
-    """Smart crop to maintain aspect ratio"""
     w, h = img.size
     if w/h > target_ratio:
         new_w = int(h * target_ratio)
@@ -358,14 +353,12 @@ def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
         return img.crop((0, top, w, top + new_h))
 
 def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
-    """Get text dimensions with None check"""
     if text is None:
         return 0, 0
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 def get_random_font() -> ImageFont.FreeTypeFont:
-    """Get a random font from assets"""
     try:
         fonts = list_files("assets/fonts", [".ttf", ".otf"])
         if not fonts:
@@ -383,7 +376,6 @@ def get_random_font() -> ImageFont.FreeTypeFont:
         return ImageFont.load_default()
 
 def get_random_wish(greeting_type: str) -> str:
-    """Get random wish based on greeting type"""
     wishes = {
         "Good Morning": [
             "Rise and shine! A new day is a new opportunity!",
@@ -543,7 +535,6 @@ def get_random_wish(greeting_type: str) -> str:
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
 def get_random_quote() -> str:
-    """Get inspirational quote from database"""
     quotes = [
         "The only way to do great work is to love what you do. - Steve Jobs",
         "Innovation distinguishes between a leader and a follower. - Steve Jobs",
@@ -569,65 +560,74 @@ def get_random_quote() -> str:
     return random.choice(quotes)
 
 def get_random_color() -> Tuple[int, int, int]:
-    """Generate random RGB color"""
     return (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
 
 def get_vibrant_color() -> Tuple[int, int, int]:
-    """Generate vibrant RGB color"""
     hue = random.random()
     r, g, b = [int(255 * c) for c in colorsys.hsv_to_rgb(hue, 0.9, 0.9)]
     return (r, g, b)
 
-def get_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Returns a list of gradient colors (white + one vibrant color)"""
-    return [(255, 255, 255), get_vibrant_color()]
+PURE_COLORS = [
+    (255, 0, 0),  # Red
+    (255, 255, 0),  # Yellow
+    (0, 255, 0),  # Green
+    (0, 0, 255),  # Blue
+    (255, 0, 255),  # Magenta
+    (0, 255, 255),  # Cyan
+]
+
+def get_gradient_colors(dominant_color: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
+    if random.random() < 0.8:
+        return [(255, 255, 255), dominant_color]
+    else:
+        return [(255, 255, 255), random.choice(PURE_COLORS)]
 
 def get_multi_gradient_colors() -> List[Tuple[int, int, int]]:
-    """Returns 2-3 vibrant high contrast colors for gradient"""
-    color_sets = [
-        [(255, 50, 50), (255, 255, 50)],   # Red to Yellow
-        [(50, 50, 255), (50, 255, 255)],    # Blue to Cyan
-        [(180, 50, 180), (255, 50, 255)],   # Purple to Pink
-        [(50, 180, 50), (50, 255, 50)],     # Green to Lime
-        [(255, 50, 50), (255, 255, 50), (50, 255, 50)],  # Red to Yellow to Green
-        [(130, 50, 200), (50, 50, 255), (50, 255, 255)], # Indigo to Blue to Cyan
-        [(255, 150, 50), (255, 50, 50), (180, 50, 180)] # Orange to Red to Purple
-    ]
-    return random.choice(color_sets)
+    num_colors = random.randint(2, 7)
+    colors = []
+    for _ in range(num_colors):
+        colors.append(get_vibrant_color())
+    return colors
 
 def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
-    """Create a gradient mask image"""
-    if len(colors) < 2:
-        colors = [(255, 255, 255), get_vibrant_color()]  # Default to white + vibrant color
-    
     gradient = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(gradient)
     
-    if direction == 'horizontal':
+    if len(colors) == 2:
+        start_color, end_color = colors
         for x in range(width):
             ratio = x / width
-            r = int(colors[0][0] * (1 - ratio) + colors[1][0] * ratio)
-            g = int(colors[0][1] * (1 - ratio) + colors[1][1] * ratio)
-            b = int(colors[0][2] * (1 - ratio) + colors[1][2] * ratio)
-            draw.line([(x, 0), (x, height)], fill=(r, g, b))
+            r = int(start_color[0] * (1 - ratio) + end_color[0] * ratio)
+            g = int(start_color[1] * (1 - ratio) + end_color[1] * ratio)
+            b = int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
+            color = (r, g, b)
+            draw.line([(x, 0), (x, height)], fill=color)
+        if random.choice([True, False]):
+            gradient = gradient.transpose(Image.FLIP_LEFT_RIGHT)
     else:
-        for y in range(height):
-            ratio = y / height
-            r = int(colors[0][0] * (1 - ratio) + colors[1][0] * ratio)
-            g = int(colors[0][1] * (1 - ratio) + colors[1][1] * ratio)
-            b = int(colors[0][2] * (1 - ratio) + colors[1][2] * ratio)
-            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        num_segments = len(colors) - 1
+        segment_width = width // num_segments
+        for seg in range(num_segments):
+            start_color = colors[seg]
+            end_color = colors[seg + 1]
+            start_x = seg * segment_width
+            end_x = start_x + segment_width
+            for x in range(start_x, min(end_x, width)):
+                ratio = (x - start_x) / segment_width
+                r = int(start_color[0] * (1 - ratio) + end_color[0] * ratio)
+                g = int(start_color[1] * (1 - ratio) + end_color[1] * ratio)
+                b = int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
+                draw.line([(x, 0), (x, height)], fill=(r, g, b))
     
     return gradient
 
 def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
-    """Format current date with options"""
-    today = datetime.datetime.now()
+    today = datetime.now()
     formatted_date = today.strftime(date_format)
     
     if show_day:
         if today.hour >= 19:
-            next_day = today + datetime.timedelta(days=1)
+            next_day = today + timedelta(days=1)
             day_name = next_day.strftime("%A")
             formatted_date += f" (Advance {day_name})"
         else:
@@ -637,7 +637,6 @@ def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
     return formatted_date
 
 def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5) -> Image.Image:
-    """Apply decorative overlay"""
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
         new_size = (int(image.width * size), int(image.height * size))
@@ -653,23 +652,18 @@ def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5) -> I
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-from datetime import datetime, timedelta
-import random
-
 def generate_filename() -> str:
-    """Generate unique filename"""
     future_minutes = random.randint(1, 10)
     now = datetime.now()
     future_time = now + timedelta(minutes=future_minutes)
     return f"Picsart_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
+
 def get_watermark_position(img: Image.Image, watermark: Image.Image) -> Tuple[int, int]:
-    """Get watermark position (90% bottom)"""
     x = random.choice([20, img.width - watermark.width - 20])
     y = img.height - watermark.height - 20
     return (x, y)
 
 def enhance_image_quality(img: Image.Image) -> Image.Image:
-    """Enhance image quality without altering original"""
     if img.mode != 'RGB':
         img = img.convert('RGB')
         
@@ -682,14 +676,12 @@ def enhance_image_quality(img: Image.Image) -> Image.Image:
     return img
 
 def upscale_text_elements(img: Image.Image, scale_factor: int = 2) -> Image.Image:
-    """Upscale text elements for better quality"""
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
 def apply_vignette(img: Image.Image, intensity: float = 0.8) -> Image.Image:
-    """Apply vignette effect"""
     width, height = img.size
     x = np.linspace(-1, 1, width)
     y = np.linspace(-1, 1, height)
@@ -703,14 +695,12 @@ def apply_vignette(img: Image.Image, intensity: float = 0.8) -> Image.Image:
     return img
 
 def apply_sketch_effect(img: Image.Image) -> Image.Image:
-    """Convert image to pencil sketch"""
     img_gray = img.convert('L')
     img_invert = ImageOps.invert(img_gray)
     img_blur = img_invert.filter(ImageFilter.GaussianBlur(radius=3))
     return ImageOps.invert(img_blur)
 
 def apply_cartoon_effect(img: Image.Image) -> Image.Image:
-    """Apply cartoon effect without OpenCV"""
     reduced = img.quantize(colors=8, method=1)
     gray = img.convert('L')
     edges = gray.filter(ImageFilter.FIND_EDGES)
@@ -721,7 +711,6 @@ def apply_cartoon_effect(img: Image.Image) -> Image.Image:
     return cartoon
 
 def apply_anime_effect(img: Image.Image) -> Image.Image:
-    """Apply anime-style effect"""
     enhancer = ImageEnhance.Color(img)
     img = enhancer.enhance(1.5)
     edges = img.filter(ImageFilter.FIND_EDGES)
@@ -732,7 +721,6 @@ def apply_anime_effect(img: Image.Image) -> Image.Image:
     return result
 
 def apply_rain_effect(img: Image.Image) -> Image.Image:
-    """Add rain effect to image"""
     width, height = img.size
     rain = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(rain)
@@ -744,7 +732,6 @@ def apply_rain_effect(img: Image.Image) -> Image.Image:
     return Image.alpha_composite(img.convert('RGBA'), rain).convert('RGB')
 
 def apply_snow_effect(img: Image.Image) -> Image.Image:
-    """Add snow effect to image"""
     width, height = img.size
     snow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(snow)
@@ -756,8 +743,7 @@ def apply_snow_effect(img: Image.Image) -> Image.Image:
     return Image.alpha_composite(img.convert('RGBA'), snow).convert('RGB')
 
 def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
-    """Add emoji stickers to image"""
-    if not emojis:  # Fix for NoneType error
+    if not emojis:
         return img
         
     draw = ImageDraw.Draw(img)
@@ -769,9 +755,33 @@ def apply_emoji_stickers(img: Image.Image, emojis: List[str]) -> Image.Image:
         draw.text((x, y), emoji, font=font, fill=(255, 255, 0))
     return img
 
+def get_dominant_color(img: Image.Image) -> Tuple[int, int, int]:
+    img_small = img.resize((100, 100))
+    colors = Counter(img_small.getdata())
+    dominant = colors.most_common(1)[0][0]
+    h, l, s = colorsys.rgb_to_hls(*[c / 255 for c in dominant])
+    if l < 0.5:
+        l = 0.7
+    return tuple(int(255 * c) for c in colorsys.hls_to_rgb(h, l, s))
+
+def find_text_position(img: Image.Image, required_width: int, required_height: int, prefer_top: bool = True) -> Tuple[int, int]:
+    arr = np.array(img.convert('L'))
+    step = 20
+    min_var = float('inf')
+    best_pos = (20, 20 if prefer_top else img.height - required_height - 20)
+    start_y = 0 if prefer_top else img.height // 2
+    for y in range(start_y, img.height - required_height, step):
+        for x in range(0, img.width - required_width, step):
+            region = arr[y:y + required_height, x:x + required_width]
+            var = np.var(region)
+            if var < min_var:
+                min_var = var
+                best_pos = (x, y)
+    return best_pos
+
 def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
-                     effect_settings: dict) -> dict:
-    """Apply advanced text effects"""
+                     effect_settings: dict, base_img: Image.Image) -> dict:
+    """Apply advanced text effects with separate layers for shadow, outline, and fill"""
     x, y = position
     effect_type = effect_settings['type']
     
@@ -783,151 +793,94 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     # Handle RANDOM effect type
     if effect_type == 'random':
         available_effects = [
-            'white_only', 'white_black_outline', 'gradient', 
-            'multi_gradient', 'neon', '3d', 'colorful', 'full_random',
-            'white_black_gradient'  # Added new effect type
+            'white_only', 'white_black_outline_shadow', 'gradient', 
+            'neon', 'rainbow', 'country_flag', '3d'
         ]
         effect_type = random.choice(available_effects)
         effect_settings['type'] = effect_type
     
-    # FIX: Remove background color from text rendering
-    if effect_type == 'white_black_gradient':
-        # New text style: Black outline + white to vibrant gradient
-        colors = [(255, 255, 255), get_vibrant_color()]
-        gradient = create_gradient_mask(text_width, text_height, colors)
-        gradient_text = Image.new('RGBA', (text_width, text_height))
-        temp_img = Image.new('RGBA', (text_width, text_height))
-        temp_draw = ImageDraw.Draw(temp_img)
-        temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
-        
-        # Draw black outline
-        outline_size = effect_settings.get('outline_size', 2)
-        for ox in range(-outline_size, outline_size+1):
-            for oy in range(-outline_size, outline_size+1):
-                if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0))
-        
-        # Draw the gradient text without background
-        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
+    # Create separate transparent layers for shadow, outline, and fill
+    shadow_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
+    outline_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
+    fill_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
     
-    elif effect_type == 'gradient':
-        colors = get_gradient_colors()
+    shadow_draw = ImageDraw.Draw(shadow_layer)
+    outline_draw = ImageDraw.Draw(outline_layer)
+    fill_draw = ImageDraw.Draw(fill_layer)
+    
+    # Draw shadow on shadow_layer (offset 2,2, opacity 40)
+    shadow_offset = (2, 2)
+    shadow_draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=(0, 0, 0, 40))
+    
+    # Draw outline on outline_layer
+    outline_range = 1 if effect_type == 'neon' else 2
+    for ox in range(-outline_range, outline_range + 1):
+        for oy in range(-outline_range, outline_range + 1):
+            if ox != 0 or oy != 0:
+                outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
+    
+    # Create white mask for text
+    mask = Image.new("L", (text_width, text_height), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.text((0, 0), text, font=font, fill=255)
+    
+    # Apply fill based on effect type
+    if effect_type in ['gradient', 'rainbow']:
+        colors = effect_settings['colors']
         gradient = create_gradient_mask(text_width, text_height, colors)
-        gradient_text = Image.new('RGBA', (text_width, text_height))
-        temp_img = Image.new('RGBA', (text_width, text_height))
-        temp_draw = ImageDraw.Draw(temp_img)
-        temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
         
-        outline_size = effect_settings.get('outline_size', 2)
-        outline_color = get_vibrant_color()
-        for ox in range(-outline_size, outline_size+1):
-            for oy in range(-outline_size, outline_size+1):
-                if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        
-        # Draw the gradient text without background
-        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
-        
-    elif effect_type == 'multi_gradient':
-        colors = get_multi_gradient_colors()
-        gradient = create_gradient_mask(text_width, text_height, colors)
-        gradient_text = Image.new('RGBA', (text_width, text_height))
-        temp_img = Image.new('RGBA', (text_width, text_height))
-        temp_draw = ImageDraw.Draw(temp_img)
-        temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
-        gradient_text = Image.alpha_composite(gradient.convert('RGBA'), temp_img)
-        
-        outline_size = effect_settings.get('outline_size', 2)
-        outline_color = get_vibrant_color()
-        for ox in range(-outline_size, outline_size+1):
-            for oy in range(-outline_size, outline_size+1):
-                if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        
-        # Draw the gradient text without background
-        draw.bitmap((x, y), gradient_text.convert('L'), fill=None)
-        
+        # Create fill layer with gradient applied through white mask
+        gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
+        gradient_text.paste(gradient, (0, 0), mask)
+        fill_layer.paste(gradient_text, (x, y), gradient_text)
+    
     elif effect_type == 'neon':
-        glow_size = effect_settings.get('glow_size', 5)
         glow_color = get_vibrant_color()
-        
+        glow_size = 10
         for i in range(glow_size, 0, -1):
-            alpha = int(255 * (i/glow_size))
-            temp_glow = Image.new('RGBA', (text_width + i*2, text_height + i*2))
-            temp_glow_draw = ImageDraw.Draw(temp_glow)
-            temp_glow_draw.text((i, i), text, font=font, fill=(*glow_color, alpha))
-            
-            for _ in range(2):
-                temp_glow = temp_glow.filter(ImageFilter.BLUR)
-            
-            draw.bitmap((x-i, y-i), temp_glow.convert('L'), fill=None)
-        
-        draw.text((x, y), text, font=font, fill=(255, 255, 255))
-        
-    elif effect_type == '3d':
-        depth = effect_settings.get('depth', 5)
-        light_angle = effect_settings.get('light_angle', 45)
-        base_color = get_vibrant_color()
-        
-        for i in range(1, depth+1):
-            angle_color = (
-                int(base_color[0] * math.cos(math.radians(light_angle))),
-                int(base_color[1] * math.sin(math.radians(light_angle))),
-                base_color[2]
-            )
-            draw.text((x+i, y+i), text, font=font, fill=angle_color)
-        
-        draw.text((x, y), text, font=font, fill=base_color)
-        
-    elif effect_type == 'colorful':
-        main_color = effect_settings.get('main_color', get_vibrant_color())
-        outline_color = get_vibrant_color()
-        
-        outline_size = effect_settings.get('outline_size', 2)
-        for ox in range(-outline_size, outline_size+1):
-            for oy in range(-outline_size, outline_size+1):
-                if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        
-        # Draw filled text with main color
-        draw.text((x, y), text, font=font, fill=main_color)
-        
-    elif effect_type == 'full_random':
-        main_color = get_vibrant_color()
-        outline_color = get_vibrant_color()
-        
-        outline_size = effect_settings.get('outline_size', 2)
-        for ox in range(-outline_size, outline_size+1):
-            for oy in range(-outline_size, outline_size+1):
-                if ox != 0 or oy != 0:
-                    draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
-        
-        # Draw filled text with main color
-        draw.text((x, y), text, font=font, fill=main_color)
-        
-    else:
-        # FIX: Remove background color from text rendering
-        # Only draw shadow for simple effects
-        shadow_offset = 3
-        draw.text((x+shadow_offset, y+shadow_offset), text, font=font, fill=(50, 50, 50))
-        
-        if effect_type == "white_black_outline":
-            outline_size = effect_settings.get('outline_size', 2)
-            outline_color = get_vibrant_color()
-            for ox in range(-outline_size, outline_size+1):
-                for oy in range(-outline_size, outline_size+1):
+            alpha = int(80 * (i / glow_size))
+            for ox in range(-i, i + 1):
+                for oy in range(-i, i + 1):
                     if ox != 0 or oy != 0:
-                        draw.text((x+ox, y+oy), text, font=font, fill=outline_color)
+                        fill_draw.text((x + ox, y + oy), text, font=font, fill=(*glow_color, alpha))
         
-        # Draw filled text with white color
-        draw.text((x, y), text, font=font, fill=(255, 255, 255))
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+    
+    elif effect_type == 'country_flag':
+        flags = list_files("assets/flags", [".png", ".jpg"])
+        if flags:
+            flag_path = os.path.join("assets/flags", random.choice(flags))
+            flag_img = Image.open(flag_path).convert("RGB").resize((text_width, text_height), Image.LANCZOS)
+            
+            flag_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
+            flag_text.paste(flag_img, (0, 0), mask)
+            
+            fill_layer.paste(flag_text, (x, y), flag_text)
+        else:
+            fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+    
+    elif effect_type == '3d':
+        depth = 5
+        shadow_color = (100, 100, 100, 255)
+        for i in range(depth):
+            fill_draw.text((x + i, y + i), text, font=font, fill=shadow_color)
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+    
+    else:  # white_only or white_black_outline_shadow
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+    
+    # Merge layers using alpha compositing
+    base_img_rgba = base_img.convert('RGBA') if base_img.mode != 'RGBA' else base_img
+    base_img_rgba = Image.alpha_composite(base_img_rgba, shadow_layer)
+    base_img_rgba = Image.alpha_composite(base_img_rgba, outline_layer)
+    base_img_rgba = Image.alpha_composite(base_img_rgba, fill_layer)
+    
+    # Update base_img with the composited result
+    base_img.paste(base_img_rgba, (0, 0))
     
     return effect_settings
 
 def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
-    """Create image variant with applied effects"""
     try:
         img = original_img.copy()
         draw = ImageDraw.Draw(img)
@@ -936,62 +889,157 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         if font is None:
             return None
         
+        dominant_color = get_dominant_color(img)
+        
         effect_settings = {
-            'type': settings.get('text_effect', None),
-            'outline_size': settings.get('outline_size', 2)
+            'type': settings.get('text_effect', 'gradient'),
+            'outline_size': 2,
+            'colors': get_gradient_colors(dominant_color) if settings.get('text_effect', 'gradient') == 'gradient' else get_multi_gradient_colors()
         }
         
-        if settings['show_text']:
-            font_main = font.font_variant(size=settings['main_size'])
-            text = settings['greeting_type']
-            if text is None:
-                text = "ULTRA PRO"
-            text_width, text_height = get_text_size(draw, text, font_main)
-            
-            if settings.get('custom_position', False):
-                text_x = settings.get('text_x', 100)
-                text_y = settings.get('text_y', 100)
-            elif settings['text_position'] == "top_center":
-                text_x = (img.width - text_width) // 2
-                text_y = 20
-            elif settings['text_position'] == "bottom_center":
-                text_x = (img.width - text_width) // 2
-                text_y = img.height - text_height - 20
-            else:
-                max_text_x = max(20, img.width - text_width - 20)
-                text_x = random.randint(20, max_text_x) if max_text_x > 20 else 20
-                text_y = random.randint(20, img.height - text_height - 20)
-            
-            effect_settings = apply_text_effect(
-                draw, 
-                (text_x, text_y), 
-                text, 
-                font_main,
-                effect_settings
-            )
+        style_mode = settings.get('style_mode', 'Text')
         
-        if settings['show_wish']:
-            font_wish = font.font_variant(size=settings['wish_size'])
-            wish_text = settings.get('custom_wish', None)
-            if wish_text is None or wish_text.strip() == "":
-                wish_text = get_random_wish(settings['greeting_type'])
-            wish_width, wish_height = get_text_size(draw, wish_text, font_wish)
+        if style_mode == 'PNG Overlay' and settings['greeting_type'] in ["Good Morning", "Good Night"]:
+            themes = list_subfolders("assets/overlays")
+            if not themes:
+                st.warning("No overlay themes found.")
+                return img
+            theme = random.choice(themes)
+            base_path = os.path.join("assets/overlays", theme)
             
-            if settings['show_text']:
-                wish_y = text_y + settings['main_size'] + random.randint(10, 30)
+            png_files = []
+            if settings['greeting_type'] == "Good Morning":
+                png_files = ["1.png", "2.png"]
+                if settings['show_wish']:
+                    png_files.append("4.png")
+            elif settings['greeting_type'] == "Good Night":
+                png_files = ["1.png", "3.png"]
+                if settings['show_wish']:
+                    png_files.append("5.png")
+            
+            pngs = []
+            for f in png_files:
+                path = os.path.join(base_path, f)
+                if os.path.exists(path):
+                    pngs.append(Image.open(path).convert("RGBA"))
+            
+            if pngs:
+                gap = 10
+                total_h = sum(p.height for p in pngs) + (len(pngs) - 1) * gap
+                max_w = max(p.width for p in pngs)
+                
+                scale = min(1.0, min((img.width * 0.8) / max_w, (img.height * 0.8) / total_h))
+                pngs = [p.resize((int(p.width * scale), int(p.height * scale)), Image.LANCZOS) for p in pngs]
+                
+                total_h = sum(p.height for p in pngs) + (len(pngs) - 1) * gap
+                max_w = max(p.width for p in pngs)
+                
+                prefer_top = settings['text_position'] == "top_center"
+                start_x, start_y = find_text_position(img, max_w, total_h, prefer_top=prefer_top)
+                
+                if settings.get('custom_position', False):
+                    start_x = settings.get('text_x', 100)
+                    start_y = settings.get('text_y', 100)
+                elif settings['text_position'] == "bottom_center":
+                    start_y = img.height - total_h - 20
+                
+                current_y = start_y
+                for p in pngs:
+                    x = start_x + (max_w - p.width) // 2
+                    img.paste(p, (x, current_y), p)
+                    current_y += p.height + gap
+                
+                main_end_y = current_y
             else:
-                wish_y = 20
+                st.warning("Missing PNG files for selected theme.")
+        else:
+            if settings['show_text']:
+                font_size = settings['main_size']
+                font_main = font.font_variant(size=font_size)
+                main_texts = settings['greeting_type'].split()
+                if not main_texts:
+                    main_texts = ["ULTRA", "PRO"]
+                
+                line_heights = []
+                line_widths = []
+                for t in main_texts:
+                    w, h = get_text_size(draw, t, font_main)
+                    line_widths.append(w)
+                    line_heights.append(h)
+                
+                gap = 5
+                total_h = sum(line_heights) + (len(main_texts) - 1) * gap
+                max_w = max(line_widths)
+                
+                while max(line_widths) > img.width * 0.8 and font_size > 10:
+                    font_size -= 5
+                    font_main = font.font_variant(size=font_size)
+                    line_widths = []
+                    line_heights = []
+                    for t in main_texts:
+                        w, h = get_text_size(draw, t, font_main)
+                        line_widths.append(w)
+                        line_heights.append(h)
+                    total_h = sum(line_heights) + (len(main_texts) - 1) * gap
+                    max_w = max(line_widths)
+                
+                text_x, text_y = find_text_position(img, max_w, total_h, prefer_top=True)
+                if settings.get('custom_position', False):
+                    text_x = settings.get('text_x', 100)
+                    text_y = settings.get('text_y', 100)
+                elif settings['text_position'] == "top_center":
+                    text_x = (img.width - max_w) // 2
+                    text_y = 20
+                elif settings['text_position'] == "bottom_center":
+                    text_x = (img.width - max_w) // 2
+                    text_y = img.height - total_h - 20
+                
+                current_y = text_y
+                for i, t in enumerate(main_texts):
+                    line_x = text_x + (max_w - line_widths[i]) // 2
+                    apply_text_effect(draw, (line_x, current_y), t, font_main, effect_settings, img)
+                    current_y += line_heights[i] + gap
+                
+                main_end_y = current_y
             
-            max_wish_x = max(20, img.width - wish_width - 20)
-            wish_x = random.randint(20, max_wish_x) if max_wish_x > 20 else 20
-            
-            apply_text_effect(
-                draw, 
-                (wish_x, wish_y), 
-                wish_text, 
-                font_wish,
-                effect_settings
-            )
+            if settings['show_wish']:
+                font_size = settings['wish_size']
+                font_wish = font.font_variant(size=font_size)
+                wish_text = settings.get('custom_wish', None)
+                if wish_text is None or wish_text.strip() == "":
+                    wish_text = get_random_wish(settings['greeting_type'])
+                
+                avg_char_width = get_text_size(draw, "A", font_wish)[0]
+                wrap_width = int((img.width * 0.8) / avg_char_width)
+                lines = textwrap.wrap(wish_text, width=wrap_width)
+                
+                while len(lines) > 3 and font_size > 10:
+                    font_size -= 5
+                    font_wish = font.font_variant(size=font_size)
+                    avg_char_width = get_text_size(draw, "A", font_wish)[0]
+                    wrap_width = int((img.width * 0.8) / avg_char_width)
+                    lines = textwrap.wrap(wish_text, width=wrap_width)
+                
+                line_heights = []
+                line_widths = []
+                for line in lines:
+                    w, h = get_text_size(draw, line, font_wish)
+                    line_widths.append(w)
+                    line_heights.append(h)
+                
+                gap = 5
+                total_h = sum(line_heights) + (len(lines) - 1) * gap
+                max_w = max(line_widths)
+                
+                wish_x, wish_y = find_text_position(img, max_w, total_h, prefer_top=False)
+                if settings['show_text']:
+                    wish_y = max(wish_y, main_end_y + 20)
+                
+                current_y = wish_y
+                for i, line in enumerate(lines):
+                    line_x = wish_x + (max_w - line_widths[i]) // 2
+                    apply_text_effect(draw, (line_x, current_y), line, font_wish, effect_settings, img)
+                    current_y += line_heights[i] + gap
         
         if settings['show_date']:
             font_date = font.font_variant(size=settings['date_size'])
@@ -1009,7 +1057,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             max_date_x = max(20, img.width - date_width - 20)
             date_x = random.randint(20, max_date_x) if max_date_x > 20 else 20
-            date_y = max(20, img.height - date_height - 20)
+            date_y = img.height - date_height - 20
             
             if settings['show_day'] and "(" in date_text:
                 day_part = date_text[date_text.index("("):]
@@ -1017,13 +1065,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 if date_x + day_width > img.width - 20:
                     date_x = img.width - day_width - 25
             
-            apply_text_effect(
-                draw, 
-                (date_x, date_y), 
-                date_text, 
-                font_date,
-                effect_settings
-            )
+            apply_text_effect(draw, (date_x, date_y), date_text, font_date, effect_settings, img)
         
         if settings['show_quote']:
             font_quote = font.font_variant(size=settings['quote_size'])
@@ -1045,13 +1087,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             for i, line in enumerate(lines):
                 line_x = (img.width - line_widths[i]) // 2
-                apply_text_effect(
-                    draw, 
-                    (line_x, quote_y), 
-                    line, 
-                    font_quote,
-                    effect_settings
-                )
+                apply_text_effect(draw, (line_x, quote_y), line, font_quote, effect_settings, img)
                 quote_y += line_heights[i] + 10
         
         if settings['use_watermark'] and settings['watermark_image']:
@@ -1079,25 +1115,6 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 y = img.height - pet_img.height - 20
                 img.paste(pet_img, (x, y), pet_img)
         
-        # Apply additional effects
-        if settings.get('apply_vignette', False):
-            img = apply_vignette(img)
-            
-        if settings.get('apply_sketch', False):
-            img = apply_sketch_effect(img)
-            
-        if settings.get('apply_cartoon', False):
-            img = apply_cartoon_effect(img)
-            
-        if settings.get('apply_anime', False):
-            img = apply_anime_effect(img)
-            
-        if settings.get('apply_rain', False):
-            img = apply_rain_effect(img)
-            
-        if settings.get('apply_snow', False):
-            img = apply_snow_effect(img)
-            
         if settings.get('apply_emoji', False) and settings.get('emojis'):
             img = apply_emoji_stickers(img, settings['emojis'])
         
@@ -1118,7 +1135,6 @@ if 'generated_images' not in st.session_state:
 if 'watermark_groups' not in st.session_state:
     st.session_state.watermark_groups = {}
 
-# Display features
 st.markdown("""
     <div class='header-container'>
         <h1 style='text-align: center; color: #ffcc00; margin: 0;'>
@@ -1127,8 +1143,6 @@ st.markdown("""
         <p style='text-align: center; color: #ffffff;'>Professional Image Processing Tool</p>
     </div>
 """, unsafe_allow_html=True)
-
-
 
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -1147,18 +1161,19 @@ with st.sidebar:
     if generate_variants:
         num_variants = st.slider("Variants per Image", 1, 5, 3)
     
-    # Added new text style option
+    style_mode = st.selectbox("Style Mode", ["Text", "PNG Overlay"], index=0)
+    
+    if style_mode == 'PNG Overlay':
+        png_size = st.slider("PNG Overlay Size", 0.1, 1.0, 0.5)
+    
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White with Black Outline", "Gradient", "Multi-Color Gradient", 
-         "Neon", "3D", "Colorful", "Full Random", "RANDOM", "White with Black Outline and Gradient"],
+        ["White Only", "White + Black Outline + Shadow", "Gradient", "NEON", "Rainbow", "RANDOM", "Country Flag", "3D"],
         index=2
     )
     
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
     text_position = text_position.lower().replace(" ", "_")
-    
-    outline_size = st.slider("Text Outline Size", 1, 5, 2) if text_effect in ["White with Black Outline", "Gradient", "Multi-Color Gradient", "Neon", "3D", "Colorful", "White with Black Outline and Gradient"] else 2
     
     st.markdown("### 🎨 MANUAL TEXT POSITIONING")
     custom_position = st.checkbox("Enable Manual Positioning", value=False)
@@ -1219,15 +1234,6 @@ with st.sidebar:
         watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
     st.markdown("---")
-    st.markdown("### 🎭 PRO EFFECTS")
-    apply_vignette = st.checkbox("Vignette Effect", value=False)
-    apply_sketch = st.checkbox("Pencil Sketch", value=False)
-    apply_cartoon = st.checkbox("Cartoon Effect", value=False)
-    apply_anime = st.checkbox("Anime Style", value=False)
-    apply_rain = st.checkbox("Rain Effect", value=False)
-    apply_snow = st.checkbox("Snow Effect", value=False)
-    
-    st.markdown("---")
     st.markdown("### ☕🐾 PRO OVERLAYS")
     use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
     if use_coffee_pet:
@@ -1254,7 +1260,7 @@ with st.sidebar:
     
     st.markdown("### ⚡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
-    
+
 if st.button("✨ GENERATE", key="generate", use_container_width=True):
     if uploaded_images:
         with st.spinner("Processing images with ULTRA PRO quality..."):
@@ -1263,18 +1269,15 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
             progress_bar = st.progress(0)
             total_images = len(uploaded_images)
             
-            # Updated effect mapping with new text style
             effect_mapping = {
                 "White Only": "white_only",
-                "White with Black Outline": "white_black_outline",
+                "White + Black Outline + Shadow": "white_black_outline_shadow",
                 "Gradient": "gradient",
-                "Multi-Color Gradient": "multi_gradient",
-                "Neon": "neon",
-                "3D": "3d",
-                "Colorful": "colorful",
-                "Full Random": "full_random",
+                "NEON": "neon",
+                "Rainbow": "rainbow",
                 "RANDOM": "random",
-                "White with Black Outline and Gradient": "white_black_gradient"  # Added new effect
+                "Country Flag": "country_flag",
+                "3D": "3d"
             }
             selected_effect = effect_mapping[text_effect]
             
@@ -1327,7 +1330,6 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                     'show_text': show_text,
                                     'main_size': main_size if show_text else 90,
                                     'text_position': text_position,
-                                    'outline_size': outline_size,
                                     'show_wish': show_wish,
                                     'wish_size': wish_size if show_wish else 60,
                                     'custom_wish': wish_text,
@@ -1348,14 +1350,9 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                     'custom_position': custom_position,
                                     'text_x': text_x if custom_position else 100,
                                     'text_y': text_y if custom_position else 100,
-                                    'apply_vignette': apply_vignette,
-                                    'apply_sketch': apply_sketch,
-                                    'apply_cartoon': apply_cartoon,
-                                    'apply_anime': apply_anime,
-                                    'apply_rain': apply_rain,
-                                    'apply_snow': apply_snow,
                                     'apply_emoji': apply_emoji,
-                                    'emojis': emojis
+                                    'emojis': emojis,
+                                    'style_mode': style_mode
                                 }
                                 
                                 variant = create_variant(img, settings)
@@ -1368,7 +1365,6 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                 'show_text': show_text,
                                 'main_size': main_size if show_text else 90,
                                 'text_position': text_position,
-                                'outline_size': outline_size,
                                 'show_wish': show_wish,
                                 'wish_size': wish_size if show_wish else 60,
                                 'custom_wish': wish_text,
@@ -1389,21 +1385,15 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                 'custom_position': custom_position,
                                 'text_x': text_x if custom_position else 100,
                                 'text_y': text_y if custom_position else 100,
-                                'apply_vignette': apply_vignette,
-                                'apply_sketch': apply_sketch,
-                                'apply_cartoon': apply_cartoon,
-                                'apply_anime': apply_anime,
-                                'apply_rain': apply_rain,
-                                'apply_snow': apply_snow,
                                 'apply_emoji': apply_emoji,
-                                'emojis': emojis
+                                'emojis': emojis,
+                                'style_mode': style_mode
                             }
                             
                             processed_img = create_variant(img, settings)
                             if processed_img is not None:
                                 processed_images.append((generate_filename(), processed_img))
                     
-                        # Update progress
                         progress = (idx * len(group_images) + img_idx + 1) / total_images
                         progress_bar.progress(min(progress, 1.0))
                     
@@ -1422,7 +1412,6 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
         st.warning("Please upload at least one image")
 
 if st.session_state.generated_images:
-    # Create download buttons for each watermark group
     if len(st.session_state.watermark_groups) > 1:
         for group_name, group_data in st.session_state.watermark_groups.items():
             zip_buffer = io.BytesIO()
@@ -1447,7 +1436,6 @@ if st.session_state.generated_images:
                 use_container_width=True
             )
     
-    # Main download all button
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
         for filename, img in st.session_state.generated_images:
