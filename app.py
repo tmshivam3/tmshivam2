@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from typing import List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+from collections import Counter
+import traceback
+
 # -----------------------------
 # Ensure gdown is installed
 # -----------------------------
@@ -2035,6 +2038,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
