@@ -5,7 +5,7 @@ import subprocess
 import sys
 import hashlib
 import streamlit as st
-
+import colorsys
 # -----------------------------
 # Ensure gdown is installed
 # -----------------------------
@@ -2083,5 +2083,6 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
