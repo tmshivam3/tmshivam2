@@ -1,64 +1,33 @@
-import os
-import zipfile
-import shutil
-import streamlit as st
-import subprocess
-import sys
-
-# Ensure gdown is installed
-try:
-    import gdown
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
-    import gdown
+import os, zipfile, shutil
+import gdown, streamlit as st
 
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
 FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
-ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+ZIP_URL = f"https://drive.google.com/uc?id={FILE_ID}"
 
-# Download if not exists
 if not os.path.exists(ASSETS_DIR):
-    st.info("Downloading assets from Google Drive... ⏳")
-    gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
+    st.info("Downloading assets... ⏳")
+    gdown.download(ZIP_URL, ZIP_FILE, quiet=False, fuzzy=True)
 
-    # Extract zip to a temp folder
     temp_extract = "temp_assets_extract"
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
         zip_ref.extractall(temp_extract)
 
-    # Check if single top-level folder exists inside temp_extract
     top_level = os.listdir(temp_extract)
     if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
         inner_folder = os.path.join(temp_extract, top_level[0])
-        # Move content to ASSETS_DIR
-        shutil.move(inner_folder, ASSETS_DIR)
+        shutil.copytree(inner_folder, ASSETS_DIR, dirs_exist_ok=True)
     else:
-        # Move everything to ASSETS_DIR
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in os.listdir(temp_extract):
-            shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
+            shutil.copytree(os.path.join(temp_extract, item), os.path.join(ASSETS_DIR, item), dirs_exist_ok=True)
 
-    # Clean up
     os.remove(ZIP_FILE)
     shutil.rmtree(temp_extract)
 
-# Now import the rest of your modules
-import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import io
-import random
-from datetime import datetime, timedelta
-import zipfile
-import numpy as np
-import textwrap
-from typing import Tuple, List, Optional
-import math
-import colorsys
-import traceback
-from collections import Counter
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-import json, uuid, hashlib
+st.write("Assets folder contents:", os.listdir(ASSETS_DIR))
+
 
 # =================== CONFIG ===================
 
@@ -2043,3 +2012,4 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
