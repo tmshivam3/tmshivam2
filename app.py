@@ -10,6 +10,8 @@ import json
 import uuid
 from datetime import datetime, timedelta
 from streamlit.runtime.scriptrunner import get_script_run_ctx
+from typing import List, Optional, Tuple
+
 
 # -----------------------------
 # Ensure gdown is installed
@@ -2034,6 +2036,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
