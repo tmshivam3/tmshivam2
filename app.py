@@ -5,8 +5,26 @@ import os
 import sys
 import subprocess
 import shutil
+import zipfile
+import io
+import json
+import uuid
+import hashlib
+import random
+import math
+import colorsys
+import textwrap
+import traceback
+from datetime import datetime, timedelta
+from collections import Counter
+from typing import Tuple, List, Optional
+
+# ----------------------------
+# Third-Party Imports
+# ----------------------------
 import streamlit as st
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
 
 # ----------------------------
 # Ensure gdown is installed
@@ -49,7 +67,7 @@ def download_assets_from_drive(force_download=False):
 
     if not os.path.exists(ASSETS_DIR):
         st.info("📥 Downloading assets folder directly from Google Drive... ⏳ Please wait.")
-        
+
         # Download the folder
         gdown.download_folder(
             url=GDRIVE_FOLDER_URL,
@@ -57,7 +75,7 @@ def download_assets_from_drive(force_download=False):
             quiet=False,
             use_cookies=False
         )
-        
+
         st.success("✅ Assets downloaded successfully!")
     else:
         st.success("✅ Assets folder already exists and is ready to use.")
@@ -99,6 +117,7 @@ def display_sample_image():
         st.warning("⚠️ 'logos' folder not found or empty inside assets.")
 
 display_sample_image()
+
 
 # =================== CONFIG ===================
 
@@ -2083,6 +2102,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
