@@ -5,7 +5,7 @@ import streamlit as st
 import subprocess
 import sys
 
-# Make sure gdown is installed
+# ✅ Ensure gdown is installed
 try:
     import gdown
 except ImportError:
@@ -59,11 +59,6 @@ if not os.path.exists(ASSETS_DIR):
     except Exception as e:
         st.error(f"Failed to download assets: {str(e)}")
 """
-
-# =======================
-# Yahan se tumhara asli tool ka code jaisa tha waisa hi paste hai
-# (auth system, overlays, greetings, hue tool, etc.)
-# =======================
 
 # Example start (tumhara original code neeche continue karega)
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
@@ -2091,6 +2086,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
