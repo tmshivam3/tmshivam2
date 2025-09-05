@@ -2,63 +2,69 @@ import os
 import zipfile
 import shutil
 import streamlit as st
-import subprocess
-import sys
 import gdown
+from PIL import Image
 
+# ----------------------------
+# CONFIGURATION
+# ----------------------------
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
+
+# Replace this with your Google Drive File ID
 FILE_ID = "1Xd0KXP9Z3BvzfPZSxbZ9qzkx7d7G4r4b"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-# Download if not exists
+# ----------------------------
+# DOWNLOAD AND EXTRACT ASSETS
+# ----------------------------
 if not os.path.exists(ASSETS_DIR):
-    st.info("Downloading assets from Google Drive... ⏳")
+    st.info("📥 Downloading assets from Google Drive... Please wait ⏳")
     gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
 
-    # Extract zip to a temp folder
+    # Extract zip to a temporary folder
     temp_extract = "temp_assets_extract"
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
         zip_ref.extractall(temp_extract)
 
-    # Check if single top-level folder exists inside temp_extract
+    # Check if there's a single top-level folder inside the zip
     top_level = os.listdir(temp_extract)
     if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
         inner_folder = os.path.join(temp_extract, top_level[0])
-        # Move content to ASSETS_DIR
         shutil.move(inner_folder, ASSETS_DIR)
     else:
-        # Move everything to ASSETS_DIR
+        # Move all extracted files directly to ASSETS_DIR
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in os.listdir(temp_extract):
             shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
 
-import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import os
-import io
-import random
-from datetime import datetime, timedelta
-import zipfile
-import numpy as np
-import textwrap
-from typing import Tuple, List, Optional
-import math
-import colorsys
-import traceback
-from collections import Counter
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-import json, uuid, hashlib
-from huggingface_hub import snapshot_download
+    # Cleanup
+    shutil.rmtree(temp_extract)
+    os.remove(ZIP_FILE)
 
-# Download assets from Hugging Face dataset if not present
-ASSETS_DIR = "assets"
-if not os.path.exists(ASSETS_DIR):
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    try:
-        snapshot_download(repo_id="tmshivam/tool", repo_type="dataset", local_dir=ASSETS_DIR)
-    except Exception as e:
-        st.error(f"Failed to download assets: {str(e)}")
+    st.success("✅ Assets downloaded and ready!")
+
+# ----------------------------
+# VERIFY DOWNLOAD
+# ----------------------------
+if os.path.exists(ASSETS_DIR):
+    st.write("Assets folder content:", os.listdir(ASSETS_DIR))
+else:
+    st.error("❌ Assets folder not found. Download may have failed!")
+
+# ----------------------------
+# SAMPLE USAGE: LOAD AN IMAGE
+# ----------------------------
+try:
+    sample_image_path = os.path.join(ASSETS_DIR, "sample_image.png")
+    if os.path.exists(sample_image_path):
+        image = Image.open(sample_image_path)
+        st.image(image, caption="Sample image from assets")
+    else:
+        st.warning("No sample_image.png found in assets folder.")
+except Exception as e:
+    st.error(f"Error loading image: {e}")
+
 
 # =================== CONFIG ===================
 
@@ -2043,4 +2049,5 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
