@@ -1,11 +1,37 @@
 import os
-import streamlit as st
-import gdown
-from PIL import Image
+import sys
+import io
+import zipfile
+import shutil
+import subprocess
+import random
+import math
+import colorsys
+import textwrap
 import json
-import hashlib
 import uuid
-from datetime import datetime
+import hashlib
+import traceback
+from datetime import datetime, timedelta
+from collections import Counter
+from typing import Tuple, List, Optional
+
+# ----------------------------
+# Third-Party Libraries
+# ----------------------------
+import streamlit as st
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+
+# ----------------------------
+# Ensure gdown is installed
+# ----------------------------
+try:
+    import gdown
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
+    import gdown
+
 
 # ----------------------------
 # CONFIGURATION
@@ -2053,6 +2079,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
