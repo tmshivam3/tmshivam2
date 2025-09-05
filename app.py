@@ -119,6 +119,46 @@ def _auth_save_settings(s):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(s, f, indent=2)
 
+def _auth_logout_and_rerun():
+    for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
+        if k in st.session_state:
+            del st.session_state[k]
+    st.rerun()
+
+def _auth_check_session():
+    username = st.session_state.get("_auth_user")
+    if not username:
+        return
+    
+    users = _auth_load_users()
+    u = users.get("users", {}).get(username)
+    if not u:
+        st.warning("Your account was removed. Logging out.")
+        _auth_logout_and_rerun()
+
+    # Handle expires_at safely
+    exp_str = u.get("expires_at")
+    if exp_str:
+        try:
+            exp = datetime.fromisoformat(exp_str)
+            if datetime.utcnow() > exp:
+                st.warning("Session expired — please login again.")
+                _auth_logout_and_rerun()
+        except:
+            pass
+    
+    # Device token and IP check
+    token = st.session_state.get("_auth_device")
+    current_ip = get_ip()
+    last_ip = u.get("last_ip")
+    device_token = u.get("device_token")
+    if last_ip and current_ip != last_ip:
+        st.warning("IP address mismatch. Logging out for security.")
+        _auth_logout_and_rerun()
+    if device_token and token and device_token != token:
+        st.warning("You were logged in from another device. This session is logged out.")
+        _auth_logout_and_rerun()
+
 def _auth_ensure_files():
     os.makedirs(DATA_DIR, exist_ok=True)
     users = _auth_load_users()
@@ -167,7 +207,8 @@ if login_required and "_auth_user" not in st.session_state:
             st.success(f"Welcome {login_id} — logged in!")
             st.rerun()
     st.stop()
-
+else:
+    _auth_check_session()
 
 if "_auth_user" in st.session_state:
     _auth_check_session()
@@ -1993,6 +2034,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
