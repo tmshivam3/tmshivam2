@@ -1,11 +1,30 @@
+# -----------------------------
+# Standard Library Imports
+# -----------------------------
 import os
 import zipfile
 import shutil
 import subprocess
 import sys
 import hashlib
+import io
+import random
+from datetime import datetime, timedelta
+import math
+import textwrap
+from collections import Counter
+import json
+import uuid
+from typing import Tuple, List, Optional
+
+# -----------------------------
+# Third-Party Imports
+# -----------------------------
 import streamlit as st
-import colorsys
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+import numpy as np
+import colorsys   # For RGB <-> HLS conversion
+
 # -----------------------------
 # Ensure gdown is installed
 # -----------------------------
@@ -34,12 +53,26 @@ if not os.path.exists(ASSETS_DIR):
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
         zip_ref.extractall(temp_extract)
 
-    # Check for single top-level folder
+    # Handle top-level folder to avoid double 'assets/assets'
     top_level = os.listdir(temp_extract)
     if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
-        inner_folder = os.path.join(temp_extract, top_level[0])
-        shutil.copytree(inner_folder, ASSETS_DIR, dirs_exist_ok=True)
+        inner_folder_name = top_level[0]
+        inner_folder_path = os.path.join(temp_extract, inner_folder_name)
+
+        if inner_folder_name.lower() == ASSETS_DIR.lower():
+            # Copy content of inner 'assets/' directly to ASSETS_DIR
+            os.makedirs(ASSETS_DIR, exist_ok=True)
+            for item in os.listdir(inner_folder_path):
+                shutil.copytree(
+                    os.path.join(inner_folder_path, item),
+                    os.path.join(ASSETS_DIR, item),
+                    dirs_exist_ok=True
+                )
+        else:
+            # Move entire folder normally
+            shutil.copytree(inner_folder_path, ASSETS_DIR, dirs_exist_ok=True)
     else:
+        # Multiple top-level items → move all to ASSETS_DIR
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in os.listdir(temp_extract):
             shutil.copytree(
@@ -54,52 +87,6 @@ if not os.path.exists(ASSETS_DIR):
 
 st.write("Assets folder contents:", os.listdir(ASSETS_DIR))
 
-# -----------------------------
-# Authentication (Fixed)
-# -----------------------------
-# Define default password
-default_pw = "1234"  # Change this as needed
-
-# Hash function
-def _auth_hash(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
-
-# Ensure auth files (dummy example, adjust per your app)
-def _auth_ensure_files():
-    password_hash = _auth_hash(default_pw)
-    st.write("Password hash:", password_hash)
-    # You can save this hash to a JSON or file if needed
-
-_auth_ensure_files()
-
-# -----------------------------
-# Import Remaining Modules
-# -----------------------------
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import io
-import random
-from datetime import datetime, timedelta
-import numpy as np
-import textwrap
-from typing import Tuple, List, Optional
-import math
-import traceback
-from collections import Counter
-import json, uuid
-
-# -----------------------------
-# Your Streamlit App Starts Here
-# -----------------------------
-st.title("My Streamlit Tool ✅")
-st.write("Assets loaded and authentication initialized successfully!")
-
-# Example: Display an image from assets (adjust path as per your folder structure)
-sample_image_path = os.path.join(ASSETS_DIR, "logos", "example.png")
-if os.path.exists(sample_image_path):
-    image = Image.open(sample_image_path)
-    st.image(image, caption="Sample Logo")
-else:
-    st.warning(f"Sample image not found: {sample_image_path}")
 # =================== CONFIG ===================
 
 # ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
@@ -2083,6 +2070,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
