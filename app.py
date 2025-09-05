@@ -1,109 +1,101 @@
-# ----------------------------
-# Standard Library Imports
-# ----------------------------
+# ===========================
+# IMPORTS
+# ===========================
 import os
 import sys
-import subprocess
-import shutil
+import io
 import zipfile
-import streamlit as st
-from PIL import Image
-import hashlib
-import uuid
-from datetime import datetime, timedelta
+import shutil
+import subprocess
+import random
+import math
+import colorsys
+import textwrap
 import json
+import uuid
+import hashlib
+import traceback
+from datetime import datetime, timedelta
+from collections import Counter
+from typing import Tuple, List, Optional
 
-# ----------------------------
-# Ensure gdown is installed
-# ----------------------------
+import streamlit as st
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+
+# ===========================
+# INSTALL GDOWN IF MISSING
+# ===========================
 try:
     import gdown
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
     import gdown
 
-# ----------------------------
-# CONFIGURATION
-# ----------------------------
-ASSETS_DIR = "assets"  # Local directory where assets will be stored
-ZIP_FILE = "assets.zip"  # Temporary zip file
+# ===========================
+# CONFIG
+# ===========================
+ASSETS_DIR = "assets"
+ZIP_FILE = "assets.zip"
 
-# Google Drive File ID (direct download)
-FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+# Replace with your actual Google Drive file ID
+FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"  
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-# ----------------------------
-# UTILS: Extract ZIP AND FIX STRUCTURE
-# ----------------------------
-def extract_zip(zip_path, extract_to):
-    """Extracts zip and flattens nested structure if needed."""
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
-
-    # Fix nested folder structure
-    top_level_items = os.listdir(extract_to)
-    if len(top_level_items) == 1:
-        nested_path = os.path.join(extract_to, top_level_items[0])
-        if os.path.isdir(nested_path):
-            for item in os.listdir(nested_path):
-                shutil.move(os.path.join(nested_path, item), extract_to)
-            shutil.rmtree(nested_path)
-
-# ----------------------------
-# CLEANUP IF ASSETS IS EMPTY OR INVALID
-# ----------------------------
-def cleanup_assets_if_empty():
-    if os.path.exists(ASSETS_DIR) and not os.listdir(ASSETS_DIR):
-        st.warning("⚠️ Assets folder is empty. Cleaning up for fresh download...")
-        shutil.rmtree(ASSETS_DIR)
-
-# ----------------------------
-# DOWNLOAD AND EXTRACT
-# ----------------------------
+# ===========================
+# DOWNLOAD & EXTRACT
+# ===========================
 def download_and_extract_assets(force_download=False):
+    """Download the Google Drive ZIP and extract properly."""
     if force_download and os.path.exists(ASSETS_DIR):
         st.warning("🔄 Forcing re-download of assets...")
         shutil.rmtree(ASSETS_DIR)
+    if force_download and os.path.exists(ZIP_FILE):
+        os.remove(ZIP_FILE)
 
     if not os.path.exists(ASSETS_DIR):
         st.info("📥 Downloading assets ZIP file from Google Drive... ⏳ Please wait.")
         gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
 
         st.info("📂 Extracting assets...")
-        extract_zip(ZIP_FILE, ASSETS_DIR)
-        os.remove(ZIP_FILE)
+        with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
+            zip_ref.extractall("temp_extract")
+
+        # Handle nested folder issue (assets/assets)
+        temp_items = os.listdir("temp_extract")
+        if len(temp_items) == 1 and os.path.isdir(os.path.join("temp_extract", temp_items[0])):
+            shutil.move(os.path.join("temp_extract", temp_items[0]), ASSETS_DIR)
+        else:
+            shutil.move("temp_extract", ASSETS_DIR)
+
+        shutil.rmtree("temp_extract", ignore_errors=True)
         st.success("✅ Assets downloaded and extracted successfully!")
     else:
         st.success("✅ Assets folder already exists and is ready to use.")
 
-# ----------------------------
-# STREAMLIT UI
-# ----------------------------
-st.title("Google Drive ZIP Assets Loader")
+# ===========================
+# RUN DOWNLOAD
+# ===========================
+download_and_extract_assets(force_download=False)
 
-force_download = st.button("🔄 Force Refresh Assets")
-cleanup_assets_if_empty()
-download_and_extract_assets(force_download=force_download)
-
-# ----------------------------
-# VERIFY AND DISPLAY
-# ----------------------------
-if os.path.exists(ASSETS_DIR) and os.listdir(ASSETS_DIR):
+# ===========================
+# VERIFY STRUCTURE
+# ===========================
+if os.path.exists(ASSETS_DIR):
     st.write("📂 **Assets folder content:**", os.listdir(ASSETS_DIR))
 else:
-    st.error("❌ Assets folder not found or is still empty!")
+    st.error("❌ Assets folder not found!")
 
-# ----------------------------
-# DISPLAY SAMPLE IMAGE
-# ----------------------------
+# ===========================
+# SAMPLE IMAGE DISPLAY
+# ===========================
 def display_sample_image():
     logos_path = os.path.join(ASSETS_DIR, "logos")
     if os.path.exists(logos_path) and os.listdir(logos_path):
-        logo_files = [f for f in os.listdir(logos_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        if logo_files:
-            sample_image_path = os.path.join(logos_path, logo_files[0])
-            img = Image.open(sample_image_path)
-            st.image(img, caption=f"Sample image: {logo_files[0]}")
+        image_files = [f for f in os.listdir(logos_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        if image_files:
+            img_path = os.path.join(logos_path, image_files[0])
+            st.image(Image.open(img_path), caption=f"Sample image: {image_files[0]}")
         else:
             st.warning("⚠️ No image files found in 'logos' folder.")
     else:
@@ -2094,6 +2086,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
