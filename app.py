@@ -4,13 +4,7 @@ import shutil
 import streamlit as st
 import subprocess
 import sys
-
-# Ensure gdown is installed
-try:
-    import gdown
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
-    import gdown
+import gdown
 
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
@@ -2049,3 +2043,4 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
