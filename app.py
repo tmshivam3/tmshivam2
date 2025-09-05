@@ -38,56 +38,37 @@ except ImportError:
 # ----------------------------
 # CONFIGURATION
 # ----------------------------
-ASSETS_DIR = "assets"  # Final folder where assets will be stored
-ZIP_FILE = "assets.zip"
-
-# 🔹 Google Drive ZIP file link
-GDRIVE_FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
-GDRIVE_ZIP_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_FILE_ID}"
+ASSETS_DIR = "assets"  # Final local folder to store assets
+GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1JbRPWApAgW2apFAVFzRAUDrSk21Q75D_?usp=sharing"
 
 # ----------------------------
-# DOWNLOAD AND EXTRACT ZIP
+# DOWNLOAD GOOGLE DRIVE FOLDER
 # ----------------------------
-def download_and_extract_assets():
+def download_assets_from_drive():
     """
-    Downloads the assets.zip from Google Drive and extracts it into assets folder.
+    Download the entire Google Drive folder using gdown.
+    It will maintain the same folder structure locally.
     """
     if not os.path.exists(ASSETS_DIR):
-        st.info("📥 Downloading assets.zip from Google Drive... ⏳ Please wait.")
+        st.info("📥 Downloading assets folder directly from Google Drive... ⏳ Please wait.")
         
-        # Download the zip file
-        gdown.download(GDRIVE_ZIP_URL, ZIP_FILE, quiet=False)
+        # Download folder from Google Drive
+        gdown.download_folder(
+            url=GDRIVE_FOLDER_URL,
+            output=ASSETS_DIR,
+            quiet=False,
+            use_cookies=False
+        )
         
-        st.info("📂 Extracting assets...")
-        
-        # Extract zip to a temporary folder
-        temp_extract = "temp_assets_extract"
-        with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-            zip_ref.extractall(temp_extract)
-
-        # If there's a single folder inside, move its contents
-        top_level = os.listdir(temp_extract)
-        if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
-            inner_folder = os.path.join(temp_extract, top_level[0])
-            shutil.move(inner_folder, ASSETS_DIR)
-        else:
-            os.makedirs(ASSETS_DIR, exist_ok=True)
-            for item in os.listdir(temp_extract):
-                shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
-
-        # Cleanup
-        shutil.rmtree(temp_extract)
-        os.remove(ZIP_FILE)
-
-        st.success("✅ Assets downloaded and ready to use!")
+        st.success("✅ Assets downloaded successfully!")
     else:
-        st.success("✅ Assets folder already exists, skipping download.")
+        st.success("✅ Assets folder already exists. Skipping download.")
 
 # Run download process
-download_and_extract_assets()
+download_assets_from_drive()
 
 # ----------------------------
-# VERIFY ASSETS FOLDER
+# VERIFY DOWNLOAD
 # ----------------------------
 if os.path.exists(ASSETS_DIR):
     folder_contents = os.listdir(ASSETS_DIR)
@@ -100,11 +81,11 @@ else:
 # ----------------------------
 def display_sample_image():
     """
-    Display a sample image from the 'logos' folder if available.
+    Display one sample image from the 'logos' folder if it exists.
     """
     logos_path = os.path.join(ASSETS_DIR, "logos")
     if os.path.exists(logos_path):
-        # Get the first PNG or JPG file
+        # Get the first PNG or JPG file from logos folder
         logo_files = [
             f for f in os.listdir(logos_path)
             if f.lower().endswith(('.png', '.jpg', '.jpeg'))
@@ -2103,6 +2084,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
