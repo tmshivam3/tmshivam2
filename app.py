@@ -1,9 +1,11 @@
 import os
 import zipfile
 import shutil
+import streamlit as st
 import subprocess
 import sys
-import streamlit as st
+import hashlib
+import colorsys
 
 # -----------------------------
 # Ensure gdown is installed
@@ -20,10 +22,10 @@ except ImportError:
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
 FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
-ZIP_URL = f"https://drive.google.com/uc?id={FILE_ID}"
+ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
 # -----------------------------
-# Download and Extract Assets
+# Download and Extract Assets from Google Drive
 # -----------------------------
 if not os.path.exists(ASSETS_DIR):
     st.info("Downloading assets from Google Drive... ⏳")
@@ -33,7 +35,7 @@ if not os.path.exists(ASSETS_DIR):
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
         zip_ref.extractall(temp_extract)
 
-    # Handle top-level folder to avoid double 'assets/assets'
+    # Avoid double assets/assets
     top_level = os.listdir(temp_extract)
     if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
         inner_folder_name = top_level[0]
@@ -2047,6 +2049,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
