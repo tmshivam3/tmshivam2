@@ -2,6 +2,8 @@ import os
 import streamlit as st
 import gdown
 from PIL import Image
+import json
+import hashlib
 
 # ----------------------------
 # CONFIGURATION
@@ -2049,6 +2051,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
