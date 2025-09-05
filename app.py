@@ -5,6 +5,7 @@ import os
 import sys
 import subprocess
 import shutil
+import zipfile
 import streamlit as st
 from PIL import Image
 
@@ -21,57 +22,59 @@ except ImportError:
 # CONFIGURATION
 # ----------------------------
 ASSETS_DIR = "assets"  # Local directory where assets will be stored
-GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1JbRPWApAgW2apFAVFzRAUDrSk21Q75D_?usp=sharing"
+ZIP_FILE = "assets.zip"  # Temporary zip file
+
+# Replace this with YOUR Google Drive File ID
+FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
 # ----------------------------
 # CLEANUP IF ASSETS IS EMPTY OR INVALID
 # ----------------------------
 def cleanup_assets_if_empty():
     """Remove assets folder if it's empty or broken."""
-    if os.path.exists(ASSETS_DIR):
-        if not os.listdir(ASSETS_DIR):  # folder exists but is empty
-            st.warning("⚠️ Assets folder is empty. Cleaning up for fresh download...")
-            shutil.rmtree(ASSETS_DIR)  # remove completely
-        else:
-            st.info("Assets folder already has files. Skipping cleanup.")
+    if os.path.exists(ASSETS_DIR) and not os.listdir(ASSETS_DIR):
+        st.warning("⚠️ Assets folder is empty. Cleaning up for fresh download...")
+        shutil.rmtree(ASSETS_DIR)
 
 # ----------------------------
-# DOWNLOAD GOOGLE DRIVE FOLDER
+# DOWNLOAD ZIP FROM GOOGLE DRIVE
 # ----------------------------
-def download_assets_from_drive(force_download=False):
+def download_and_extract_assets(force_download=False):
     """
-    Download entire Google Drive folder directly into assets directory.
-    If force_download is True, always re-download even if folder exists.
+    Downloads a ZIP file from Google Drive and extracts it into ASSETS_DIR.
     """
     if force_download and os.path.exists(ASSETS_DIR):
         st.warning("🔄 Forcing re-download of assets...")
         shutil.rmtree(ASSETS_DIR)
 
     if not os.path.exists(ASSETS_DIR):
-        st.info("📥 Downloading assets folder directly from Google Drive... ⏳ Please wait.")
-
-        # Download the folder
-        gdown.download_folder(
-            url=GDRIVE_FOLDER_URL,
-            output=ASSETS_DIR,
-            quiet=False,
-            use_cookies=False
-        )
-
-        st.success("✅ Assets downloaded successfully!")
+        st.info("📥 Downloading assets ZIP file from Google Drive... ⏳ Please wait.")
+        
+        # Download zip
+        gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
+        
+        st.info("📂 Extracting assets...")
+        with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
+            zip_ref.extractall(ASSETS_DIR)
+        
+        # Clean up the zip after extraction
+        os.remove(ZIP_FILE)
+        
+        st.success("✅ Assets downloaded and extracted successfully!")
     else:
         st.success("✅ Assets folder already exists and is ready to use.")
 
 # ----------------------------
 # STREAMLIT UI CONTROL
 # ----------------------------
-st.title("Google Drive Assets Loader")
+st.title("Google Drive ZIP Assets Loader")
 
-# Add a Force Download button
-force_download = st.button("🔄 Force Refresh Assets from Google Drive")
+# Button to force refresh
+force_download = st.button("🔄 Force Refresh Assets from ZIP")
 
 cleanup_assets_if_empty()
-download_assets_from_drive(force_download=force_download)
+download_and_extract_assets(force_download=force_download)
 
 # ----------------------------
 # VERIFY AND DISPLAY
@@ -85,9 +88,6 @@ else:
 # DISPLAY SAMPLE IMAGE FROM LOGOS
 # ----------------------------
 def display_sample_image():
-    """
-    Display one sample image from the 'logos' folder if it exists.
-    """
     logos_path = os.path.join(ASSETS_DIR, "logos")
     if os.path.exists(logos_path) and os.listdir(logos_path):
         logo_files = [
@@ -2089,6 +2089,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
