@@ -4,6 +4,7 @@ import gdown
 from PIL import Image
 import json
 import hashlib
+import uuid
 
 # ----------------------------
 # CONFIGURATION
@@ -2051,6 +2052,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
