@@ -5,7 +5,7 @@ import streamlit as st
 import subprocess
 import sys
 
-# Ensure gdown is installed
+# Make sure gdown is installed
 try:
     import gdown
 except ImportError:
@@ -19,7 +19,7 @@ ZIP_FILE = "assets.zip"
 FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-# ✅ Download & extract only if assets folder missing
+# ✅ Agar assets folder nahi hai to download + extract karo
 if not os.path.exists(ASSETS_DIR):
     st.info("Downloading assets from Google Drive... ⏳")
     gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
@@ -28,19 +28,26 @@ if not os.path.exists(ASSETS_DIR):
         zip_ref.extractall("temp_assets_extract")
 
     top_level = os.listdir("temp_assets_extract")
+
+    # Case 1: Agar andar ek hi "assets" folder hai
     if len(top_level) == 1 and top_level[0].lower() == "assets":
-        # If extracted folder already called "assets"
-        shutil.move(os.path.join("temp_assets_extract", top_level[0]), ASSETS_DIR)
+        inner_path = os.path.join("temp_assets_extract", top_level[0])
+        shutil.move(inner_path, ASSETS_DIR)
+
+    # Case 2: Agar ek hi folder ho (sab content usme hai)
     elif len(top_level) == 1 and os.path.isdir(os.path.join("temp_assets_extract", top_level[0])):
-        # If there is a single subfolder, move it to assets
-        shutil.move(os.path.join("temp_assets_extract", top_level[0]), ASSETS_DIR)
+        inner_path = os.path.join("temp_assets_extract", top_level[0])
+        os.makedirs(ASSETS_DIR, exist_ok=True)
+        for item in os.listdir(inner_path):
+            shutil.move(os.path.join(inner_path, item), ASSETS_DIR)
+
+    # Case 3: Mixed files/folders directly andar
     else:
-        # Otherwise, move everything inside directly into assets
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in top_level:
             shutil.move(os.path.join("temp_assets_extract", item), ASSETS_DIR)
 
-# ❌ OLD HuggingFace code (commented out, not needed now)
+# ❌ HuggingFace wala purana code hata diya hai
 """
 from huggingface_hub import snapshot_download
 
@@ -2064,4 +2071,5 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
