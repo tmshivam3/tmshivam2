@@ -3,28 +3,10 @@
 # ----------------------------
 import os
 import sys
-import io
-import zipfile
-import shutil
 import subprocess
-import random
-import math
-import colorsys
-import textwrap
-import json
-import uuid
-import hashlib
-import traceback
-from datetime import datetime, timedelta
-from collections import Counter
-from typing import Tuple, List, Optional
-
-# ----------------------------
-# Third-Party Libraries
-# ----------------------------
+import shutil
 import streamlit as st
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+from PIL import Image
 
 # ----------------------------
 # Ensure gdown is installed
@@ -38,21 +20,37 @@ except ImportError:
 # ----------------------------
 # CONFIGURATION
 # ----------------------------
-ASSETS_DIR = "assets"  # Final local folder to store assets
+ASSETS_DIR = "assets"  # Local directory where assets will be stored
 GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1JbRPWApAgW2apFAVFzRAUDrSk21Q75D_?usp=sharing"
+
+# ----------------------------
+# CLEANUP IF ASSETS IS EMPTY OR INVALID
+# ----------------------------
+def cleanup_assets_if_empty():
+    """Remove assets folder if it's empty or broken."""
+    if os.path.exists(ASSETS_DIR):
+        if not os.listdir(ASSETS_DIR):  # folder exists but is empty
+            st.warning("⚠️ Assets folder is empty. Cleaning up for fresh download...")
+            shutil.rmtree(ASSETS_DIR)  # remove completely
+        else:
+            st.info("Assets folder already has files. Skipping cleanup.")
 
 # ----------------------------
 # DOWNLOAD GOOGLE DRIVE FOLDER
 # ----------------------------
-def download_assets_from_drive():
+def download_assets_from_drive(force_download=False):
     """
-    Download the entire Google Drive folder using gdown.
-    It will maintain the same folder structure locally.
+    Download entire Google Drive folder directly into assets directory.
+    If force_download is True, always re-download even if folder exists.
     """
+    if force_download and os.path.exists(ASSETS_DIR):
+        st.warning("🔄 Forcing re-download of assets...")
+        shutil.rmtree(ASSETS_DIR)
+
     if not os.path.exists(ASSETS_DIR):
         st.info("📥 Downloading assets folder directly from Google Drive... ⏳ Please wait.")
         
-        # Download folder from Google Drive
+        # Download the folder
         gdown.download_folder(
             url=GDRIVE_FOLDER_URL,
             output=ASSETS_DIR,
@@ -62,19 +60,21 @@ def download_assets_from_drive():
         
         st.success("✅ Assets downloaded successfully!")
     else:
-        st.success("✅ Assets folder already exists. Skipping download.")
+        st.success("✅ Assets folder already exists and is ready to use.")
 
-# Run download process
+# ----------------------------
+# RUN CLEANUP + DOWNLOAD
+# ----------------------------
+cleanup_assets_if_empty()
 download_assets_from_drive()
 
 # ----------------------------
-# VERIFY DOWNLOAD
+# VERIFY AND DISPLAY
 # ----------------------------
-if os.path.exists(ASSETS_DIR):
-    folder_contents = os.listdir(ASSETS_DIR)
-    st.write("📂 **Assets folder content:**", folder_contents)
+if os.path.exists(ASSETS_DIR) and os.listdir(ASSETS_DIR):
+    st.write("📂 **Assets folder content:**", os.listdir(ASSETS_DIR))
 else:
-    st.error("❌ Assets folder not found. Download may have failed!")
+    st.error("❌ Assets folder not found or is still empty!")
 
 # ----------------------------
 # DISPLAY SAMPLE IMAGE FROM LOGOS
@@ -84,8 +84,7 @@ def display_sample_image():
     Display one sample image from the 'logos' folder if it exists.
     """
     logos_path = os.path.join(ASSETS_DIR, "logos")
-    if os.path.exists(logos_path):
-        # Get the first PNG or JPG file from logos folder
+    if os.path.exists(logos_path) and os.listdir(logos_path):
         logo_files = [
             f for f in os.listdir(logos_path)
             if f.lower().endswith(('.png', '.jpg', '.jpeg'))
@@ -97,7 +96,7 @@ def display_sample_image():
         else:
             st.warning("⚠️ No image files found in 'logos' folder.")
     else:
-        st.warning("⚠️ 'logos' folder not found inside assets.")
+        st.warning("⚠️ 'logos' folder not found or empty inside assets.")
 
 display_sample_image()
 
@@ -2084,6 +2083,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
