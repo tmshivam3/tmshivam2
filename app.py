@@ -6,6 +6,10 @@ import subprocess
 import sys
 import hashlib
 import colorsys
+import json
+import uuid
+from datetime import datetime, timedelta
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 # -----------------------------
 # Ensure gdown is installed
@@ -23,9 +27,12 @@ ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
 FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+DATA_DIR = "data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 
 # -----------------------------
-# Download and Extract Assets from Google Drive
+# Download and Extract Assets
 # -----------------------------
 if not os.path.exists(ASSETS_DIR):
     st.info("Downloading assets from Google Drive... ⏳")
@@ -60,24 +67,15 @@ if not os.path.exists(ASSETS_DIR):
                 dirs_exist_ok=True
             )
 
-    # Clean up
     os.remove(ZIP_FILE)
     shutil.rmtree(temp_extract)
 
 st.write("Assets folder contents:", os.listdir(ASSETS_DIR))
 
-# =================== CONFIG ===================
-
-# ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
-DATA_DIR = "data"
-USERS_FILE = os.path.join(DATA_DIR, "users.json")
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
-
+# -----------------------------
+# Authentication / Admin
+# -----------------------------
 def get_ip():
-    """
-    Get the client's IP address from request headers.
-    Handles proxies by taking the first IP in X-Forwarded-For.
-    """
     try:
         ctx = get_script_run_ctx()
         if ctx:
@@ -86,19 +84,13 @@ def get_ip():
             if ip != "Unknown":
                 ip = ip.split(',')[0].strip()
             return ip
-    except Exception as e:
+    except:
         return "Unknown"
 
 def _auth_hash(pw: str) -> str:
-    """
-    Hash the password using SHA256 for secure storage.
-    """
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def _auth_load_users():
-    """
-    Load users data from JSON file.
-    """
     try:
         with open(USERS_FILE, "r") as f:
             return json.load(f)
@@ -106,16 +98,16 @@ def _auth_load_users():
         return {"users": {}}
 
 def _auth_save_users(data):
-    """
-    Save users data to JSON file.
-    """
+    # Convert datetime objects to strings for JSON safety
+    def convert(o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        raise TypeError(f"Type {type(o)} not serializable")
+
     with open(USERS_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=2, default=convert)
 
 def _auth_load_settings():
-    """
-    Load settings from JSON file.
-    """
     try:
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
@@ -124,16 +116,10 @@ def _auth_load_settings():
                 "login_required": True, "hue_enabled_pngs": {}, "tool_visibility": {}}
 
 def _auth_save_settings(s):
-    """
-    Save settings to JSON file.
-    """
     with open(SETTINGS_FILE, "w") as f:
         json.dump(s, f, indent=2)
 
 def _auth_ensure_files():
-    """
-    Ensure data directories and default files exist, create admin if not present.
-    """
     os.makedirs(DATA_DIR, exist_ok=True)
     users = _auth_load_users()
     if "admin" not in users.get("users", {}):
@@ -154,76 +140,34 @@ _auth_ensure_files()
 _users_db = _auth_load_users()
 _settings = _auth_load_settings()
 
-def _auth_logout_and_rerun():
-    """
-    Logout the user by clearing session state and rerunning the app.
-    """
-    for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
-        if k in st.session_state:
-            del st.session_state[k]
-    st.rerun()
-
-def _auth_check_session():
-    """
-    Check if the current session is valid, including expiry and IP match.
-    """
-    username = st.session_state.get("_auth_user")
-    if not username:
-        return
-    users = _auth_load_users()
-    u = users.get("users", {}).get(username)
-    if not u:
-        st.warning("Your account was removed. Logging out.")
-        _auth_logout_and_rerun()
-    if u.get("expires_at"):
-        try:
-            exp = datetime.fromisoformat(u["expires_at"])
-            if datetime.utcnow() > exp:
-                st.warning("Session expired — please login again.")
-                _auth_logout_and_rerun()
-        except:
-            pass
-    token = st.session_state.get("_auth_device")
-    current_ip = get_ip()
-    if u.get("last_ip") and current_ip != u.get("last_ip"):
-        st.warning("IP address mismatch. Logging out for security.")
-        _auth_logout_and_rerun()
-    if u.get("device_token") and token and u.get("device_token") != token:
-        st.warning("You were logged in from another device. This session is logged out.")
-        _auth_logout_and_rerun()
-
-# Check if login is required
-settings = _auth_load_settings()
-login_required = settings.get("login_required", True)
-
+# -----------------------------
+# Minimal login UI
+# -----------------------------
+login_required = _settings.get("login_required", True)
 if login_required and "_auth_user" not in st.session_state:
     st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
-    st.info("For ID and Password, contact WhatsApp: 9140588751")
-    left, right = st.columns([2,1])
-    with left:
-        login_id = st.text_input("Enter ID")
-        login_pw = st.text_input("Password", type="password")
-    with right:
-        if st.button("Login"):
-            db = _auth_load_users()
-            user = db.get("users", {}).get(login_id)
-            if not user or user.get("password_hash") != _auth_hash(login_pw or ""):
-                st.error("Invalid ID or Password. Contact dev: +91 9140588751")
-            else:
-                token = str(uuid.uuid4())
-                now = datetime.utcnow()
-                current_ip = get_ip()
-                user["device_token"] = token
-                user["last_login"] = now.isoformat()
-                user["last_ip"] = current_ip
-                user["expires_at"] = (now + timedelta(days=7)).isoformat()
-                _auth_save_users(db)
-                st.session_state["_auth_user"] = login_id
-                st.session_state["_auth_device"] = token
-                st.session_state["_auth_login_time"] = now.isoformat()
-                st.success(f"Welcome {login_id} — logged in from IP {current_ip}!")
-                st.rerun()
+    login_id = st.text_input("Enter ID")
+    login_pw = st.text_input("Password", type="password")
+    if st.button("Login"):
+        user = _users_db.get("users", {}).get(login_id)
+        if not user or user.get("password_hash") != _auth_hash(login_pw or ""):
+            st.error("Invalid ID or Password")
+        else:
+            token = str(uuid.uuid4())
+            now = datetime.utcnow()
+            current_ip = get_ip()
+            user["device_token"] = token
+            user["last_login"] = now.isoformat()
+            user["last_ip"] = current_ip
+            user["expires_at"] = (now + timedelta(days=7)).isoformat()
+            _auth_save_users(_users_db)
+            st.session_state["_auth_user"] = login_id
+            st.session_state["_auth_device"] = token
+            st.session_state["_auth_login_time"] = now.isoformat()
+            st.success(f"Welcome {login_id} — logged in!")
+            st.rerun()
     st.stop()
+
 
 if "_auth_user" in st.session_state:
     _auth_check_session()
@@ -2049,6 +1993,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
