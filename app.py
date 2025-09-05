@@ -1,107 +1,57 @@
-# ===========================
-# IMPORTS
-# ===========================
 import os
-import sys
-import io
 import zipfile
 import shutil
-import subprocess
-import random
-import math
-import colorsys
-import textwrap
-import json
-import uuid
-import hashlib
-import traceback
-from datetime import datetime, timedelta
-from collections import Counter
-from typing import Tuple, List, Optional
-
 import streamlit as st
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+import subprocess
+import sys
 
-# ===========================
-# INSTALL GDOWN IF MISSING
-# ===========================
+# Ensure gdown is installed
 try:
     import gdown
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
     import gdown
 
-# ===========================
-# CONFIG
-# ===========================
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
-
-# Replace with your actual Google Drive file ID
-FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"  
+FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-# ===========================
-# DOWNLOAD & EXTRACT
-# ===========================
-def download_and_extract_assets(force_download=False):
-    """Download the Google Drive ZIP and extract properly."""
-    if force_download and os.path.exists(ASSETS_DIR):
-        st.warning("🔄 Forcing re-download of assets...")
-        shutil.rmtree(ASSETS_DIR)
-    if force_download and os.path.exists(ZIP_FILE):
-        os.remove(ZIP_FILE)
+# Download if not exists
+if not os.path.exists(ASSETS_DIR):
+    st.info("Downloading assets from Google Drive... ⏳")
+    gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
 
-    if not os.path.exists(ASSETS_DIR):
-        st.info("📥 Downloading assets ZIP file from Google Drive... ⏳ Please wait.")
-        gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
+    # Extract zip to a temp folder
+    temp_extract = "temp_assets_extract"
+    with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
+        zip_ref.extractall(temp_extract)
 
-        st.info("📂 Extracting assets...")
-        with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-            zip_ref.extractall("temp_extract")
-
-        # Handle nested folder issue (assets/assets)
-        temp_items = os.listdir("temp_extract")
-        if len(temp_items) == 1 and os.path.isdir(os.path.join("temp_extract", temp_items[0])):
-            shutil.move(os.path.join("temp_extract", temp_items[0]), ASSETS_DIR)
-        else:
-            shutil.move("temp_extract", ASSETS_DIR)
-
-        shutil.rmtree("temp_extract", ignore_errors=True)
-        st.success("✅ Assets downloaded and extracted successfully!")
+    # Check if single top-level folder exists inside temp_extract
+    top_level = os.listdir(temp_extract)
+    if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
+        inner_folder = os.path.join(temp_extract, top_level[0])
+        # Move content to ASSETS_DIR
+        shutil.move(inner_folder, ASSETS_DIR)
     else:
-        st.success("✅ Assets folder already exists and is ready to use.")
+        # Move everything to ASSETS_DIR
+        os.makedirs(ASSETS_DIR, exist_ok=True)
+        for item in os.listdir(temp_extract):
+            shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
 
-# ===========================
-# RUN DOWNLOAD
-# ===========================
-download_and_extract_assets(force_download=False)
-
-# ===========================
-# VERIFY STRUCTURE
-# ===========================
-if os.path.exists(ASSETS_DIR):
-    st.write("📂 **Assets folder content:**", os.listdir(ASSETS_DIR))
-else:
-    st.error("❌ Assets folder not found!")
-
-# ===========================
-# SAMPLE IMAGE DISPLAY
-# ===========================
-def display_sample_image():
-    logos_path = os.path.join(ASSETS_DIR, "logos")
-    if os.path.exists(logos_path) and os.listdir(logos_path):
-        image_files = [f for f in os.listdir(logos_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        if image_files:
-            img_path = os.path.join(logos_path, image_files[0])
-            st.image(Image.open(img_path), caption=f"Sample image: {image_files[0]}")
-        else:
-            st.warning("⚠️ No image files found in 'logos' folder.")
-    else:
-        st.warning("⚠️ 'logos' folder not found or empty inside assets.")
-
-display_sample_image()
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+import io
+import random
+from datetime import datetime, timedelta
+import numpy as np
+import textwrap
+from typing import Tuple, List, Optional
+import math
+import colorsys
+import traceback
+from collections import Counter
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+import json, uuid, hashlib
 
 # =================== CONFIG ===================
 
@@ -2086,20 +2036,3 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
