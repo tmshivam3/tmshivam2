@@ -1,122 +1,70 @@
 import os
-import zipfile
-import shutil
 import streamlit as st
 import gdown
 from PIL import Image
-import hashlib
-import json
-import uuid
 
 # ----------------------------
 # CONFIGURATION
 # ----------------------------
-ASSETS_DIR = "assets"          # Folder where assets will be stored
-ZIP_FILE = "assets.zip"        # Temporary zip file name
+ASSETS_DIR = "assets"
 
-# Replace with your Google Drive file ID
-FILE_ID = "1Xd0KXP9Z3BvzfPZSxbZ9qzkx7d7G4r4b"
-ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+# 🔹 Google Drive folder link
+GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1JbRPWApAgW2apFAVFzRAUDrSk21Q75D_?usp=sharing"
 
 # ----------------------------
-# DOWNLOAD AND EXTRACT ASSETS
+# DOWNLOAD ASSETS DIRECTLY FROM GOOGLE DRIVE
 # ----------------------------
-def download_and_extract_assets():
-    """Download the assets zip from Google Drive and extract it."""
+def download_assets():
+    """
+    Download entire Google Drive folder directly into assets directory.
+    Uses gdown's download_folder method.
+    """
     if not os.path.exists(ASSETS_DIR):
-        st.info("📥 Downloading assets from Google Drive... Please wait ⏳")
-        gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
+        st.info("📥 Downloading assets folder from Google Drive... ⏳ Please wait.")
+        
+        # gdown will create the folder structure exactly as in Google Drive
+        gdown.download_folder(
+            url=GDRIVE_FOLDER_URL,
+            output=ASSETS_DIR,
+            quiet=False,
+            use_cookies=False
+        )
+        
+        st.success("✅ Assets downloaded successfully!")
 
-        # Extract zip to a temporary folder
-        temp_extract = "temp_assets_extract"
-        with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-            zip_ref.extractall(temp_extract)
-
-        # Check if there's a single top-level folder inside the zip
-        top_level = os.listdir(temp_extract)
-        if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
-            inner_folder = os.path.join(temp_extract, top_level[0])
-            shutil.move(inner_folder, ASSETS_DIR)
-        else:
-            # Move all extracted files directly to ASSETS_DIR
-            os.makedirs(ASSETS_DIR, exist_ok=True)
-            for item in os.listdir(temp_extract):
-                shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
-
-        # Cleanup temporary files
-        shutil.rmtree(temp_extract)
-        os.remove(ZIP_FILE)
-
-        st.success("✅ Assets downloaded and ready!")
-
-# Run download process
-download_and_extract_assets()
+# Run the download only if assets folder does not exist
+download_assets()
 
 # ----------------------------
 # VERIFY DOWNLOAD
 # ----------------------------
 if os.path.exists(ASSETS_DIR):
-    st.write("Assets folder content:", os.listdir(ASSETS_DIR))
+    folder_contents = os.listdir(ASSETS_DIR)
+    st.write("📂 **Assets folder content:**", folder_contents)
 else:
     st.error("❌ Assets folder not found. Download may have failed!")
 
 # ----------------------------
-# SAMPLE USAGE: LOAD AN IMAGE
+# DISPLAY SAMPLE IMAGE FROM LOGOS
 # ----------------------------
 def display_sample_image():
-    """Try to display a sample image from the assets folder."""
-    try:
-        sample_image_path = os.path.join(ASSETS_DIR, "sample_image.png")
-        if os.path.exists(sample_image_path):
-            image = Image.open(sample_image_path)
-            st.image(image, caption="Sample image from assets")
+    """
+    Display one sample image from the 'logos' folder if it exists.
+    """
+    logos_path = os.path.join(ASSETS_DIR, "logos")
+    if os.path.exists(logos_path):
+        # Get the first PNG or JPG file from logos folder
+        logo_files = [f for f in os.listdir(logos_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        if logo_files:
+            sample_image_path = os.path.join(logos_path, logo_files[0])
+            img = Image.open(sample_image_path)
+            st.image(img, caption=f"Sample image: {logo_files[0]}")
         else:
-            st.warning("⚠️ No sample_image.png found in assets folder.")
-    except Exception as e:
-        st.error(f"Error loading image: {e}")
+            st.warning("⚠️ No image files found in 'logos' folder.")
+    else:
+        st.warning("⚠️ 'logos' folder not found inside assets.")
 
-# Display the sample image (if it exists)
 display_sample_image()
-
-# ----------------------------
-# PASSWORD HASHING UTILS
-# ----------------------------
-def hash_password(password: str) -> str:
-    """Return a SHA256 hash of the given password."""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-# ----------------------------
-# AUTH FILE HANDLING
-# ----------------------------
-AUTH_FILE = "users.json"
-
-def ensure_auth_file():
-    """Ensure that the authentication file exists."""
-    if not os.path.exists(AUTH_FILE):
-        default_user = {
-            "username": "admin",
-            "password_hash": hash_password("admin123"),  # Default password
-            "user_id": str(uuid.uuid4())
-        }
-        with open(AUTH_FILE, "w") as f:
-            json.dump({"users": [default_user]}, f, indent=2)
-        st.success("✅ Authentication file created with default credentials.")
-
-def save_users(users_data):
-    """Save user data to the JSON file."""
-    with open(AUTH_FILE, "w") as f:
-        json.dump(users_data, f, indent=2)
-
-# Ensure auth file is ready
-ensure_auth_file()
-
-# ----------------------------
-# DISPLAY LOGIN INFO
-# ----------------------------
-if os.path.exists(AUTH_FILE):
-    st.write("Authentication file exists and is ready.")
-else:
-    st.error("❌ Authentication file is missing!")
 
 # =================== CONFIG ===================
 
@@ -2101,6 +2049,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
