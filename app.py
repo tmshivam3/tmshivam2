@@ -1,22 +1,42 @@
+# -----------------------------
+# Standard Library Imports
+# -----------------------------
 import os
+import io
+import sys
 import zipfile
 import shutil
-import streamlit as st
 import subprocess
-import sys
-import hashlib
-import colorsys
+import random
+import math
+import textwrap
 import json
 import uuid
-from datetime import datetime, timedelta
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-from typing import List, Optional, Tuple
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-from collections import Counter
+import hashlib
 import traceback
+from datetime import datetime, timedelta
+from typing import List, Tuple, Optional
+from collections import Counter
 
 # -----------------------------
-# Ensure gdown is installed
+# Streamlit & Runtime
+# -----------------------------
+import streamlit as st
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+# -----------------------------
+# Pillow / Image Processing
+# -----------------------------
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+
+# -----------------------------
+# Third-party packages
+# -----------------------------
+import numpy as np
+import colorsys
+
+# -----------------------------
+# Hugging Face / gdown
 # -----------------------------
 try:
     import gdown
@@ -24,19 +44,22 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
     import gdown
 
+try:
+    from huggingface_hub import snapshot_download
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "huggingface-hub"])
+    from huggingface_hub import snapshot_download
+
 # -----------------------------
 # Constants
 # -----------------------------
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
-FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+FILE_ID = "1Xd0KXP9Z3BvzfPZSxbZ9qzkx7d7G4r4b"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-DATA_DIR = "data"
-USERS_FILE = os.path.join(DATA_DIR, "users.json")
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 
 # -----------------------------
-# Download and Extract Assets
+# Download & Extract Assets
 # -----------------------------
 if not os.path.exists(ASSETS_DIR):
     st.info("Downloading assets from Google Drive... ⏳")
@@ -46,35 +69,29 @@ if not os.path.exists(ASSETS_DIR):
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
         zip_ref.extractall(temp_extract)
 
-    # Avoid double assets/assets
     top_level = os.listdir(temp_extract)
     if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
-        inner_folder_name = top_level[0]
-        inner_folder_path = os.path.join(temp_extract, inner_folder_name)
-
-        if inner_folder_name.lower() == ASSETS_DIR.lower():
+        inner_folder = os.path.join(temp_extract, top_level[0])
+        # Avoid double assets/assets
+        if inner_folder.lower() == ASSETS_DIR.lower():
             os.makedirs(ASSETS_DIR, exist_ok=True)
-            for item in os.listdir(inner_folder_path):
+            for item in os.listdir(inner_folder):
                 shutil.copytree(
-                    os.path.join(inner_folder_path, item),
+                    os.path.join(inner_folder, item),
                     os.path.join(ASSETS_DIR, item),
                     dirs_exist_ok=True
                 )
         else:
-            shutil.copytree(inner_folder_path, ASSETS_DIR, dirs_exist_ok=True)
+            shutil.move(inner_folder, ASSETS_DIR)
     else:
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in os.listdir(temp_extract):
-            shutil.copytree(
-                os.path.join(temp_extract, item),
-                os.path.join(ASSETS_DIR, item),
-                dirs_exist_ok=True
-            )
+            shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
 
     os.remove(ZIP_FILE)
     shutil.rmtree(temp_extract)
 
-st.write("Assets folder contents:", os.listdir(ASSETS_DIR))
+st.write("✅ Assets folder contents:", os.listdir(ASSETS_DIR))
 
 # -----------------------------
 # Authentication / Admin
@@ -2038,6 +2055,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
