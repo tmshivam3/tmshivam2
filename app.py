@@ -1,29 +1,9 @@
-# -----------------------------
-# Standard Library Imports
-# -----------------------------
 import os
 import zipfile
 import shutil
 import subprocess
 import sys
-import hashlib
-import io
-import random
-from datetime import datetime, timedelta
-import math
-import textwrap
-from collections import Counter
-import json
-import uuid
-from typing import Tuple, List, Optional
-
-# -----------------------------
-# Third-Party Imports
-# -----------------------------
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import numpy as np
-import colorsys   # For RGB <-> HLS conversion
 
 # -----------------------------
 # Ensure gdown is installed
@@ -60,7 +40,6 @@ if not os.path.exists(ASSETS_DIR):
         inner_folder_path = os.path.join(temp_extract, inner_folder_name)
 
         if inner_folder_name.lower() == ASSETS_DIR.lower():
-            # Copy content of inner 'assets/' directly to ASSETS_DIR
             os.makedirs(ASSETS_DIR, exist_ok=True)
             for item in os.listdir(inner_folder_path):
                 shutil.copytree(
@@ -69,10 +48,8 @@ if not os.path.exists(ASSETS_DIR):
                     dirs_exist_ok=True
                 )
         else:
-            # Move entire folder normally
             shutil.copytree(inner_folder_path, ASSETS_DIR, dirs_exist_ok=True)
     else:
-        # Multiple top-level items → move all to ASSETS_DIR
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in os.listdir(temp_extract):
             shutil.copytree(
@@ -81,7 +58,7 @@ if not os.path.exists(ASSETS_DIR):
                 dirs_exist_ok=True
             )
 
-    # Clean up temporary files
+    # Clean up
     os.remove(ZIP_FILE)
     shutil.rmtree(temp_extract)
 
@@ -2070,6 +2047,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
