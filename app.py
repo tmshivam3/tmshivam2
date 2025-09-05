@@ -60,6 +60,26 @@ if not os.path.exists(ASSETS_DIR):
         st.error(f"Failed to download assets: {str(e)}")
 """
 
+# =======================
+# Yahan se tumhara asli tool ka code jaisa tha waisa hi paste hai
+# (auth system, overlays, greetings, hue tool, etc.)
+# =======================
+
+# Example start (tumhara original code neeche continue karega)
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+import io, random, traceback, math, colorsys, json, uuid, hashlib
+import numpy as np
+import textwrap
+from datetime import datetime, timedelta
+from typing import Tuple, List, Optional
+from collections import Counter
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+# 🔽🔽🔽
+# Ab tumhara pura original code yahan se aage continue karega
+# (auth block, utils, main app, tools, etc.)
+# 🔼🔼🔼
+
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
@@ -2071,5 +2091,6 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
