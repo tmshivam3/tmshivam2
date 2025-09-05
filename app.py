@@ -5,8 +5,6 @@ import streamlit as st
 import subprocess
 import sys
 
-# =================== ASSETS SETUP ===================
-
 # Ensure gdown is installed
 try:
     import gdown
@@ -17,42 +15,43 @@ except ImportError:
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
 
-# Google Drive file ID (tumhara assets.zip ka ID)
+# ✅ Tumhara Google Drive file ID
 FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-# Download & extract assets if not already present
+# ✅ Download & extract only if assets folder missing
 if not os.path.exists(ASSETS_DIR):
     st.info("Downloading assets from Google Drive... ⏳")
     gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
 
-    # Extract zip into temp folder
-    temp_extract = "temp_assets_extract"
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-        zip_ref.extractall(temp_extract)
+        zip_ref.extractall("temp_assets_extract")
 
-    top_level = os.listdir(temp_extract)
-    # Case 1: ZIP ke andar already ek "assets" folder hai
+    top_level = os.listdir("temp_assets_extract")
     if len(top_level) == 1 and top_level[0].lower() == "assets":
-        shutil.move(os.path.join(temp_extract, top_level[0]), ASSETS_DIR)
-    # Case 2: ZIP ke andar koi ek folder hai (but naam kuch aur hai)
-    elif len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
-        shutil.move(os.path.join(temp_extract, top_level[0]), ASSETS_DIR)
-    # Case 3: Mixed files/folders — sabko assets me daal do
+        # If extracted folder already called "assets"
+        shutil.move(os.path.join("temp_assets_extract", top_level[0]), ASSETS_DIR)
+    elif len(top_level) == 1 and os.path.isdir(os.path.join("temp_assets_extract", top_level[0])):
+        # If there is a single subfolder, move it to assets
+        shutil.move(os.path.join("temp_assets_extract", top_level[0]), ASSETS_DIR)
     else:
+        # Otherwise, move everything inside directly into assets
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in top_level:
-            shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
+            shutil.move(os.path.join("temp_assets_extract", item), ASSETS_DIR)
 
-# =================== HUGGINGFACE CODE (DISABLED) ===================
-# from huggingface_hub import snapshot_download
-# if not os.path.exists(ASSETS_DIR):
-#     os.makedirs(ASSETS_DIR, exist_ok=True)
-#     try:
-#         snapshot_download(repo_id="tmshivam/tool", repo_type="dataset", local_dir=ASSETS_DIR)
-#     except Exception as e:
-#         st.error(f"Failed to download assets: {str(e)}")
-# ================================================================
+# ❌ OLD HuggingFace code (commented out, not needed now)
+"""
+from huggingface_hub import snapshot_download
+
+ASSETS_DIR = "assets"
+if not os.path.exists(ASSETS_DIR):
+    os.makedirs(ASSETS_DIR, exist_ok=True)
+    try:
+        snapshot_download(repo_id="tmshivam/tool", repo_type="dataset", local_dir=ASSETS_DIR)
+    except Exception as e:
+        st.error(f"Failed to download assets: {str(e)}")
+"""
 
 
 import streamlit as st
@@ -2065,3 +2064,4 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
