@@ -1,110 +1,93 @@
-# -----------------------------
-# Imports
-# -----------------------------
 import os
-import io
-import sys
 import zipfile
 import shutil
-import subprocess
-import random
-import math
-import textwrap
-import json
-import uuid
-import hashlib
-import traceback
-from datetime import datetime, timedelta
-from typing import List, Tuple, Optional
-from collections import Counter
-
 import streamlit as st
-from streamlit.runtime.scriptrunner import get_script_run_ctx
+import subprocess
+import sys
 
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import numpy as np
-import colorsys
-
-# -----------------------------
-# gdown & Hugging Face
-# -----------------------------
+# Ensure gdown is installed
 try:
     import gdown
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
     import gdown
 
-try:
-    from huggingface_hub import snapshot_download
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "huggingface-hub"])
-    from huggingface_hub import snapshot_download
-
-# -----------------------------
-# Constants
-# -----------------------------
 ASSETS_DIR = "assets"
 ZIP_FILE = "assets.zip"
 FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
 ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-DATA_DIR = "data"
-USERS_FILE = os.path.join(DATA_DIR, "users.json")
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
-
-# -----------------------------
-# Download Assets
-# -----------------------------
+# Download if not exists
 if not os.path.exists(ASSETS_DIR):
     st.info("Downloading assets from Google Drive... ⏳")
-    gdown.download(ZIP_URL, ZIP_FILE, quiet=False, fuzzy=True)
+    gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
 
+    # Extract zip to a temp folder
     temp_extract = "temp_assets_extract"
     with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
         zip_ref.extractall(temp_extract)
 
+    # Check if single top-level folder exists inside temp_extract
     top_level = os.listdir(temp_extract)
     if len(top_level) == 1 and os.path.isdir(os.path.join(temp_extract, top_level[0])):
         inner_folder = os.path.join(temp_extract, top_level[0])
-        if inner_folder.lower() == ASSETS_DIR.lower():
-            os.makedirs(ASSETS_DIR, exist_ok=True)
-            for item in os.listdir(inner_folder):
-                shutil.copytree(
-                    os.path.join(inner_folder, item),
-                    os.path.join(ASSETS_DIR, item),
-                    dirs_exist_ok=True
-                )
-        else:
-            shutil.move(inner_folder, ASSETS_DIR)
+        # Move content to ASSETS_DIR
+        shutil.move(inner_folder, ASSETS_DIR)
     else:
+        # Move everything to ASSETS_DIR
         os.makedirs(ASSETS_DIR, exist_ok=True)
         for item in os.listdir(temp_extract):
             shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
 
-    os.remove(ZIP_FILE)
-    shutil.rmtree(temp_extract)
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+import os
+import io
+import random
+from datetime import datetime, timedelta
+import zipfile
+import numpy as np
+import textwrap
+from typing import Tuple, List, Optional
+import math
+import colorsys
+import traceback
+from collections import Counter
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+import json, uuid, hashlib
 
-st.write("✅ Assets folder contents:", os.listdir(ASSETS_DIR))
+# =================== CONFIG ===================
 
-# -----------------------------
-# Auth / User Management
-# -----------------------------
+# ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
+DATA_DIR = "data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+
 def get_ip():
+    """
+    Get the client's IP address from request headers.
+    Handles proxies by taking the first IP in X-Forwarded-For.
+    """
     try:
         ctx = get_script_run_ctx()
         if ctx:
-            headers = getattr(ctx, "_request_headers", {})
+            headers = ctx._request_headers if hasattr(ctx, '_request_headers') else {}
             ip = headers.get("X-Forwarded-For", "Unknown")
             if ip != "Unknown":
                 ip = ip.split(',')[0].strip()
             return ip
-    except:
+    except Exception as e:
         return "Unknown"
 
 def _auth_hash(pw: str) -> str:
+    """
+    Hash the password using SHA256 for secure storage.
+    """
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def _auth_load_users():
+    """
+    Load users data from JSON file.
+    """
     try:
         with open(USERS_FILE, "r") as f:
             return json.load(f)
@@ -112,10 +95,16 @@ def _auth_load_users():
         return {"users": {}}
 
 def _auth_save_users(data):
+    """
+    Save users data to JSON file.
+    """
     with open(USERS_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
 def _auth_load_settings():
+    """
+    Load settings from JSON file.
+    """
     try:
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
@@ -124,10 +113,16 @@ def _auth_load_settings():
                 "login_required": True, "hue_enabled_pngs": {}, "tool_visibility": {}}
 
 def _auth_save_settings(s):
+    """
+    Save settings to JSON file.
+    """
     with open(SETTINGS_FILE, "w") as f:
         json.dump(s, f, indent=2)
 
 def _auth_ensure_files():
+    """
+    Ensure data directories and default files exist, create admin if not present.
+    """
     os.makedirs(DATA_DIR, exist_ok=True)
     users = _auth_load_users()
     if "admin" not in users.get("users", {}):
@@ -149,12 +144,18 @@ _users_db = _auth_load_users()
 _settings = _auth_load_settings()
 
 def _auth_logout_and_rerun():
+    """
+    Logout the user by clearing session state and rerunning the app.
+    """
     for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
         if k in st.session_state:
             del st.session_state[k]
     st.rerun()
 
 def _auth_check_session():
+    """
+    Check if the current session is valid, including expiry and IP match.
+    """
     username = st.session_state.get("_auth_user")
     if not username:
         return
@@ -174,21 +175,19 @@ def _auth_check_session():
     token = st.session_state.get("_auth_device")
     current_ip = get_ip()
     if u.get("last_ip") and current_ip != u.get("last_ip"):
-        st.warning("IP mismatch. Logging out.")
+        st.warning("IP address mismatch. Logging out for security.")
         _auth_logout_and_rerun()
     if u.get("device_token") and token and u.get("device_token") != token:
-        st.warning("Logged in from another device. Logging out.")
+        st.warning("You were logged in from another device. This session is logged out.")
         _auth_logout_and_rerun()
 
-# -----------------------------
-# Login Check
-# -----------------------------
+# Check if login is required
 settings = _auth_load_settings()
 login_required = settings.get("login_required", True)
 
 if login_required and "_auth_user" not in st.session_state:
     st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
-    st.info("Contact WhatsApp: 9140588751 for credentials")
+    st.info("For ID and Password, contact WhatsApp: 9140588751")
     left, right = st.columns([2,1])
     with left:
         login_id = st.text_input("Enter ID")
@@ -198,7 +197,7 @@ if login_required and "_auth_user" not in st.session_state:
             db = _auth_load_users()
             user = db.get("users", {}).get(login_id)
             if not user or user.get("password_hash") != _auth_hash(login_pw or ""):
-                st.error("Invalid ID or Password.")
+                st.error("Invalid ID or Password. Contact dev: +91 9140588751")
             else:
                 token = str(uuid.uuid4())
                 now = datetime.utcnow()
@@ -211,13 +210,9 @@ if login_required and "_auth_user" not in st.session_state:
                 st.session_state["_auth_user"] = login_id
                 st.session_state["_auth_device"] = token
                 st.session_state["_auth_login_time"] = now.isoformat()
-                st.success(f"Welcome {login_id}!")
+                st.success(f"Welcome {login_id} — logged in from IP {current_ip}!")
                 st.rerun()
     st.stop()
-
-if "_auth_user" in st.session_state:
-    _auth_check_session()
-
 
 if "_auth_user" in st.session_state:
     _auth_check_session()
