@@ -5,26 +5,8 @@ import os
 import sys
 import subprocess
 import shutil
-import zipfile
-import io
-import json
-import uuid
-import hashlib
-import random
-import math
-import colorsys
-import textwrap
-import traceback
-from datetime import datetime, timedelta
-from collections import Counter
-from typing import Tuple, List, Optional
-
-# ----------------------------
-# Third-Party Imports
-# ----------------------------
 import streamlit as st
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+from PIL import Image
 
 # ----------------------------
 # Ensure gdown is installed
@@ -81,10 +63,15 @@ def download_assets_from_drive(force_download=False):
         st.success("✅ Assets folder already exists and is ready to use.")
 
 # ----------------------------
-# RUN CLEANUP + DOWNLOAD
+# STREAMLIT UI CONTROL
 # ----------------------------
+st.title("Google Drive Assets Loader")
+
+# Add a Force Download button
+force_download = st.button("🔄 Force Refresh Assets from Google Drive")
+
 cleanup_assets_if_empty()
-download_assets_from_drive()
+download_assets_from_drive(force_download=force_download)
 
 # ----------------------------
 # VERIFY AND DISPLAY
@@ -2102,6 +2089,7 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
 
 
 
