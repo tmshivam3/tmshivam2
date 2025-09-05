@@ -39,10 +39,13 @@ if not os.path.exists(ASSETS_DIR):
         for item in os.listdir(temp_extract):
             shutil.move(os.path.join(temp_extract, item), ASSETS_DIR)
 
+import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
+import os
 import io
 import random
 from datetime import datetime, timedelta
+import zipfile
 import numpy as np
 import textwrap
 from typing import Tuple, List, Optional
@@ -52,6 +55,16 @@ import traceback
 from collections import Counter
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 import json, uuid, hashlib
+from huggingface_hub import snapshot_download
+
+# Download assets from Hugging Face dataset if not present
+ASSETS_DIR = "assets"
+if not os.path.exists(ASSETS_DIR):
+    os.makedirs(ASSETS_DIR, exist_ok=True)
+    try:
+        snapshot_download(repo_id="tmshivam/tool", repo_type="dataset", local_dir=ASSETS_DIR)
+    except Exception as e:
+        st.error(f"Failed to download assets: {str(e)}")
 
 # =================== CONFIG ===================
 
