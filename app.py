@@ -1,70 +1,55 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import os
-import io
-import random
-from datetime import datetime, timedelta
-import zipfile
-import numpy as np
-import textwrap
-from typing import Tuple, List, Optional
-import math
-import colorsys
-import traceback
-from collections import Counter
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-
 import requests
 import tempfile
+import zipfile
+import os
 
-# Download and extract assets from Google Drive
 @st.cache_resource
 def get_assets_dir():
     tmpdir = tempfile.mkdtemp()
     url = "https://drive.google.com/uc?export=download&id=18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
-    response = requests.get(url, stream=True)
-    if response.status_code == 200:
+    
+    try:
+        # Download the file
         zip_path = os.path.join(tmpdir, "assets.zip")
-        with open(zip_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(tmpdir)
-        os.remove(zip_path)
-        # Assume zip extracts to 'assets/' folder; adjust if different
+        with requests.get(url, stream=True) as response:
+            # Check if the response is a valid ZIP file
+            if response.status_code != 200:
+                raise ValueError(f"Failed to download file: HTTP {response.status_code}")
+            
+            # Check content type to ensure it's a ZIP file
+            content_type = response.headers.get('content-type', '')
+            if 'application/zip' not in content_type and 'octet-stream' not in content_type:
+                raise ValueError(f"Downloaded file is not a ZIP file. Content-Type: {content_type}")
+            
+            # Save the file
+            with open(zip_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        
+        # Verify the file is a valid ZIP
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.testzip()  # Test ZIP integrity
+                zip_ref.extractall(tmpdir)
+        except zipfile.BadZipFile as e:
+            raise ValueError(f"Invalid ZIP file: {str(e)}")
+        finally:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+        
+        # Check for 'assets' folder or return tmpdir if structure differs
         assets_path = os.path.join(tmpdir, "assets")
         if os.path.exists(assets_path):
             return assets_path
-        else:
-            return tmpdir  # If no 'assets/' root, use tmpdir directly
-    else:
-        raise ValueError(f"Failed to download assets: {response.status_code}")
-
-ASSETS_DIR = get_assets_dir()
-
-# ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
-import json, uuid, hashlib
-from datetime import datetime, timedelta
-
-DATA_DIR = "data"
-USERS_FILE = os.path.join(DATA_DIR, "users.json")
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
-
-def get_ip():
-    """
-    Get the client's IP address from request headers.
-    Handles proxies by taking the first IP in X-Forwarded-For.
-    """
-    try:
-        ctx = get_script_run_ctx()
-        if ctx:
-            headers = ctx._request_headers if hasattr(ctx, '_request_headers') else {}
-            ip = headers.get("X-Forwarded-For", "Unknown")
-            if ip != "Unknown":
-                ip = ip.split(',')[0].strip()
-            return ip
+        return tmpdir
+    
     except Exception as e:
-        return "Unknown"
+        st.error(f"Failed to download or extract assets: {str(e)}")
+        st.error("Please ensure the Google Drive link is public and points to a valid ZIP file.")
+        st.error("Contact developer at +91 9140588751 for assistance.")
+        raise
 
 def _auth_hash(pw: str) -> str:
     """
@@ -1864,3 +1849,4 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
