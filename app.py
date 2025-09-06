@@ -1,32 +1,36 @@
 import streamlit as st
-import requests
-import tempfile
-import zipfile
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
 import os
+import io
+import random
+from datetime import datetime, timedelta
+import zipfile
+import numpy as np
+import textwrap
+from typing import Tuple, List, Optional
+import math
+import colorsys
+import traceback
+from collections import Counter
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+import json
+import uuid
+import hashlib
+import requests
+import gdown
+import tempfile
 
+# Download and extract assets from Google Drive
 @st.cache_resource
 def get_assets_dir():
     tmpdir = tempfile.mkdtemp()
-    url = "https://drive.google.com/uc?export=download&id=18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+    file_id = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+    url = f"https://drive.google.com/uc?id={file_id}"
+    zip_path = os.path.join(tmpdir, "assets.zip")
     
     try:
-        # Download the file
-        zip_path = os.path.join(tmpdir, "assets.zip")
-        with requests.get(url, stream=True) as response:
-            # Check if the response is a valid ZIP file
-            if response.status_code != 200:
-                raise ValueError(f"Failed to download file: HTTP {response.status_code}")
-            
-            # Check content type to ensure it's a ZIP file
-            content_type = response.headers.get('content-type', '')
-            if 'application/zip' not in content_type and 'octet-stream' not in content_type:
-                raise ValueError(f"Downloaded file is not a ZIP file. Content-Type: {content_type}")
-            
-            # Save the file
-            with open(zip_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+        # Download using gdown
+        gdown.download(url, zip_path, quiet=False)
         
         # Verify the file is a valid ZIP
         try:
@@ -51,16 +55,29 @@ def get_assets_dir():
         st.error("Contact developer at +91 9140588751 for assistance.")
         raise
 
+ASSETS_DIR = get_assets_dir()
+
+# ========== BEGIN AUTH / ADMIN BLOCK ==========
+DATA_DIR = "data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+
+def get_ip():
+    try:
+        ctx = get_script_run_ctx()
+        if ctx:
+            headers = ctx._request_headers if hasattr(ctx, '_request_headers') else {}
+            ip = headers.get("X-Forwarded-For", "Unknown")
+            if ip != "Unknown":
+                ip = ip.split(',')[0].strip()
+            return ip
+    except Exception:
+        return "Unknown"
+
 def _auth_hash(pw: str) -> str:
-    """
-    Hash the password using SHA256 for secure storage.
-    """
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def _auth_load_users():
-    """
-    Load users data from JSON file.
-    """
     try:
         with open(USERS_FILE, "r") as f:
             return json.load(f)
@@ -68,16 +85,11 @@ def _auth_load_users():
         return {"users": {}}
 
 def _auth_save_users(data):
-    """
-    Save users data to JSON file.
-    """
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(USERS_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
 def _auth_load_settings():
-    """
-    Load settings from JSON file.
-    """
     try:
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
@@ -85,16 +97,11 @@ def _auth_load_settings():
         return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00"}
 
 def _auth_save_settings(s):
-    """
-    Save settings to JSON file.
-    """
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump(s, f, indent=2)
 
 def _auth_ensure_files():
-    """
-    Ensure data directories and default files exist, create admin if not present.
-    """
     os.makedirs(DATA_DIR, exist_ok=True)
     users = _auth_load_users()
     if "admin" not in users.get("users", {}):
@@ -116,18 +123,12 @@ _users_db = _auth_load_users()
 _settings = _auth_load_settings()
 
 def _auth_logout_and_rerun():
-    """
-    Logout the user by clearing session state and rerunning the app.
-    """
     for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
         if k in st.session_state:
             del st.session_state[k]
     st.rerun()
 
 def _auth_check_session():
-    """
-    Check if the current session is valid, including expiry and IP match.
-    """
     username = st.session_state.get("_auth_user")
     if not username:
         return
@@ -197,7 +198,6 @@ if IS_ADMIN:
 if st.session_state.get("_auth_show_admin"):
     st.markdown("## ⚙️ ADMIN PANEL")
     
-    # Enhanced admin features
     st.markdown("### User Management")
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["User Accounts", "Access Control", "System Settings", "IP Management", "Tools & Features"])
     
@@ -263,7 +263,6 @@ if st.session_state.get("_auth_show_admin"):
                 _auth_save_users(db)
                 st.success(f"Expiry set for {uname}")
             
-            # User type change
             new_type = cols[6].selectbox("Type", ["Member", "Pro Member", "Admin"], 
                                         index=["Member", "Pro Member", "Admin"].index(user_type),
                                         key=f"type_{uname}")
@@ -377,15 +376,15 @@ if st.session_state.get("_auth_show_admin"):
         
         st.markdown("#### System Tools")
         if st.button("Clear All Cache"):
+            st.cache_resource.clear()
             st.session_state.clear()
             st.success("Cache cleared!")
+            st.rerun()
         
         if st.button("Export User Data"):
-            # Create export functionality
             st.success("User data exported!")
         
         if st.button("Import User Data"):
-            # Create import functionality
             st.success("User data imported!")
     
     st.markdown("---")
@@ -404,7 +403,7 @@ primary_color = _settings.get("primary_color", "#ffcc00")
 st.markdown(f"""
     <style>
     .main {{
-        background-color: #0a0a0a;
+        background-color: #0a0a1a;
         color: #ffffff;
     }}
     .header-container {{
@@ -469,29 +468,18 @@ st.markdown(f"""
 
 # =================== UTILS ===================
 def list_files(folder: str, exts: List[str]) -> List[str]:
-    """
-    List files in a folder with specific extensions.
-    """
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
         return []
-    files = os.listdir(folder)
-    return [f for f in files 
-            if any(f.lower().endswith(ext.lower()) for ext in exts)]
+    return [f for f in os.listdir(folder) if any(f.lower().endswith(ext.lower()) for ext in exts)]
 
 def list_subfolders(folder: str) -> List[str]:
-    """
-    List subfolders in a folder.
-    """
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
         return []
     return [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d))]
 
 def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
-    """
-    Smart crop image to target aspect ratio, centering the crop.
-    """
     w, h = img.size
     if w/h > target_ratio:
         new_w = int(h * target_ratio)
@@ -503,106 +491,118 @@ def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
         return img.crop((0, top, w, top + new_h))
 
 def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
-    """
-    Get the size of text with given font.
-    """
     if text is None:
         return 0, 0
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 def get_random_font(font_folder=os.path.join(ASSETS_DIR, "fonts")) -> ImageFont.FreeTypeFont:
-    """
-    Get a random font from the fonts folder, fallback to default.
-    """
     try:
         fonts = list_files(font_folder, [".ttf", ".otf"])
         if not fonts:
             return ImageFont.truetype("arial.ttf", 80)
-        
         for _ in range(3):
             try:
                 font_path = os.path.join(font_folder, random.choice(fonts))
                 return ImageFont.truetype(font_path, 80)
             except:
                 continue
-        
         return ImageFont.truetype("arial.ttf", 80)
     except:
         return ImageFont.load_default()
 
 def get_random_wish(greeting_type: str) -> str:
-    """
-    Get a random wish message based on greeting type.
-    Expanded list for more variety.
-    """
     wishes = {
         "Good Morning": [
-            "Rise and shine! A new day is a new opportunity!",
+            "Rise and shine! A new day awaits!",
             "Good morning! Make today amazing!",
-            # ... (rest of the wishes remain the same)
+            "Start your day with a smile!",
+            "Good morning! Seize the day!",
+            "Wake up and conquer today!"
         ],
-        # ... (other greeting types remain the same)
+        "Good Afternoon": [
+            "Good afternoon! Keep shining!",
+            "Enjoy your afternoon vibes!",
+            "Make this afternoon awesome!",
+            "Good afternoon! Stay energized!",
+            "Afternoon brilliance awaits!"
+        ],
+        "Good Evening": [
+            "Good evening! Relax and unwind!",
+            "Evening vibes, make it great!",
+            "Good evening! Enjoy the night!",
+            "Wind down with a smile!",
+            "Evening magic starts now!"
+        ],
+        "Good Night": [
+            "Good night! Sweet dreams!",
+            "Sleep tight, dream big!",
+            "Good night! Rest well!",
+            "Wishing you a peaceful night!",
+            "Good night, see you in dreams!"
+        ],
+        "Happy Birthday": [
+            "Happy Birthday! Celebrate big!",
+            "Wishing you a fantastic birthday!",
+            "Another trip around the sun!",
+            "Happy Birthday! Make it epic!",
+            "Cheers to your special day!"
+        ],
+        "Merry Christmas": [
+            "Merry Christmas! Joy to you!",
+            "Warmest Christmas wishes!",
+            "Ho Ho Ho! Merry Christmas!",
+            "Celebrate the season with love!",
+            "Merry Christmas, spread cheer!"
+        ],
+        "Custom Greeting": [
+            "Have an awesome day!",
+            "Make today unforgettable!",
+            "Shine bright today!",
+            "Enjoy your special moment!",
+            "Keep rocking it!"
+        ]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
 
 def get_random_quote() -> str:
-    """
-    Get a random inspirational quote from an expanded list.
-    """
     quotes = [
         "The only way to do great work is to love what you do. - Steve Jobs",
-        "Innovation distinguishes between a leader and a follower. - Steve Jobs",
-        # ... (rest of the quotes remain the same)
+        "Stay hungry, stay foolish. - Steve Jobs",
+        "Your time is limited, don't waste it living someone else's life. - Steve Jobs",
+        "Success is not final, failure is not fatal. - Winston Churchill",
+        "The best way to predict the future is to create it. - Peter Drucker",
+        "Believe you can and you're halfway there. - Theodore Roosevelt",
+        "Life is what happens when you're busy making other plans. - John Lennon",
+        "The only limit to our realization of tomorrow is our doubts of today. - Franklin D. Roosevelt",
+        "Do what you can, with what you have, where you are. - Theodore Roosevelt",
+        "Strive not to be a success, but rather to be of value. - Albert Einstein"
     ]
     return random.choice(quotes)
 
 def get_random_color() -> Tuple[int, int, int]:
-    """
-    Generate a random RGB color with medium brightness.
-    """
     return (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
 
 def get_vibrant_color() -> Tuple[int, int, int]:
-    """
-    Generate a vibrant RGB color using HSV.
-    """
     hue = random.random()
     r, g, b = [int(255 * c) for c in colorsys.hsv_to_rgb(hue, 0.9, 0.9)]
     return (r, g, b)
 
 PURE_COLORS = [
-    (255, 0, 0),  # Red
-    (255, 255, 0),  # Yellow
-    (0, 255, 0),  # Green
-    (0, 0, 255),  # Blue
-    (255, 0, 255),  # Magenta
-    (0, 255, 255),  # Cyan
+    (255, 0, 0), (255, 255, 0), (0, 255, 0),
+    (0, 0, 255), (255, 0, 255), (0, 255, 255)
 ]
 
 def get_gradient_colors(dominant_color: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
-    """
-    Get gradient colors based on dominant color or pure colors.
-    """
     if random.random() < 0.8:
         return [(255, 255, 255), dominant_color]
-    else:
-        return [(255, 255, 255), random.choice(PURE_COLORS)]
+    return [(255, 255, 255), random.choice(PURE_COLORS)]
 
 def get_multi_gradient_colors() -> List[Tuple[int, int, int]]:
-    """
-    Get multiple vibrant colors for rainbow gradient.
-    """
     num_colors = random.randint(2, 7)
-    colors = []
-    for _ in range(num_colors):
-        colors.append(get_vibrant_color())
-    return colors
+    return [get_vibrant_color() for _ in range(num_colors)]
 
 def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, int]], direction: str = 'horizontal') -> Image.Image:
-    """
-    Create a gradient mask image with given colors.
-    """
     gradient = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(gradient)
     
@@ -613,8 +613,7 @@ def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, i
             r = int(start_color[0] * (1 - ratio) + end_color[0] * ratio)
             g = int(start_color[1] * (1 - ratio) + end_color[1] * ratio)
             b = int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
-            color = (r, g, b)
-            draw.line([(x, 0), (x, height)], fill=color)
+            draw.line([(x, 0), (x, height)], fill=(r, g, b))
         if random.choice([True, False]):
             gradient = gradient.transpose(Image.FLIP_LEFT_RIGHT)
     else:
@@ -635,9 +634,6 @@ def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, i
     return gradient
 
 def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
-    """
-    Format current date with optional day name.
-    """
     today = datetime.now()
     formatted_date = today.strftime(date_format)
     
@@ -653,9 +649,6 @@ def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
     return formatted_date
 
 def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5, position: Tuple[int, int] = None) -> Image.Image:
-    """
-    Apply an overlay image with resizing and random or specified position.
-    """
     try:
         overlay = Image.open(overlay_path).convert("RGBA")
         new_size = (int(image.width * size), int(image.height * size))
@@ -675,61 +668,39 @@ def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5, posi
     return image
 
 def generate_filename(base_name="Picsart") -> str:
-    """
-    Generate a filename with future timestamp for uniqueness.
-    """
     future_minutes = random.randint(1, 10)
     now = datetime.now()
     future_time = now + timedelta(minutes=future_minutes)
     return f"{base_name}_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img: Image.Image, watermark: Image.Image, avoid_positions: List[Tuple[int, int, int, int]] = None) -> Tuple[int, int]:
-    """
-    Get a position for watermark, avoiding overlaps if provided.
-    """
     possible_positions = [20, img.width - watermark.width - 20]
     x = random.choice(possible_positions)
     y = img.height - watermark.height - 20
     if avoid_positions:
         for ax, ay, aw, ah in avoid_positions:
             if abs(x - ax) < aw or abs(y - ay) < ah:
-                x = possible_positions[1 - possible_positions.index(x)]  # switch side
+                x = possible_positions[1 - possible_positions.index(x)]
     return (x, y)
 
 def enhance_image_quality(img: Image.Image, brightness=1.0, contrast=1.0, sharpness=1.0, saturation=1.0) -> Image.Image:
-    """
-    Enhance image quality with adjustable parameters.
-    """
     if img.mode != 'RGB':
         img = img.convert('RGB')
         
-    enhancer = ImageEnhance.Brightness(img)
-    img = enhancer.enhance(brightness)
-    
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(contrast)
-    
-    enhancer = ImageEnhance.Sharpness(img)
-    img = enhancer.enhance(sharpness)
-    
-    enhancer = ImageEnhance.Color(img)
-    img = enhancer.enhance(saturation)
+    img = ImageEnhance.Brightness(img).enhance(brightness)
+    img = ImageEnhance.Contrast(img).enhance(contrast)
+    img = ImageEnhance.Sharpness(img).enhance(sharpness)
+    img = ImageEnhance.Color(img).enhance(saturation)
     
     return img
 
 def upscale_text_elements(img: Image.Image, scale_factor: int = 4) -> Image.Image:
-    """
-    Upscale image for better text rendering.
-    """
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
         img = img.resize(new_size, Image.LANCZOS)
     return img
 
 def apply_vignette(img: Image.Image, intensity: float = 0.8) -> Image.Image:
-    """
-    Apply vignette effect to image.
-    """
     width, height = img.size
     x = np.linspace(-1, 1, width)
     y = np.linspace(-1, 1, height)
@@ -743,9 +714,6 @@ def apply_vignette(img: Image.Image, intensity: float = 0.8) -> Image.Image:
     return img
 
 def apply_sepia(img: Image.Image) -> Image.Image:
-    """
-    Apply sepia filter to image.
-    """
     arr = np.array(img)
     sepia_filter = np.array([
         [.393, .769, .189],
@@ -757,15 +725,9 @@ def apply_sepia(img: Image.Image) -> Image.Image:
     return Image.fromarray(arr.astype('uint8'))
 
 def apply_black_white(img: Image.Image) -> Image.Image:
-    """
-    Convert image to black and white.
-    """
     return img.convert('L').convert('RGB')
 
 def apply_vintage(img: Image.Image) -> Image.Image:
-    """
-    Apply vintage effect: sepia + noise + vignette.
-    """
     img = apply_sepia(img)
     noise = np.random.normal(0, 25, img.size[::-1] + (3,)).astype(np.uint8)
     noise_img = Image.fromarray(noise)
@@ -774,18 +736,12 @@ def apply_vintage(img: Image.Image) -> Image.Image:
     return img
 
 def apply_sketch_effect(img: Image.Image) -> Image.Image:
-    """
-    Apply sketch effect to image.
-    """
     img_gray = img.convert('L')
     img_invert = ImageOps.invert(img_gray)
     img_blur = img_invert.filter(ImageFilter.GaussianBlur(radius=3))
     return ImageOps.invert(img_blur)
 
 def apply_cartoon_effect(img: Image.Image) -> Image.Image:
-    """
-    Apply cartoon effect to image.
-    """
     reduced = img.quantize(colors=8, method=1)
     gray = img.convert('L')
     edges = gray.filter(ImageFilter.FIND_EDGES)
@@ -796,11 +752,7 @@ def apply_cartoon_effect(img: Image.Image) -> Image.Image:
     return cartoon
 
 def apply_anime_effect(img: Image.Image) -> Image.Image:
-    """
-    Apply anime-style effect to image.
-    """
-    enhancer = ImageEnhance.Color(img)
-    img = enhancer.enhance(1.5)
+    img = ImageEnhance.Color(img).enhance(1.5)
     edges = img.filter(ImageFilter.FIND_EDGES)
     edges = edges.convert('L')
     edges = edges.point(lambda x: 0 if x < 100 else 255)
@@ -809,12 +761,8 @@ def apply_anime_effect(img: Image.Image) -> Image.Image:
     return result
 
 def apply_emoji_stickers(img: Image.Image, emojis: List[str], num_stickers=5) -> Image.Image:
-    """
-    Add random emoji stickers to image.
-    """
     if not emojis:
         return img
-        
     draw = ImageDraw.Draw(img)
     for _ in range(num_stickers):
         x = random.randint(20, img.width-40)
@@ -825,22 +773,13 @@ def apply_emoji_stickers(img: Image.Image, emojis: List[str], num_stickers=5) ->
     return img
 
 def get_dominant_color(img: Image.Image) -> Tuple[int, int, int]:
-    """
-    Get dominant color from resized image, adjust lightness.
-    FIXED: Handle RGBA images by converting to RGB first
-    """
-    # Convert to RGB if image has alpha channel
     if img.mode == 'RGBA':
         img = img.convert('RGB')
-    
     img_small = img.resize((100, 100))
     colors = Counter(img_small.getdata())
     dominant = colors.most_common(1)[0][0]
-    
-    # Ensure we only have 3 values (RGB)
     if len(dominant) > 3:
         dominant = dominant[:3]
-    
     h, l, s = colorsys.rgb_to_hls(dominant[0] / 255, dominant[1] / 255, dominant[2] / 255)
     if l < 0.5:
         l = 0.7
@@ -848,9 +787,6 @@ def get_dominant_color(img: Image.Image) -> Tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 def find_text_position(img: Image.Image, required_width: int, required_height: int, prefer_top: bool = True) -> Tuple[int, int]:
-    """
-    Find optimal position for text based on image variance (low variance areas).
-    """
     arr = np.array(img.convert('L'))
     step = 20
     min_var = float('inf')
@@ -866,21 +802,15 @@ def find_text_position(img: Image.Image, required_width: int, required_height: i
     return best_pos
 
 def get_random_horizontal_position(img_width: int, text_width: int) -> int:
-    """
-    Get random horizontal position: left, mid, right.
-    """
     positions = [
-        20,  # left
-        (img_width - text_width) // 2,  # mid
-        img_width - text_width - 20  # right
+        20,
+        (img_width - text_width) // 2,
+        img_width - text_width - 20
     ]
     return random.choice(positions)
 
 def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
                       effect_settings: dict, base_img: Image.Image) -> dict:
-    """
-    Apply advanced text effects using separate layers for better control.
-    """
     x, y = position
     effect_type = effect_settings['type']
     
@@ -889,7 +819,6 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     
     text_width, text_height = get_text_size(draw, text, font)
     
-    # Handle RANDOM effect type
     if effect_type == 'random':
         available_effects = [
             'white_only', 'white_black_outline_shadow', 'gradient', 
@@ -898,7 +827,6 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         effect_type = random.choice(available_effects)
         effect_settings['type'] = effect_type
     
-    # Create separate transparent layers for shadow, outline, and fill
     shadow_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
     outline_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
     fill_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
@@ -907,23 +835,19 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     outline_draw = ImageDraw.Draw(outline_layer)
     fill_draw = ImageDraw.Draw(fill_layer)
     
-    # Draw shadow
     shadow_offset = (2, 2)
     shadow_draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=(0, 0, 0, 40))
     
-    # Draw outline
     outline_range = 1 if effect_type == 'neon' else 2
     for ox in range(-outline_range, outline_range + 1):
         for oy in range(-outline_range, outline_range + 1):
             if ox != 0 or oy != 0:
                 outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
     
-    # Create mask for fill
     mask = Image.new("L", (text_width, text_height), 0)
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.text((0, 0), text, font=font, fill=255)
     
-    # Apply fill
     if effect_type in ['gradient', 'rainbow']:
         colors = effect_settings['colors']
         gradient = create_gradient_mask(text_width, text_height, colors)
@@ -963,7 +887,6 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     else:
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
-    # Composite layers
     base_img_rgba = base_img.convert('RGBA') if base_img.mode != 'RGBA' else base_img
     base_img_rgba = Image.alpha_composite(base_img_rgba, shadow_layer)
     base_img_rgba = Image.alpha_composite(base_img_rgba, outline_layer)
@@ -974,23 +897,17 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     return effect_settings
 
 def get_pet_position(img: Image.Image, pet_img: Image.Image) -> Tuple[int, int]:
-    """
-    Get random position for pet PNG at bottom: 40% left, 40% right, 20% mid.
-    """
     prob = random.random()
     if prob < 0.4:
-        x = 20  # left
+        x = 20
     elif prob < 0.8:
-        x = img.width - pet_img.width - 20  # right
+        x = img.width - pet_img.width - 20
     else:
-        x = (img.width - pet_img.width) // 2  # mid
+        x = (img.width - pet_img.width) // 2
     y = img.height - pet_img.height - 20
     return x, y
 
 def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
-    """
-    Create a variant of the image with all applied settings, ensuring no overlaps except main.
-    """
     try:
         img = original_img.copy()
         draw = ImageDraw.Draw(img)
@@ -1010,8 +927,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         style_mode = settings.get('style_mode', 'Text')
         overlap_percent = settings.get('overlap_percent', 30)
         
-        # Track positions to avoid overlaps
-        occupied_boxes = []  # list of (x, y, w, h)
+        occupied_boxes = []
         
         if style_mode == 'PNG Overlay' and settings['greeting_type'] in ["Good Morning", "Good Night"]:
             years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
@@ -1199,7 +1115,6 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 else:
                     wish_x = get_random_horizontal_position(img.width, max_w)
                 
-                # Avoid overlap with main
                 if settings['show_text']:
                     if wish_y < main_end_y + 20:
                         wish_y = main_end_y + 20
@@ -1232,10 +1147,9 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             date_x = get_random_horizontal_position(img.width, date_width)
             date_y = img.height - date_height - 20
             
-            # Avoid overlap
             for ox, oy, ow, oh in occupied_boxes:
                 if abs(date_y - oy) < oh + date_height:
-                    date_x = (date_x + img.width // 2) % img.width  # shift
+                    date_x = (date_x + img.width // 2) % img.width
                     
             if settings['show_day'] and "(" in date_text:
                 day_part = date_text[date_text.index("("):]
@@ -1264,7 +1178,6 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             quote_y = (img.height - total_height) // 2
             
-            # Avoid overlap
             for ox, oy, ow, oh in occupied_boxes:
                 if abs(quote_y - oy) < total_height + oh:
                     quote_y += oh + 20
@@ -1291,29 +1204,28 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         if settings['use_coffee_pet'] and settings['pet_choice']:
             pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
             if settings['pet_choice'] == "Random":
-                selected_pet = random.choice(pet_files)
+                selected_pet = random.choice(pet_files) if pet_files else None
             else:
                 selected_pet = settings['pet_choice']
-            pet_path = os.path.join(ASSETS_DIR, "pets", selected_pet)
-            if os.path.exists(pet_path):
-                pet_img = Image.open(pet_path).convert("RGBA")
-                pet_img = pet_img.resize(
-                    (int(img.width * settings['pet_size']), 
-                     int((img.width * settings['pet_size']) * (pet_img.height / pet_img.width))),
-                    Image.LANCZOS
-                )
-                pet_pos = get_pet_position(img, pet_img)
-                # Avoid overlap with watermark if present
-                for ox, oy, ow, oh in occupied_boxes:
-                    if abs(pet_pos[0] - ox) < ow + pet_img.width and abs(pet_pos[1] - oy) < oh + pet_img.height:
-                        pet_pos = ((img.width - pet_pos[0] - pet_img.width, pet_pos[1]) if pet_pos[0] == 20 else (20, pet_pos[1]))
-                img.paste(pet_img, pet_pos, pet_img)
-                occupied_boxes.append((pet_pos[0], pet_pos[1], pet_img.width, pet_img.height))
+            if selected_pet:
+                pet_path = os.path.join(ASSETS_DIR, "pets", selected_pet)
+                if os.path.exists(pet_path):
+                    pet_img = Image.open(pet_path).convert("RGBA")
+                    pet_img = pet_img.resize(
+                        (int(img.width * settings['pet_size']), 
+                         int((img.width * settings['pet_size']) * (pet_img.height / pet_img.width))),
+                        Image.LANCZOS
+                    )
+                    pet_pos = get_pet_position(img, pet_img)
+                    for ox, oy, ow, oh in occupied_boxes:
+                        if abs(pet_pos[0] - ox) < ow + pet_img.width and abs(pet_pos[1] - oy) < oh + pet_img.height:
+                            pet_pos = ((img.width - pet_pos[0] - pet_img.width, pet_pos[1]) if pet_pos[0] == 20 else (20, pet_pos[1]))
+                    img.paste(pet_img, pet_pos, pet_img)
+                    occupied_boxes.append((pet_pos[0], pet_pos[1], pet_img.width, pet_img.height))
         
         if settings.get('apply_emoji', False) and settings.get('emojis'):
             img = apply_emoji_stickers(img, settings['emojis'], settings.get('num_emojis', 5))
         
-        # Apply advanced image enhancements
         img = enhance_image_quality(
             img,
             settings.get('brightness', 1.0),
@@ -1349,13 +1261,11 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
     
     except Exception as e:
         st.error(f"Error creating variant: {str(e)}")
-        st.error(traceback.format_exc())
         return None
 
 # =================== MAIN APP ===================
 if 'generated_images' not in st.session_state:
     st.session_state.generated_images = []
-    
 if 'watermark_groups' not in st.session_state:
     st.session_state.watermark_groups = {}
 
@@ -1368,21 +1278,16 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Check user access level
 user_type = CURRENT_RECORD.get("user_type", "Member")
 visible_tools = _settings.get("visible_tools", ["V1.0"])
 
 if user_type == "Member":
-    # Only show basic tools to members
     available_tools = ["V1.0"]
 elif user_type == "Pro Member":
-    # Show all tools except admin features
     available_tools = [t for t in visible_tools if t != "Admin Panel"]
-else:  # Admin
-    # Show all tools
+else:
     available_tools = visible_tools
 
-# Show tool access message based on user type
 if user_type == "Member":
     st.warning("🔒 You have Member access. Upgrade to Pro for more features!")
 elif user_type == "Pro Member":
@@ -1393,7 +1298,7 @@ else:
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 with st.sidebar:
-    st.markdown("### ⚙️  SETTINGS")
+    st.markdown("### ⚙️ SETTINGS")
     
     greeting_type = st.selectbox("Greeting Type", 
                                  ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
@@ -1489,7 +1394,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Show premium features only to Pro Members and Admins
     if user_type in ["Pro Member", "Admin"]:
         st.markdown("###☕🐾 PRO OVERLAYS")
         use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
@@ -1524,10 +1428,8 @@ with st.sidebar:
     st.markdown("### ⚡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
     
-    # Show advanced features only to Pro Members and Admins
     if user_type in ["Pro Member", "Admin"]:
-        with st.expander("🔥 Advanced Features (Compact Form)"):
-            # Add 20+ new features here
+        with st.expander("🔥 Advanced Features"):
             st.markdown("### Image Adjustments")
             brightness = st.slider("Brightness", 0.5, 1.5, 1.0)
             contrast = st.slider("Contrast", 0.5, 1.5, 1.0)
@@ -1669,184 +1571,4 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                     'text_effect': selected_effect,
                                     'custom_position': custom_position,
                                     'text_x': text_x if custom_position else 100,
-                                    'text_y': text_y if custom_position else 100,
-                                    'apply_emoji': apply_emoji,
-                                    'emojis': emojis,
-                                    'num_emojis': num_emojis,
-                                    'style_mode': style_mode,
-                                    'overlap_percent': overlap_percent,
-                                    'overlay_year': overlay_year,
-                                    'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
-                                    'brightness': brightness,
-                                    'contrast': contrast,
-                                    'sharpness': sharpness,
-                                    'saturation': saturation,
-                                    'apply_sepia': apply_sepia,
-                                    'apply_bw': apply_bw,
-                                    'apply_vintage': apply_vintage,
-                                    'apply_vignette': apply_vignette,
-                                    'vignette_intensity': vignette_intensity if 'vignette_intensity' in locals() else 0.8,
-                                    'apply_sketch': apply_sketch,
-                                    'apply_cartoon': apply_cartoon,
-                                    'apply_anime': apply_anime,
-                                    'font_folder': font_folder,
-                                    'upscale_factor': upscale_factor
-                                }
-                                
-                                variant = create_variant(img, settings)
-                                if variant is not None:
-                                    variants.append((generate_filename(), variant))
-                            variant_images.extend(variants)
-                        else:
-                            settings = {
-                                'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
-                                'show_text': show_text,
-                                'main_size': main_size if show_text else 90,
-                                'text_position': text_position,
-                                'show_wish': show_wish,
-                                'wish_size': wish_size if show_wish else 60,
-                                'custom_wish': wish_text,
-                                'show_date': show_date,
-                                'show_day': show_day if show_date else False,
-                                'date_size': date_size if show_date else 30,
-                                'date_format': date_format if show_date else "8 July 2025",
-                                'show_quote': show_quote,
-                                'quote_text': get_random_quote() if show_quote else "",
-                                'quote_size': quote_size if show_quote else 40,
-                                'use_watermark': use_watermark,
-                                'watermark_image': watermark,
-                                'watermark_opacity': watermark_opacity if use_watermark else 1.0,
-                                'use_coffee_pet': use_coffee_pet,
-                                'pet_size': pet_size if use_coffee_pet else 0.3,
-                                'pet_choice': pet_choice,
-                                'text_effect': selected_effect,
-                                'custom_position': custom_position,
-                                'text_x': text_x if custom_position else 100,
-                                'text_y': text_y if custom_position else 100,
-                                'apply_emoji': apply_emoji,
-                                'emojis': emojis,
-                                'num_emojis': num_emojis,
-                                'style_mode': style_mode,
-                                'overlap_percent': overlap_percent,
-                                'overlay_year': overlay_year,
-                                'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
-                                'brightness': brightness,
-                                'contrast': contrast,
-                                'sharpness': sharpness,
-                                'saturation': saturation,
-                                'apply_sepia': apply_sepia,
-                                'apply_bw': apply_bw,
-                                'apply_vintage': apply_vintage,
-                                'apply_vignette': apply_vignette,
-                                'vignette_intensity': vignette_intensity if 'vignette_intensity' in locals() else 0.8,
-                                'apply_sketch': apply_sketch,
-                                'apply_cartoon': apply_cartoon,
-                                'apply_anime': apply_anime,
-                                'font_folder': font_folder,
-                                'upscale_factor': upscale_factor
-                            }
-                            
-                            processed_img = create_variant(img, settings)
-                            if processed_img is not None:
-                                processed_images.append((generate_filename(), processed_img))
-                    
-                        progress = (idx * len(group_images) + img_idx + 1) / total_images
-                        progress_bar.progress(min(progress, 1.0))
-                    
-                    except Exception as e:
-                        st.error(f"Error processing {uploaded_file.name}: {str(e)}")
-                        st.error(traceback.format_exc())
-                        continue
-
-            st.session_state.generated_images = processed_images + variant_images
-            
-            if st.session_state.generated_images:
-                st.success(f"✅ Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
-            else:
-                st.warning("No images were processed.")
-    else:
-        st.warning("Please upload at least one image")
-
-if st.session_state.generated_images:
-    if len(st.session_state.watermark_groups) > 1:
-        for group_name, group_data in st.session_state.watermark_groups.items():
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-                for filename, img in st.session_state.generated_images:
-                    try:
-                        if img.mode != 'RGB':
-                            img = img.convert('RGB')
-                        img_bytes = io.BytesIO()
-                        quality = 90 if bulk_quality == "High (90%)" else 80 if bulk_quality == "Medium (80%)" else 70
-                        img.save(img_bytes, format='JPEG', quality=quality)
-                        zip_file.writestr(filename, img_bytes.getvalue())
-                    except Exception as e:
-                        st.error(f"Error adding {filename} to zip: {str(e)}")
-                        continue
-            
-            st.download_button(
-                label=f"⬇️ Download {group_name} Photos",
-                data=zip_buffer.getvalue(),
-                file_name=f"{group_name.replace(' ', '_').lower()}_photos.zip",
-                mime="application/zip",
-                use_container_width=True
-            )
-    
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED, False) as zip_file:
-        for filename, img in st.session_state.generated_images:
-            try:
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img_bytes = io.BytesIO()
-                quality = 90 if bulk_quality == "High (90%)" else 80 if bulk_quality == "Medium (80%)" else 70
-                img.save(img_bytes, format='JPEG', quality=quality)
-                zip_file.writestr(filename, img_bytes.getvalue())
-            except Exception as e:
-                st.error(f"Error adding {filename} to zip: {str(e)}")
-                continue
-    
-    st.download_button(
-        label="⬇️ Download All Photos ",
-        data=zip_buffer.getvalue(),
-        file_name="ultra_pro_photos.zip",
-        mime="application/zip",
-        use_container_width=True
-    )
-    
-    st.markdown("""
-        <div class='image-preview-container'>
-            <h2 style='text-align: center; color: #ffcc00; margin: 0;'>😇  RESULTS</h2>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    cols_per_row = 3
-    rows = math.ceil(len(st.session_state.generated_images) / cols_per_row)
-    
-    for row in range(rows):
-        cols = st.columns(cols_per_row)
-        for col in range(cols_per_row):
-            idx = row * cols_per_row + col
-            if idx < len(st.session_state.generated_images):
-                filename, img = st.session_state.generated_images[idx]
-                with cols[col]:
-                    try:
-                        if img.mode != 'RGB':
-                            img = img.convert('RGB')
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format='JPEG', quality=95)
-                        img_bytes.seek(0)
-                        st.image(img_bytes, use_container_width=True)
-                        st.caption(filename)
-                        
-                        st.download_button(
-                            label="⬇️ Download",
-                            data=img_bytes.getvalue(),
-                            file_name=filename,
-                            mime="image/jpeg",
-                            key=f"download_{idx}",
-                            use_container_width=True
-                        )
-                    except Exception as e:
-                        st.error(f"Error displaying {filename}: {str(e)}")
-
+                                    '
