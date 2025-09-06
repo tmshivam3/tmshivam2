@@ -1,81 +1,3 @@
-import os
-import zipfile
-import shutil
-import streamlit as st
-import subprocess
-import sys
-
-# ✅ Ensure gdown is installed
-try:
-    import gdown
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
-    import gdown
-
-ASSETS_DIR = "assets"
-ZIP_FILE = "assets.zip"
-
-# ✅ Tumhara Google Drive file ID
-FILE_ID = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
-ZIP_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-
-# ✅ Agar assets folder nahi hai to download + extract karo
-if not os.path.exists(ASSETS_DIR):
-    st.info("Downloading assets from Google Drive... ⏳")
-    gdown.download(ZIP_URL, ZIP_FILE, quiet=False)
-
-    with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-        zip_ref.extractall("temp_assets_extract")
-
-    top_level = os.listdir("temp_assets_extract")
-
-    # Case 1: Agar andar ek hi "assets" folder hai
-    if len(top_level) == 1 and top_level[0].lower() == "assets":
-        inner_path = os.path.join("temp_assets_extract", top_level[0])
-        shutil.move(inner_path, ASSETS_DIR)
-
-    # Case 2: Agar ek hi folder ho (sab content usme hai)
-    elif len(top_level) == 1 and os.path.isdir(os.path.join("temp_assets_extract", top_level[0])):
-        inner_path = os.path.join("temp_assets_extract", top_level[0])
-        os.makedirs(ASSETS_DIR, exist_ok=True)
-        for item in os.listdir(inner_path):
-            shutil.move(os.path.join(inner_path, item), ASSETS_DIR)
-
-    # Case 3: Mixed files/folders directly andar
-    else:
-        os.makedirs(ASSETS_DIR, exist_ok=True)
-        for item in top_level:
-            shutil.move(os.path.join("temp_assets_extract", item), ASSETS_DIR)
-
-# ❌ HuggingFace wala purana code hata diya hai
-"""
-from huggingface_hub import snapshot_download
-
-ASSETS_DIR = "assets"
-if not os.path.exists(ASSETS_DIR):
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    try:
-        snapshot_download(repo_id="tmshivam/tool", repo_type="dataset", local_dir=ASSETS_DIR)
-    except Exception as e:
-        st.error(f"Failed to download assets: {str(e)}")
-"""
-
-# Example start (tumhara original code neeche continue karega)
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
-import io, random, traceback, math, colorsys, json, uuid, hashlib
-import numpy as np
-import textwrap
-from datetime import datetime, timedelta
-from typing import Tuple, List, Optional
-from collections import Counter
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-# 🔽🔽🔽
-# Ab tumhara pura original code yahan se aage continue karega
-# (auth block, utils, main app, tools, etc.)
-# 🔼🔼🔼
-
-
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
 import os
@@ -91,21 +13,39 @@ import colorsys
 import traceback
 from collections import Counter
 from streamlit.runtime.scriptrunner import get_script_run_ctx
-import json, uuid, hashlib
-from huggingface_hub import snapshot_download
 
-# Download assets from Hugging Face dataset if not present
-ASSETS_DIR = "assets"
-if not os.path.exists(ASSETS_DIR):
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    try:
-        snapshot_download(repo_id="tmshivam/tool", repo_type="dataset", local_dir=ASSETS_DIR)
-    except Exception as e:
-        st.error(f"Failed to download assets: {str(e)}")
+import requests
+import tempfile
 
-# =================== CONFIG ===================
+# Download and extract assets from Google Drive
+@st.cache_resource
+def get_assets_dir():
+    tmpdir = tempfile.mkdtemp()
+    url = "https://drive.google.com/uc?export=download&id=18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        zip_path = os.path.join(tmpdir, "assets.zip")
+        with open(zip_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(tmpdir)
+        os.remove(zip_path)
+        # Assume zip extracts to 'assets/' folder; adjust if different
+        assets_path = os.path.join(tmpdir, "assets")
+        if os.path.exists(assets_path):
+            return assets_path
+        else:
+            return tmpdir  # If no 'assets/' root, use tmpdir directly
+    else:
+        raise ValueError(f"Failed to download assets: {response.status_code}")
+
+ASSETS_DIR = get_assets_dir()
 
 # ========== BEGIN AUTH / ADMIN BLOCK (PASTE ABOVE "MAIN APP" MARK) ==========
+import json, uuid, hashlib
+from datetime import datetime, timedelta
+
 DATA_DIR = "data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
@@ -157,8 +97,7 @@ def _auth_load_settings():
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00", 
-                "login_required": True, "hue_enabled_pngs": {}, "tool_visibility": {}}
+        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00"}
 
 def _auth_save_settings(s):
     """
@@ -229,11 +168,7 @@ def _auth_check_session():
         st.warning("You were logged in from another device. This session is logged out.")
         _auth_logout_and_rerun()
 
-# Check if login is required
-settings = _auth_load_settings()
-login_required = settings.get("login_required", True)
-
-if login_required and "_auth_user" not in st.session_state:
+if "_auth_user" not in st.session_state:
     st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
     st.info("For ID and Password, contact WhatsApp: 9140588751")
     left, right = st.columns([2,1])
@@ -262,294 +197,222 @@ if login_required and "_auth_user" not in st.session_state:
                 st.rerun()
     st.stop()
 
-if "_auth_user" in st.session_state:
-    _auth_check_session()
-    CURRENT_USER = st.session_state.get("_auth_user")
-    USERS_DB = _auth_load_users()
-    CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
-    IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
+_auth_check_session()
+CURRENT_USER = st.session_state.get("_auth_user")
+USERS_DB = _auth_load_users()
+CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
+IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
 
-    if IS_ADMIN:
-        if "_auth_show_admin" not in st.session_state:
-            st.session_state["_auth_show_admin"] = False
-        if st.sidebar.button("🔧 Open Admin Panel"):
-            st.session_state["_auth_show_admin"] = not st.session_state["_auth_show_admin"]
+if IS_ADMIN:
+    if "_auth_show_admin" not in st.session_state:
+        st.session_state["_auth_show_admin"] = False
+    if st.sidebar.button("🔧 Open Admin Panel"):
+        st.session_state["_auth_show_admin"] = not st.session_state["_auth_show_admin"]
 
-    if st.session_state.get("_auth_show_admin"):
-        st.markdown("## ⚙️ ADMIN PANEL")
-        
-        # Enhanced admin features
-        st.markdown("### User Management")
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["User Accounts", "Access Control", "System Settings", "IP Management", "Tools & Features", "PNG Hue Settings", "Tool Visibility"])
-        
-        with tab1:
-            st.markdown("#### Create / Manage Users")
-            c1,c2 = st.columns(2)
-            with c1:
-                new_id = st.text_input("New ID", key="__new_id")
-                new_pw = st.text_input("New Password", type="password", key="__new_pw")
-            with c2:
-                new_admin = st.checkbox("Is Admin?", key="__new_admin")
-                user_type = st.selectbox("User Type", ["Member", "Pro Member", "Admin"], key="__user_type")
-                if st.button("Create User"):
-                    db = _auth_load_users()
-                    if new_id in db.get("users", {}):
-                        st.error("User already exists.")
-                    else:
-                        db.setdefault("users", {})[new_id] = {
-                            "password_hash": _auth_hash(new_pw or "12345"),
-                            "is_admin": bool(new_admin),
-                            "user_type": user_type,
-                            "device_token": None,
-                            "last_login": None,
-                            "last_ip": None,
-                            "expires_at": None
-                        }
-                        _auth_save_users(db)
-                        st.success(f"User {new_id} created.")
-            
-            st.markdown("#### Existing users")
-            db = _auth_load_users()
-            for uname, udata in list(db.get("users", {}).items()):
-                cols = st.columns([3,1,1,1,1,1,1])
-                exp = udata.get('expires_at', 'None')
-                last_login = udata.get('last_login', 'None')
-                last_ip = udata.get('last_ip', 'None')
-                user_type = udata.get('user_type', 'Member')
-                
-                cols[0].write(f"**{uname}** ({user_type}) | Exp: {exp} | Last Login: {last_login} | IP: {last_ip}")
-                
-                if cols[1].button("Reset PW", key=f"reset_{uname}"):
-                    db["users"][uname]["password_hash"] = _auth_hash("admin123")
+if st.session_state.get("_auth_show_admin"):
+    st.markdown("## ⚙️ ADMIN PANEL")
+    
+    # Enhanced admin features
+    st.markdown("### User Management")
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["User Accounts", "Access Control", "System Settings", "IP Management", "Tools & Features"])
+    
+    with tab1:
+        st.markdown("#### Create / Manage Users")
+        c1,c2 = st.columns(2)
+        with c1:
+            new_id = st.text_input("New ID", key="__new_id")
+            new_pw = st.text_input("New Password", type="password", key="__new_pw")
+        with c2:
+            new_admin = st.checkbox("Is Admin?", key="__new_admin")
+            user_type = st.selectbox("User Type", ["Member", "Pro Member", "Admin"], key="__user_type")
+            if st.button("Create User"):
+                db = _auth_load_users()
+                if new_id in db.get("users", {}):
+                    st.error("User already exists.")
+                else:
+                    db.setdefault("users", {})[new_id] = {
+                        "password_hash": _auth_hash(new_pw or "12345"),
+                        "is_admin": bool(new_admin),
+                        "user_type": user_type,
+                        "device_token": None,
+                        "last_login": None,
+                        "last_ip": None,
+                        "expires_at": None
+                    }
                     _auth_save_users(db)
-                    st.success(f"{uname} password reset to admin123")
-                
-                if cols[2].button("Expire Now", key=f"expire_{uname}"):
-                    db["users"][uname]["expires_at"] = datetime.utcnow().isoformat()
-                    _auth_save_users(db)
-                    st.success(f"{uname} expired")
-                
-                if cols[3].button("Delete", key=f"del_{uname}"):
-                    del db["users"][uname]
-                    _auth_save_users(db)
-                    st.rerun()
-                
-                exp_days = cols[4].number_input("Expiry Days", min_value=0, value=7, key=f"exp_{uname}")
-                if cols[5].button("Set Expiry", key=f"setexp_{uname}"):
-                    if exp_days > 0:
-                        exp = (datetime.utcnow() + timedelta(days=exp_days)).isoformat()
-                        db["users"][uname]["expires_at"] = exp
-                    else:
-                        db["users"][uname]["expires_at"] = None
-                    _auth_save_users(db)
-                    st.success(f"Expiry set for {uname}")
-                
-                # User type change
-                new_type = cols[6].selectbox("Type", ["Member", "Pro Member", "Admin"], 
-                                            index=["Member", "Pro Member", "Admin"].index(user_type),
-                                            key=f"type_{uname}")
-                if new_type != user_type:
-                    db["users"][uname]["user_type"] = new_type
-                    _auth_save_users(db)
-                    st.success(f"{uname} type changed to {new_type}")
+                    st.success(f"User {new_id} created.")
         
-        with tab2:
-            st.markdown("### Access Control")
-            st.markdown("#### Tool Visibility Settings")
+        st.markdown("#### Existing users")
+        db = _auth_load_users()
+        for uname, udata in list(db.get("users", {}).items()):
+            cols = st.columns([3,1,1,1,1,1,1])
+            exp = udata.get('expires_at', 'None')
+            last_login = udata.get('last_login', 'None')
+            last_ip = udata.get('last_ip', 'None')
+            user_type = udata.get('user_type', 'Member')
             
-            all_tools = ["V1.0", "V2.0", "V3.0", "V4.0", "V5.0", "Premium Tools", "Hue Color Tool"]
-            visible_tools = _settings.get("visible_tools", ["V1.0"])
+            cols[0].write(f"**{uname}** ({user_type}) | Exp: {exp} | Last Login: {last_login} | IP: {last_ip}")
             
-            for tool in all_tools:
-                is_visible = st.checkbox(f"Show {tool}", value=tool in visible_tools, key=f"tool_{tool}")
-                if is_visible and tool not in visible_tools:
-                    visible_tools.append(tool)
-                elif not is_visible and tool in visible_tools:
-                    visible_tools.remove(tool)
+            if cols[1].button("Reset PW", key=f"reset_{uname}"):
+                db["users"][uname]["password_hash"] = _auth_hash("admin123")
+                _auth_save_users(db)
+                st.success(f"{uname} password reset to admin123")
             
-            if st.button("Save Tool Visibility"):
-                _settings["visible_tools"] = visible_tools
-                _auth_save_settings(_settings)
-                st.success("Tool visibility settings saved!")
+            if cols[2].button("Expire Now", key=f"expire_{uname}"):
+                db["users"][uname]["expires_at"] = datetime.utcnow().isoformat()
+                _auth_save_users(db)
+                st.success(f"{uname} expired")
             
-            st.markdown("#### User Type Restrictions")
-            st.info("Pro Members can access all tools except Admin Panel. Members can only access basic tools.")
+            if cols[3].button("Delete", key=f"del_{uname}"):
+                del db["users"][uname]
+                _auth_save_users(db)
+                st.rerun()
+            
+            exp_days = cols[4].number_input("Expiry Days", min_value=0, value=7, key=f"exp_{uname}")
+            if cols[5].button("Set Expiry", key=f"setexp_{uname}"):
+                if exp_days > 0:
+                    exp = (datetime.utcnow() + timedelta(days=exp_days)).isoformat()
+                    db["users"][uname]["expires_at"] = exp
+                else:
+                    db["users"][uname]["expires_at"] = None
+                _auth_save_users(db)
+                st.success(f"Expiry set for {uname}")
+            
+            # User type change
+            new_type = cols[6].selectbox("Type", ["Member", "Pro Member", "Admin"], 
+                                        index=["Member", "Pro Member", "Admin"].index(user_type),
+                                        key=f"type_{uname}")
+            if new_type != user_type:
+                db["users"][uname]["user_type"] = new_type
+                _auth_save_users(db)
+                st.success(f"{uname} type changed to {new_type}")
+    
+    with tab2:
+        st.markdown("### Access Control")
+        st.markdown("#### Tool Visibility Settings")
         
-        with tab3:
-            st.markdown("### System Settings")
-            st.markdown("#### Noticeboard")
-            new_notice = st.text_area("Global notice (shows on main page)", value=_settings.get("notice",""))
-            
-            primary_color = st.color_picker("Primary Color", value=_settings.get("primary_color", "#ffcc00"))
-            
-            # Login page toggle
-            login_required = st.checkbox("Require Login", value=_settings.get("login_required", True))
-            
-            if st.button("Save Settings"):
-                _settings["notice"] = new_notice
-                _settings["primary_color"] = primary_color
-                _settings["login_required"] = login_required
-                _auth_save_settings(_settings)
-                st.success("Settings saved.")
-            
-            st.markdown("#### App Configuration")
-            auto_logout = st.slider("Auto Logout (minutes of inactivity)", 5, 20, 10080)
-            max_upload_size = st.slider("Max Upload Size (MB)", 5, 500, 200)
-            
-            if st.button("Save Configuration"):
-                _settings["auto_logout"] = auto_logout
-                _settings["max_upload_size"] = max_upload_size
-                _auth_save_settings(_settings)
-                st.success("Configuration saved!")
+        all_tools = ["V1.0", "V2.0", "V3.0", "V4.0", "V5.0", "Premium Tools"]
+        visible_tools = _settings.get("visible_tools", ["V1.0"])
         
-        with tab4:
-            st.markdown("### IP Management")
-            st.markdown("#### IP Whitelist/Blacklist")
-            
-            ip_list = _settings.get("ip_list", {"whitelist": [], "blacklist": []})
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("##### Whitelist")
-                for ip in ip_list["whitelist"]:
-                    st.write(f"{ip} ❌", key=f"wl_{ip}")
-                new_whitelist = st.text_input("Add to Whitelist")
-                if st.button("Add IP to Whitelist"):
-                    if new_whitelist and new_whitelist not in ip_list["whitelist"]:
-                        ip_list["whitelist"].append(new_whitelist)
-                        _settings["ip_list"] = ip_list
-                        _auth_save_settings(_settings)
-                        st.success(f"Added {new_whitelist} to whitelist")
-            
-            with col2:
-                st.markdown("##### Blacklist")
-                for ip in ip_list["blacklist"]:
-                    st.write(f"{ip} ❌", key=f"bl_{ip}")
-                new_blacklist = st.text_input("Add to Blacklist")
-                if st.button("Add IP to Blacklist"):
-                    if new_blacklist and new_blacklist not in ip_list["blacklist"]:
-                        ip_list["blacklist"].append(new_blacklist)
-                        _settings["ip_list"] = ip_list
-                        _auth_save_settings(_settings)
-                        st.success(f"Added {new_blacklist} to blacklist")
-            
-            st.markdown("#### Current IP Sessions")
-            db = _auth_load_users()
-            for uname, udata in db.get("users", {}).items():
-                if udata.get("last_ip"):
-                    st.write(f"{uname}: {udata.get('last_ip')} - {udata.get('last_login', 'Never')}")
+        for tool in all_tools:
+            is_visible = st.checkbox(f"Show {tool}", value=tool in visible_tools, key=f"tool_{tool}")
+            if is_visible and tool not in visible_tools:
+                visible_tools.append(tool)
+            elif not is_visible and tool in visible_tools:
+                visible_tools.remove(tool)
         
-        with tab5:
-            st.markdown("### Tools & Features")
-            st.markdown("#### Feature Toggles")
-            
-            features = _settings.get("features", {
-                "watermark": True,
-                "premium_filters": True,
-                "batch_processing": True,
-                "high_res_output": True
-            })
-            
-            for feature, enabled in features.items():
-                features[feature] = st.checkbox(f"Enable {feature.replace('_', ' ').title()}", 
-                                               value=enabled, key=f"feature_{feature}")
-            
-            if st.button("Save Feature Settings"):
-                _settings["features"] = features
-                _auth_save_settings(_settings)
-                st.success("Feature settings saved!")
-            
-            st.markdown("#### System Tools")
-            if st.button("Clear All Cache"):
-                st.session_state.clear()
-                st.success("Cache cleared!")
-            
-            if st.button("Export User Data"):
-                # Create export functionality
-                st.success("User data exported!")
-            
-            if st.button("Import User Data"):
-                # Create import functionality
-                st.success("User data imported!")
+        if st.button("Save Tool Visibility"):
+            _settings["visible_tools"] = visible_tools
+            _auth_save_settings(_settings)
+            st.success("Tool visibility settings saved!")
         
-        with tab6:
-            st.markdown("### PNG Hue Color Settings")
-            st.info("Select which PNGs should have hue color change enabled")
-            
-            # Get all available PNG folders
-            hue_enabled_pngs = _settings.get("hue_enabled_pngs", {})
-            
-            # Find all overlay folders
-            overlay_base = "assets/overlays"
-            if os.path.exists(overlay_base):
-                years = os.listdir(overlay_base)
-                for year in years:
-                    year_path = os.path.join(overlay_base, year)
-                    if os.path.isdir(year_path):
-                        themes = os.listdir(year_path)
-                        for theme in themes:
-                            theme_path = os.path.join(year_path, theme)
-                            if os.path.isdir(theme_path):
-                                png_key = f"{year}/{theme}"
-                                current_value = hue_enabled_pngs.get(png_key, False)
-                                
-                                # Check if this theme has PNG files
-                                png_files = [f for f in os.listdir(theme_path) if f.lower().endswith('.png')]
-                                if png_files:
-                                    enabled = st.checkbox(f"{png_key}", value=current_value, key=f"hue_{png_key}")
-                                    hue_enabled_pngs[png_key] = enabled
-            
-            if st.button("Save Hue Settings"):
-                _settings["hue_enabled_pngs"] = hue_enabled_pngs
-                _auth_save_settings(_settings)
-                st.success("Hue settings saved!")
+        st.markdown("#### User Type Restrictions")
+        st.info("Pro Members can access all tools except Admin Panel. Members can only access basic tools.")
+    
+    with tab3:
+        st.markdown("### System Settings")
+        st.markdown("#### Noticeboard")
+        new_notice = st.text_area("Global notice (shows on main page)", value=_settings.get("notice",""))
         
-        with tab7:
-            st.markdown("### Tool Visibility Settings")
-            st.info("Control which tools are visible to users")
-            
-            # Get current tool visibility settings
-            tool_visibility = _settings.get("tool_visibility", {})
-            
-            # Define all available tools
-            all_tools = {
-                "upload_images": "Image Upload",
-                "greeting_type": "Greeting Type Selection",
-                "generate_variants": "Generate Multiple Variants",
-                "style_mode": "Style Mode Selection",
-                "text_effect": "Text Style Selection",
-                "text_position": "Text Position Selection",
-                "custom_position": "Manual Positioning",
-                "show_text": "Show Greeting Text",
-                "show_wish": "Show Wish Text",
-                "overlap_percent": "Overlap Settings",
-                "show_date": "Show Date",
-                "show_quote": "Add Quote",
-                "use_watermark": "Add Watermark",
-                "use_coffee_pet": "Coffee & Pet PNG",
-                "apply_emoji": "Emoji Stickers",
-                "bulk_quality": "Bulk Processing",
-                "advanced_features": "Advanced Features",
-                "hue_tool": "Hue Color Tool"
-            }
-            
-            for tool_key, tool_name in all_tools.items():
-                current_value = tool_visibility.get(tool_key, True)
-                tool_visibility[tool_key] = st.checkbox(f"Show {tool_name}", value=current_value, key=f"vis_{tool_key}")
-            
-            if st.button("Save Tool Visibility Settings"):
-                _settings["tool_visibility"] = tool_visibility
-                _auth_save_settings(_settings)
-                st.success("Tool visibility settings saved!")
+        primary_color = st.color_picker("Primary Color", value=_settings.get("primary_color", "#ffcc00"))
         
-        st.markdown("---")
-        st.write("Contact developer: +91 9140588751")
-        st.stop()
+        if st.button("Save Settings"):
+            _settings["notice"] = new_notice
+            _settings["primary_color"] = primary_color
+            _auth_save_settings(_settings)
+            st.success("Settings saved.")
+        
+        st.markdown("#### App Configuration")
+        auto_logout = st.slider("Auto Logout (minutes of inactivity)", 5, 20, 10080)
+        max_upload_size = st.slider("Max Upload Size (MB)", 5, 500, 200)
+        
+        if st.button("Save Configuration"):
+            _settings["auto_logout"] = auto_logout
+            _settings["max_upload_size"] = max_upload_size
+            _auth_save_settings(_settings)
+            st.success("Configuration saved!")
+    
+    with tab4:
+        st.markdown("### IP Management")
+        st.markdown("#### IP Whitelist/Blacklist")
+        
+        ip_list = _settings.get("ip_list", {"whitelist": [], "blacklist": []})
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("##### Whitelist")
+            for ip in ip_list["whitelist"]:
+                st.write(f"{ip} ❌", key=f"wl_{ip}")
+            new_whitelist = st.text_input("Add to Whitelist")
+            if st.button("Add IP to Whitelist"):
+                if new_whitelist and new_whitelist not in ip_list["whitelist"]:
+                    ip_list["whitelist"].append(new_whitelist)
+                    _settings["ip_list"] = ip_list
+                    _auth_save_settings(_settings)
+                    st.success(f"Added {new_whitelist} to whitelist")
+        
+        with col2:
+            st.markdown("##### Blacklist")
+            for ip in ip_list["blacklist"]:
+                st.write(f"{ip} ❌", key=f"bl_{ip}")
+            new_blacklist = st.text_input("Add to Blacklist")
+            if st.button("Add IP to Blacklist"):
+                if new_blacklist and new_blacklist not in ip_list["blacklist"]:
+                    ip_list["blacklist"].append(new_blacklist)
+                    _settings["ip_list"] = ip_list
+                    _auth_save_settings(_settings)
+                    st.success(f"Added {new_blacklist} to blacklist")
+        
+        st.markdown("#### Current IP Sessions")
+        db = _auth_load_users()
+        for uname, udata in db.get("users", {}).items():
+            if udata.get("last_ip"):
+                st.write(f"{uname}: {udata.get('last_ip')} - {udata.get('last_login', 'Never')}")
+    
+    with tab5:
+        st.markdown("### Tools & Features")
+        st.markdown("#### Feature Toggles")
+        
+        features = _settings.get("features", {
+            "watermark": True,
+            "premium_filters": True,
+            "batch_processing": True,
+            "high_res_output": True
+        })
+        
+        for feature, enabled in features.items():
+            features[feature] = st.checkbox(f"Enable {feature.replace('_', ' ').title()}", 
+                                           value=enabled, key=f"feature_{feature}")
+        
+        if st.button("Save Feature Settings"):
+            _settings["features"] = features
+            _auth_save_settings(_settings)
+            st.success("Feature settings saved!")
+        
+        st.markdown("#### System Tools")
+        if st.button("Clear All Cache"):
+            st.session_state.clear()
+            st.success("Cache cleared!")
+        
+        if st.button("Export User Data"):
+            # Create export functionality
+            st.success("User data exported!")
+        
+        if st.button("Import User Data"):
+            # Create import functionality
+            st.success("User data imported!")
+    
+    st.markdown("---")
+    st.write("Contact developer: +91 9140588751")
+    st.stop()
 
-    if _settings.get("notice"):
-        st.info(_settings.get("notice"))
+if _settings.get("notice"):
+    st.info(_settings.get("notice"))
 # ========== END AUTH / ADMIN BLOCK ==========
+
+# =================== CONFIG ===================
+st.set_page_config(page_title="⚡ 100+ EDIT IN 1 CLICK", layout="wide")
 
 # Custom CSS with dynamic primary color
 primary_color = _settings.get("primary_color", "#ffcc00")
@@ -663,7 +526,7 @@ def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont)
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-def get_random_font(font_folder="assets/fonts") -> ImageFont.FreeTypeFont:
+def get_random_font(font_folder=os.path.join(ASSETS_DIR, "fonts")) -> ImageFont.FreeTypeFont:
     """
     Get a random font from the fonts folder, fallback to default.
     """
@@ -1095,9 +958,9 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
     elif effect_type == 'country_flag':
-        flags = list_files("assets/flags", [".png", ".jpg"])
+        flags = list_files(os.path.join(ASSETS_DIR, "flags"), [".png", ".jpg"])
         if flags:
-            flag_path = os.path.join("assets/flags", random.choice(flags))
+            flag_path = os.path.join(ASSETS_DIR, "flags", random.choice(flags))
             flag_img = Image.open(flag_path).convert("RGB").resize((text_width, text_height), Image.LANCZOS)
             flag_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
             flag_text.paste(flag_img, (0, 0), mask)
@@ -1139,36 +1002,6 @@ def get_pet_position(img: Image.Image, pet_img: Image.Image) -> Tuple[int, int]:
     y = img.height - pet_img.height - 20
     return x, y
 
-def change_png_hue(png_image: Image.Image, hue_shift: float) -> Image.Image:
-    """
-    Change the hue of a PNG image while preserving transparency.
-    """
-    if png_image.mode != 'RGBA':
-        png_image = png_image.convert('RGBA')
-    
-    # Convert to HSV color space
-    data = np.array(png_image)
-    r, g, b, a = data[:,:,0], data[:,:,1], data[:,:,2], data[:,:,3]
-    
-    # Convert RGB to HSV
-    hsv = np.zeros_like(data[:,:,:3])
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            if a[i, j] > 0:  # Only process non-transparent pixels
-                r_norm = r[i, j] / 255.0
-                g_norm = g[i, j] / 255.0
-                b_norm = b[i, j] / 255.0
-                h, s, v = colorsys.rgb_to_hsv(r_norm, g_norm, b_norm)
-                h = (h + hue_shift) % 1.0  # Apply hue shift
-                r_new, g_new, b_new = colorsys.hsv_to_rgb(h, s, v)
-                hsv[i, j] = [int(r_new * 255), int(g_new * 255), int(b_new * 255)]
-            else:
-                hsv[i, j] = [0, 0, 0]  # Keep transparent pixels as is
-    
-    # Combine the new RGB with original alpha channel
-    result = np.dstack((hsv, a))
-    return Image.fromarray(result, 'RGBA')
-
 def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
     """
     Create a variant of the image with all applied settings, ensuring no overlaps except main.
@@ -1177,7 +1010,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         img = original_img.copy()
         draw = ImageDraw.Draw(img)
         
-        font = get_random_font(settings.get('font_folder', "assets/fonts"))
+        font = get_random_font(settings.get('font_folder', os.path.join(ASSETS_DIR, "fonts")))
         if font is None:
             return None
         
@@ -1196,7 +1029,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         occupied_boxes = []  # list of (x, y, w, h)
         
         if style_mode == 'PNG Overlay' and settings['greeting_type'] in ["Good Morning", "Good Night"]:
-            years = list_subfolders("assets/overlays")
+            years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
             if not years:
                 st.warning("No overlay years found.")
                 return img
@@ -1210,7 +1043,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             theme_paths = []
             for y in selected_years:
-                year_path = os.path.join("assets/overlays", y)
+                year_path = os.path.join(ASSETS_DIR, "overlays", y)
                 sub_themes = list_subfolders(year_path)
                 if not sub_themes:
                     if list_files(year_path, [".png"]):
@@ -1239,22 +1072,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             for f in png_files:
                 path = os.path.join(base_path, f)
                 if os.path.exists(path):
-                    png_img = Image.open(path).convert("RGBA")
-                    
-                    # Apply hue change if enabled for this PNG
-                    theme_key = f"{os.path.basename(os.path.dirname(base_path))}/{os.path.basename(base_path)}"
-                    hue_enabled_pngs = _settings.get("hue_enabled_pngs", {})
-                    
-                    if theme_key in hue_enabled_pngs and hue_enabled_pngs[theme_key]:
-                        if 'hue_shift' in settings and settings['hue_shift'] != 0:
-                            # Apply random hue shift if set to random
-                            if settings['hue_shift'] == 'random':
-                                hue_shift = random.random()
-                            else:
-                                hue_shift = settings['hue_shift']
-                            png_img = change_png_hue(png_img, hue_shift)
-                    
-                    pngs.append(png_img)
+                    pngs.append(Image.open(path).convert("RGBA"))
             
             if pngs:
                 main_gap = -int(min(pngs[0].height, pngs[1].height) * overlap_percent / 100) if len(pngs) >= 2 else 0
@@ -1486,12 +1304,12 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             occupied_boxes.append((pos[0], pos[1], watermark.width, watermark.height))
         
         if settings['use_coffee_pet'] and settings['pet_choice']:
-            pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
+            pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
             if settings['pet_choice'] == "Random":
                 selected_pet = random.choice(pet_files)
             else:
                 selected_pet = settings['pet_choice']
-            pet_path = os.path.join("assets/pets", selected_pet)
+            pet_path = os.path.join(ASSETS_DIR, "pets", selected_pet)
             if os.path.exists(pet_path):
                 pet_img = Image.open(pet_path).convert("RGBA")
                 pet_img = pet_img.resize(
@@ -1556,8 +1374,17 @@ if 'generated_images' not in st.session_state:
 if 'watermark_groups' not in st.session_state:
     st.session_state.watermark_groups = {}
 
+st.markdown("""
+    <div class='header-container'>
+        <h1 style='text-align: center; color: #ffcc00; margin: 0;'>
+            ⚡ 100+ EDIT IN 1 CLICK
+        </h1>
+        <p style='text-align: center; color: #ffffff;'>Professional Image Processing Tool</p>
+    </div>
+""", unsafe_allow_html=True)
+
 # Check user access level
-user_type = CURRENT_RECORD.get("user_type", "Member") if "_auth_user" in st.session_state else "Guest"
+user_type = CURRENT_RECORD.get("user_type", "Member")
 visible_tools = _settings.get("visible_tools", ["V1.0"])
 
 if user_type == "Member":
@@ -1566,167 +1393,124 @@ if user_type == "Member":
 elif user_type == "Pro Member":
     # Show all tools except admin features
     available_tools = [t for t in visible_tools if t != "Admin Panel"]
-elif user_type == "Admin":
+else:  # Admin
     # Show all tools
     available_tools = visible_tools
-else:  # Guest
-    # Show only basic tools if login is not required
-    available_tools = ["V1.0"] if not login_required else []
 
 # Show tool access message based on user type
 if user_type == "Member":
-    st.warning("🔒 You are Member. Upgrade to Pro for more features!")
+    st.warning("🔒 You have Member access. Upgrade to Pro for more features!")
 elif user_type == "Pro Member":
     st.success("⭐ You have Pro Member access with premium features!")
-elif user_type == "Admin":
-    st.success("👑 You have Admin access with all feature!")
-elif user_type == "Guest":
-    st.info("👋 You are using the tool as a guest. Some features may be limited.")
-
-# Check if Hue Color Tool is available
-hue_tool_available = "Hue Color Tool" in available_tools
-
-# Get tool visibility settings
-tool_visibility = _settings.get("tool_visibility", {})
-
-# Show image uploader if enabled
-if tool_visibility.get("upload_images", True):
-    uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 else:
-    uploaded_images = []
+    st.success("👑 You have Admin access with all features!")
+
+uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 with st.sidebar:
     st.markdown("### ⚙️  SETTINGS")
     
-    if tool_visibility.get("greeting_type", True):
-        greeting_type = st.selectbox("Greeting Type", 
-                                     ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
-                                      "Happy Birthday", "Merry Christmas", "Custom Greeting"])
-        if greeting_type == "Custom Greeting":
-            custom_greeting = st.text_input("Enter Custom Greeting", "Awesome Day!")
-        else:
-            custom_greeting = None
+    greeting_type = st.selectbox("Greeting Type", 
+                                 ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
+                                  "Happy Birthday", "Merry Christmas", "Custom Greeting"])
+    if greeting_type == "Custom Greeting":
+        custom_greeting = st.text_input("Enter Custom Greeting", "Awesome Day!")
+    else:
+        custom_greeting = None
     
-    if tool_visibility.get("generate_variants", True):
-        generate_variants = st.checkbox("Generate Multiple Variants", value=False)
-        if generate_variants:
-            num_variants = st.slider("Variants per Image", 1, 5, 3)
+    generate_variants = st.checkbox("Generate Multiple Variants", value=False)
+    if generate_variants:
+        num_variants = st.slider("Variants per Image", 1, 5, 3)
     
-    if tool_visibility.get("style_mode", True):
-        style_mode = st.selectbox("Style Mode", ["Text", "PNG Overlay"], index=0)
+    style_mode = st.selectbox("Style Mode", ["Text", "PNG Overlay"], index=0)
     
     overlay_year = "2025"
-    if style_mode == 'PNG Overlay' and tool_visibility.get("style_mode", True):
+    if style_mode == 'PNG Overlay':
         overlay_year = st.selectbox("Overlay Year", ["2024", "2025", "ALL"], index=1)
         png_size = st.slider("PNG Overlay Size", 0.1, 1.0, 0.5)
-        
-        # Hue color tool (only show if available)
-        if hue_tool_available and tool_visibility.get("hue_tool", True):
-            st.markdown("### 🎨 HUE COLOR TOOL")
-            hue_options = ["Original", "Random", "Custom"]
-            hue_option = st.selectbox("Hue Option", hue_options)
-            
-            if hue_option == "Custom":
-                hue_shift = st.slider("Hue Shift", 0.0, 1.0, 0.0, 0.01, 
-                                     help="Change the color of PNG overlays. 0 = original, 1.0 = full color cycle")
-            elif hue_option == "Random":
-                hue_shift = "random"
-            else:
-                hue_shift = 0.0
+    
+    text_effect = st.selectbox(
+        "Text Style",
+        ["White Only", "White + Black Outline + Shadow", "Gradient", "NEON", "Rainbow", "RANDOM", "Country Flag", "3D"],
+        index=2
+    )
+    
+    text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
+    text_position = text_position.lower().replace(" ", "_")
+    
+    st.markdown("### 🎨 MANUAL TEXT POSITIONING")
+    custom_position = st.checkbox("Enable Manual Positioning", value=False)
+    if custom_position:
+        text_x = st.slider("Text X Position", 0, 1000, 100)
+        text_y = st.slider("Text Y Position", 0, 1000, 100)
+    
+    show_text = st.checkbox("Show Greeting", value=True)
+    if show_text:
+        main_size = st.slider("Main Text Size", 10, 200, 90)
+    
+    show_wish = st.checkbox("Show Wish", value=True)
+    if show_wish:
+        wish_size = st.slider("Wish Text Size", 10, 200, 60)
+        custom_wish = st.checkbox("Custom Wish", value=False)
+        if custom_wish:
+            wish_text = st.text_area("Enter Custom Wish", "Have a wonderful day!")
         else:
-            hue_shift = 0.0
+            wish_text = None
     
-    if tool_visibility.get("text_effect", True):
-        text_effect = st.selectbox(
-            "Text Style",
-            ["White Only", "White + Black Outline + Shadow", "Gradient", "NEON", "Rainbow", "RANDOM", "Country Flag", "3D"],
-            index=2
-        )
+    st.markdown("### Overlap Settings")
+    overlap_percent = st.slider("Main Text Overlap (%)", 0, 50, 14)
     
-    if tool_visibility.get("text_position", True):
-        text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
-        text_position = text_position.lower().replace(" ", "_")
+    show_date = st.checkbox("Show Date", value=False)
+    if show_date:
+        date_size = st.slider("Date Text Size", 10, 200, 30)
+        date_format = st.selectbox("Date Format", 
+                                   ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
+                                   index=0)
+        show_day = st.checkbox("Show Day", value=False)
     
-    if tool_visibility.get("custom_position", True):
-        st.markdown("### 🎨 MANUAL TEXT POSITIONING")
-        custom_position = st.checkbox("Enable Manual Positioning", value=False)
-        if custom_position:
-            text_x = st.slider("Text X Position", 0, 1000, 100)
-            text_y = st.slider("Text Y Position", 0, 1000, 100)
+    show_quote = st.checkbox("Add Quote", value=False)
+    if show_quote:
+        quote_size = st.slider("Quote Text Size", 10, 100, 40)
+        st.markdown("### ✨ QUOTE DATABASE")
+        st.markdown("<div class='quote-display'>" + get_random_quote() + "</div>", unsafe_allow_html=True)
+        if st.button("Refresh Quote"):
+            st.rerun()
     
-    if tool_visibility.get("show_text", True):
-        show_text = st.checkbox("Show Greeting", value=True)
-        if show_text:
-            main_size = st.slider("Main Text Size", 10, 200, 90)
+    use_watermark = st.checkbox("Add Watermark", value=True)
+    watermark_images = []
     
-    if tool_visibility.get("show_wish", True):
-        show_wish = st.checkbox("Show Wish", value=True)
-        if show_wish:
-            wish_size = st.slider("Wish Text Size", 10, 200, 60)
-            custom_wish = st.checkbox("Custom Wish", value=False)
-            if custom_wish:
-                wish_text = st.text_area("Enter Custom Wish", "Have a wonderful day!")
-            else:
-                wish_text = None
-    
-    if tool_visibility.get("overlap_percent", True):
-        st.markdown("### Overlap Settings")
-        overlap_percent = st.slider("Main Text Overlap (%)", 0, 50, 14)
-    
-    if tool_visibility.get("show_date", True):
-        show_date = st.checkbox("Show Date", value=False)
-        if show_date:
-            date_size = st.slider("Date Text Size", 10, 200, 30)
-            date_format = st.selectbox("Date Format", 
-                                       ["8 July 2025", "28 January 2025", "07/08/2025", "2025-07-08"],
-                                       index=0)
-            show_day = st.checkbox("Show Day", value=False)
-    
-    if tool_visibility.get("show_quote", True):
-        show_quote = st.checkbox("Add Quote", value=False)
-        if show_quote:
-            quote_size = st.slider("Quote Text Size", 10, 100, 40)
-            st.markdown("### ✨ QUOTE DATABASE")
-            st.markdown("<div class='quote-display'>" + get_random_quote() + "</div>", unsafe_allow_html=True)
-            if st.button("Refresh Quote"):
-                st.rerun()
-    
-    if tool_visibility.get("use_watermark", True):
-        use_watermark = st.checkbox("Add Watermark", value=True)
-        watermark_images = []
+    if use_watermark:
+        watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
         
-        if use_watermark:
-            watermark_option = st.radio("Watermark Source", ["Pre-made", "Upload Your Own"])
-            
-            if watermark_option == "Pre-made":
-                watermark_files = list_files("assets/logos", [".png", ".jpg", ".jpeg"])
-                if watermark_files:
-                    default_wm = ["Creative Canvas.png", "Nature Vibes.png", "TM SHIVAM.png"]
-                    default = [f for f in default_wm if f in watermark_files]
-                    if not default and len(watermark_files) >= 3:
-                        default = watermark_files[:3]
-                    selected_watermarks = st.multiselect("Select Watermark(s)", watermark_files, default=default)
-                    for watermark_file in selected_watermarks:
-                        watermark_path = os.path.join("assets/logos", watermark_file)
-                        if os.path.exists(watermark_path):
-                            watermark_images.append(Image.open(watermark_path).convert("RGBA"))
-            else:
-                uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"], accept_multiple_files=True)
-                if uploaded_watermark:
-                    for watermark in uploaded_watermark:
-                        watermark_images.append(Image.open(watermark).convert("RGBA"))
-            
-            watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
+        if watermark_option == "Pre-made":
+            watermark_files = list_files(os.path.join(ASSETS_DIR, "logos"), [".png", ".jpg", ".jpeg"])
+            if watermark_files:
+                default_wm = ["Creative Canvas.png", "Nature Vibes.png", "TM SHIVAM.png"]
+                default = [f for f in default_wm if f in watermark_files]
+                if not default and len(watermark_files) >= 3:
+                    default = watermark_files[:3]
+                selected_watermarks = st.multiselect("Select Watermark(s)", watermark_files, default=default)
+                for watermark_file in selected_watermarks:
+                    watermark_path = os.path.join(ASSETS_DIR, "logos", watermark_file)
+                    if os.path.exists(watermark_path):
+                        watermark_images.append(Image.open(watermark_path).convert("RGBA"))
+        else:
+            uploaded_watermark = st.file_uploader("Upload Watermark", type=["png"], accept_multiple_files=True)
+            if uploaded_watermark:
+                for watermark in uploaded_watermark:
+                    watermark_images.append(Image.open(watermark).convert("RGBA"))
+        
+        watermark_opacity = st.slider("Watermark Opacity", 0.1, 1.0, 1.0)
     
     st.markdown("---")
     
     # Show premium features only to Pro Members and Admins
-    if user_type in ["Pro Member", "Admin"] and tool_visibility.get("use_coffee_pet", True):
+    if user_type in ["Pro Member", "Admin"]:
         st.markdown("###☕🐾 PRO OVERLAYS")
         use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
         if use_coffee_pet:
             pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
-            pet_files = list_files("assets/pets", [".png", ".jpg", ".jpeg"])
+            pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
             if pet_files:
                 pet_choice = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
             else:
@@ -1735,7 +1519,6 @@ with st.sidebar:
         else:
             pet_choice = None
                 
-    if user_type in ["Pro Member", "Admin"] and tool_visibility.get("apply_emoji", True):
         st.markdown("### 😊 EMOJI STICKERS")
         apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
         if apply_emoji:
@@ -1745,21 +1528,19 @@ with st.sidebar:
             emojis = []
             num_emojis = 5
     else:
-        if user_type not in ["Pro Member", "Admin"]:
-            st.markdown("### 🔒 PRO FEATURES")
-            st.info("Upgrade to Pro Member to access Coffee & Pet PNG overlays and Emoji Stickers!")
+        st.markdown("### 🔒 PRO FEATURES")
+        st.info("Upgrade to Pro Member to access Coffee & Pet PNG overlays and Emoji Stickers!")
         use_coffee_pet = False
         pet_choice = None
         apply_emoji = False
         emojis = []
         num_emojis = 5
     
-    if tool_visibility.get("bulk_quality", True):
-        st.markdown("### ⚡ BULK PROCESSING")
-        bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
+    st.markdown("### ⚡ BULK PROCESSING")
+    bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
     
     # Show advanced features only to Pro Members and Admins
-    if user_type in ["Pro Member", "Admin"] and tool_visibility.get("advanced_features", True):
+    if user_type in ["Pro Member", "Admin"]:
         with st.expander("🔥 Advanced Features (Compact Form)"):
             # Add 20+ new features here
             st.markdown("### Image Adjustments")
@@ -1780,25 +1561,24 @@ with st.sidebar:
             apply_anime = st.checkbox("Apply Anime Effect", value=False)
             
             st.markdown("### Text Customizations")
-            font_folder = st.text_input("Font Folder Path", "assets/fonts")
+            font_folder = st.text_input("Font Folder Path", os.path.join(ASSETS_DIR, "fonts"))
             upscale_factor = st.slider("Text Upscale Factor", 1, 8, 4)
             
             st.markdown("### Additional Overlays")
             use_frame = st.checkbox("Add Frame Overlay", value=False)
             if use_frame:
-                frame_files = list_files("assets/frames", [".png", ".jpg"])
+                frame_files = list_files(os.path.join(ASSETS_DIR, "frames"), [".png", ".jpg"])
                 if frame_files:
                     frame_choice = st.selectbox("Select Frame", frame_files)
-                    frame_path = os.path.join("assets/frames", frame_choice)
+                    frame_path = os.path.join(ASSETS_DIR, "frames", frame_choice)
                     frame_size = st.slider("Frame Size", 0.1, 1.0, 1.0)
             
             st.markdown("### Export Options")
             export_format = st.selectbox("Export Format", ["JPEG", "PNG"], index=0)
             compression_level = st.slider("Compression Level (for JPEG)", 50, 100, 95)
     else:
-        if user_type not in ["Pro Member", "Admin"]:
-            st.markdown("### 🔒 ADVANCED FEATURES")
-            st.info("Upgrade to Pro Member to access advanced image editing features!")
+        st.markdown("### 🔒 ADVANCED FEATURES")
+        st.info("Upgrade to Pro Member to access advanced image editing features!")
         brightness = 1.0
         contrast = 1.0
         sharpness = 1.2
@@ -1811,7 +1591,7 @@ with st.sidebar:
         apply_sketch = False
         apply_cartoon = False
         apply_anime = False
-        font_folder = "assets/fonts"
+        font_folder = os.path.join(ASSETS_DIR, "fonts")
         upscale_factor = 4
         use_frame = False
         export_format = "JPEG"
@@ -1925,8 +1705,7 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                     'apply_cartoon': apply_cartoon,
                                     'apply_anime': apply_anime,
                                     'font_folder': font_folder,
-                                    'upscale_factor': upscale_factor,
-                                    'hue_shift': hue_shift if hue_tool_available and style_mode == 'PNG Overlay' else 0.0
+                                    'upscale_factor': upscale_factor
                                 }
                                 
                                 variant = create_variant(img, settings)
@@ -1979,8 +1758,7 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                 'apply_cartoon': apply_cartoon,
                                 'apply_anime': apply_anime,
                                 'font_folder': font_folder,
-                                'upscale_factor': upscale_factor,
-                                'hue_shift': hue_shift if hue_tool_available and style_mode == 'PNG Overlay' else 0.0
+                                'upscale_factor': upscale_factor
                             }
                             
                             processed_img = create_variant(img, settings)
@@ -2073,7 +1851,7 @@ if st.session_state.generated_images:
                         img_bytes = io.BytesIO()
                         img.save(img_bytes, format='JPEG', quality=95)
                         img_bytes.seek(0)
-                        st.image(img_bytes, use_column_width=True)
+                        st.image(img_bytes, use_container_width=True)
                         st.caption(filename)
                         
                         st.download_button(
@@ -2086,7 +1864,3 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
-
-
-
-
