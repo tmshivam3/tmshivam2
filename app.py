@@ -12,7 +12,7 @@ import math
 import colorsys
 import traceback
 from collections import Counter
-from streamlit.runtime.scriptrunner import get_script_run_ctx
+from streamlit.runtime.scriptrun_ctx import get_script_run_ctx
 import json
 import uuid
 import hashlib
@@ -61,6 +61,7 @@ ASSETS_DIR = get_assets_dir()
 DATA_DIR = "data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+OVERLAP_SETTINGS_FILE = os.path.join(DATA_DIR, "overlap_settings.json")
 
 def get_ip():
     try:
@@ -94,12 +95,24 @@ def _auth_load_settings():
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00"}
+        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00", "login_enabled": True}
 
 def _auth_save_settings(s):
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump(s, f, indent=2)
+
+def _load_overlap_settings():
+    try:
+        with open(OVERLAP_SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def _save_overlap_settings(settings):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(OVERLAP_SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
 
 def _auth_ensure_files():
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -117,10 +130,15 @@ def _auth_ensure_files():
         _auth_save_users(users)
     settings = _auth_load_settings()
     _auth_save_settings(settings)
+    
+    # Ensure overlap settings file exists
+    overlap_settings = _load_overlap_settings()
+    _save_overlap_settings(overlap_settings)
 
 _auth_ensure_files()
 _users_db = _auth_load_users()
 _settings = _auth_load_settings()
+_overlap_settings = _load_overlap_settings()
 
 def _auth_logout_and_rerun():
     for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
@@ -154,40 +172,52 @@ def _auth_check_session():
         st.warning("You were logged in from another device. This session is logged out.")
         _auth_logout_and_rerun()
 
-if "_auth_user" not in st.session_state:
-    st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
-    st.info("For ID and Password, contact WhatsApp: 9140588751")
-    left, right = st.columns([2,1])
-    with left:
-        login_id = st.text_input("Enter ID")
-        login_pw = st.text_input("Password", type="password")
-    with right:
-        if st.button("Login"):
-            db = _auth_load_users()
-            user = db.get("users", {}).get(login_id)
-            if not user or user.get("password_hash") != _auth_hash(login_pw or ""):
-                st.error("Invalid ID or Password. Contact dev: +91 9140588751")
-            else:
-                token = str(uuid.uuid4())
-                now = datetime.utcnow()
-                current_ip = get_ip()
-                user["device_token"] = token
-                user["last_login"] = now.isoformat()
-                user["last_ip"] = current_ip
-                user["expires_at"] = (now + timedelta(days=7)).isoformat()
-                _auth_save_users(db)
-                st.session_state["_auth_user"] = login_id
-                st.session_state["_auth_device"] = token
-                st.session_state["_auth_login_time"] = now.isoformat()
-                st.success(f"Welcome {login_id} — logged in from IP {current_ip}!")
-                st.rerun()
-    st.stop()
+# Check if login is enabled
+if _settings.get("login_enabled", True):
+    if "_auth_user" not in st.session_state:
+        st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
+        st.info("For ID and Password, contact WhatsApp: 9140588751")
+        left, right = st.columns([2,1])
+        with left:
+            login_id = st.text_input("Enter ID")
+            login_pw = st.text_input("Password", type="password")
+        with right:
+            if st.button("Login"):
+                db = _auth_load_users()
+                user = db.get("users", {}).get(login_id)
+                if not user or user.get("password_hash") != _auth_hash(login_pw or ""):
+                    st.error("Invalid ID or Password. Contact dev: +91 9140588751")
+                else:
+                    token = str(uuid.uuid4())
+                    now = datetime.utcnow()
+                    current_ip = get_ip()
+                    user["device_token"] = token
+                    user["last_login"] = now.isoformat()
+                    user["last_ip"] = current_ip
+                    user["expires_at"] = (now + timedelta(days=7)).isoformat()
+                    _auth_save_users(db)
+                    st.session_state["_auth_user"] = login_id
+                    st.session_state["_auth_device"] = token
+                    st.session_state["_auth_login_time"] = now.isoformat()
+                    st.success(f"Welcome {login_id} — logged in from IP {current_ip}!")
+                    st.rerun()
+        st.stop()
 
-_auth_check_session()
-CURRENT_USER = st.session_state.get("_auth_user")
-USERS_DB = _auth_load_users()
-CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
-IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
+    _auth_check_session()
+    CURRENT_USER = st.session_state.get("_auth_user")
+    USERS_DB = _auth_load_users()
+    CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
+    IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
+else:
+    # Bypass login if disabled
+    if "_auth_user" not in st.session_state:
+        st.session_state["_auth_user"] = "guest"
+        st.session_state["_auth_device"] = str(uuid.uuid4())
+        st.session_state["_auth_login_time"] = datetime.utcnow().isoformat()
+    CURRENT_USER = "guest"
+    USERS_DB = _auth_load_users()
+    CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
+    IS_ADMIN = False
 
 if IS_ADMIN:
     if "_auth_show_admin" not in st.session_state:
@@ -199,7 +229,7 @@ if st.session_state.get("_auth_show_admin"):
     st.markdown("## ⚙️ ADMIN PANEL")
     
     st.markdown("### User Management")
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["User Accounts", "Access Control", "System Settings", "IP Management", "Tools & Features"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["User Accounts", "Access Control", "System Settings", "IP Management", "Tools & Features", "Overlap Settings"])
     
     with tab1:
         st.markdown("#### Create / Manage Users")
@@ -300,9 +330,13 @@ if st.session_state.get("_auth_show_admin"):
         
         primary_color = st.color_picker("Primary Color", value=_settings.get("primary_color", "#ffcc00"))
         
+        # Login enable/disable toggle
+        login_enabled = st.checkbox("Enable Login Page", value=_settings.get("login_enabled", True))
+        
         if st.button("Save Settings"):
             _settings["notice"] = new_notice
             _settings["primary_color"] = primary_color
+            _settings["login_enabled"] = login_enabled
             _auth_save_settings(_settings)
             st.success("Settings saved.")
         
@@ -386,6 +420,44 @@ if st.session_state.get("_auth_show_admin"):
         
         if st.button("Import User Data"):
             st.success("User data imported!")
+    
+    with tab6:
+        st.markdown("### Overlap Settings")
+        st.markdown("Configure overlap percentages for different themes")
+        
+        # Get all available years and themes
+        overlay_years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
+        all_themes = {}
+        
+        for year in overlay_years:
+            year_path = os.path.join(ASSETS_DIR, "overlays", year)
+            themes = list_subfolders(year_path)
+            if not themes:
+                # If no subfolders, use the year folder itself as a theme
+                all_themes[year] = [year]
+            else:
+                all_themes[year] = themes
+        
+        # Create a nested structure for overlap settings
+        overlap_settings = _load_overlap_settings()
+        
+        for year, themes in all_themes.items():
+            st.markdown(f"#### {year}")
+            for theme in themes:
+                key = f"{year}_{theme}"
+                current_value = overlap_settings.get(key, 14)  # Default to 14
+                new_value = st.slider(
+                    f"{theme} overlap percentage", 
+                    min_value=0, 
+                    max_value=50, 
+                    value=current_value,
+                    key=f"overlap_{key}"
+                )
+                overlap_settings[key] = new_value
+        
+        if st.button("Save Overlap Settings"):
+            _save_overlap_settings(overlap_settings)
+            st.success("Overlap settings saved!")
     
     st.markdown("---")
     st.write("Contact developer: +91 9140588751")
@@ -907,6 +979,12 @@ def get_pet_position(img: Image.Image, pet_img: Image.Image) -> Tuple[int, int]:
     y = img.height - pet_img.height - 20
     return x, y
 
+def get_overlap_percentage(year, theme):
+    """Get the overlap percentage for a specific year and theme from saved settings"""
+    overlap_settings = _load_overlap_settings()
+    key = f"{year}_{theme}"
+    return overlap_settings.get(key, 14)  # Default to 14 if not set
+
 def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
     try:
         img = original_img.copy()
@@ -925,7 +1003,9 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         }
         
         style_mode = settings.get('style_mode', 'Text')
-        overlap_percent = settings.get('overlap_percent', 30)
+        
+        # Get overlap percentage from settings or use default
+        overlap_percent = settings.get('overlap_percent', 14)
         
         occupied_boxes = []
         
@@ -934,6 +1014,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             if not years:
                 st.warning("No overlay years found.")
                 return img
+            
+            # Handle ALL selection or specific year
             if settings['overlay_year'] == "ALL":
                 selected_years = years
             else:
@@ -947,17 +1029,22 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 year_path = os.path.join(ASSETS_DIR, "overlays", y)
                 sub_themes = list_subfolders(year_path)
                 if not sub_themes:
+                    # If no subfolders, use the year folder itself as a theme
                     if list_files(year_path, [".png"]):
-                        theme_paths.append(year_path)
+                        theme_paths.append((y, year_path))
                 else:
                     for t in sub_themes:
-                        theme_paths.append(os.path.join(year_path, t))
+                        theme_paths.append((t, os.path.join(year_path, t)))
             
             if not theme_paths:
                 st.warning("No overlay themes found.")
                 return img
             
-            base_path = random.choice(theme_paths)
+            # Randomly select a theme
+            theme_name, base_path = random.choice(theme_paths)
+            
+            # Get the overlap percentage for this specific theme
+            overlap_percent = get_overlap_percentage(settings['overlay_year'], theme_name)
             
             png_files = []
             if settings['greeting_type'] == "Good Morning":
@@ -1314,9 +1401,16 @@ with st.sidebar:
     
     style_mode = st.selectbox("Style Mode", ["Text", "PNG Overlay"], index=0)
     
-    overlay_year = "2025"
+    # Get available years from overlays folder
+    overlay_years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
+    if not overlay_years:
+        overlay_years = ["2024", "2025"]  # Default values if folder doesn't exist
+    
+    # Add ALL option and any new years found
+    overlay_year_options = ["ALL"] + overlay_years
+    
     if style_mode == 'PNG Overlay':
-        overlay_year = st.selectbox("Overlay Year", ["2024", "2025", "ALL"], index=1)
+        overlay_year = st.selectbox("Overlay Year", overlay_year_options, index=1)
         png_size = st.slider("PNG Overlay Size", 0.1, 1.0, 0.5)
     
     text_effect = st.selectbox(
@@ -1348,7 +1442,7 @@ with st.sidebar:
             wish_text = None
     
     st.markdown("### Overlap Settings")
-    overlap_percent = st.slider("Main Text Overlap (%)", 0, 50, 14)
+    overlap_percent = st.slider("Main Text Overlap (%)", -15, 50, 0)
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
