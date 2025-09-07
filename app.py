@@ -12,13 +12,20 @@ import math
 import colorsys
 import traceback
 from collections import Counter
-from streamlit.runtime.scriptrun_ctx import get_script_run_ctx
+#from streamlit.runtime.scriptrun_ctx import get_script_run_ctx
 import json
 import uuid
 import hashlib
 import requests
 import gdown
 import tempfile
+import sqlite3
+import pandas as pd
+
+def list_subfolders(directory):
+    """Return a list of subfolder names in the given directory"""
+    return [name for name in os.listdir(directory) 
+            if os.path.isdir(os.path.join(directory, name))]
 
 # Download and extract assets from Google Drive
 @st.cache_resource
@@ -62,16 +69,74 @@ DATA_DIR = "data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 OVERLAP_SETTINGS_FILE = os.path.join(DATA_DIR, "overlap_settings.json")
+TOOL_SETTINGS_FILE = os.path.join(DATA_DIR, "tool_settings.json")
+DB_FILE = os.path.join(DATA_DIR, "usage_data.db")
+
+# Initialize database for usage tracking
+def init_db():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS image_usage
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT,
+                  image_count INTEGER,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def log_image_usage(username, count):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("INSERT INTO image_usage (username, image_count) VALUES (?, ?)", 
+              (username, count))
+    conn.commit()
+    conn.close()
+
+def get_usage_data():
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("SELECT * FROM image_usage ORDER BY timestamp DESC", conn)
+    conn.close()
+    return df
+
+def export_settings():
+    settings = {
+        "users": _auth_load_users(),
+        "app_settings": _auth_load_settings(),
+        "overlap_settings": _load_overlap_settings(),
+        "tool_settings": _load_tool_settings()
+    }
+    return json.dumps(settings, indent=2)
+
+def import_settings(json_data):
+    try:
+        data = json.loads(json_data)
+        _auth_save_users(data.get("users", {"users": {}}))
+        _auth_save_settings(data.get("app_settings", {}))
+        _save_overlap_settings(data.get("overlap_settings", {}))
+        _save_tool_settings(data.get("tool_settings", {}))
+        return True
+    except:
+        return False
 
 def get_ip():
     try:
-        ctx = get_script_run_ctx()
-        if ctx:
-            headers = ctx._request_headers if hasattr(ctx, '_request_headers') else {}
-            ip = headers.get("X-Forwarded-For", "Unknown")
-            if ip != "Unknown":
-                ip = ip.split(',')[0].strip()
-            return ip
+        # For Streamlit Cloud compatibility
+        try:
+            ctx = get_script_run_ctx()
+            if ctx and hasattr(ctx, '_request_headers'):
+                headers = ctx._request_headers
+                ip = headers.get("X-Forwarded-For", "Unknown")
+                if ip != "Unknown":
+                    ip = ip.split(',')[0].strip()
+                return ip
+        except:
+            pass
+        
+        # Fallback for local execution
+        return "127.0.0.1"
     except Exception:
         return "Unknown"
 
@@ -114,6 +179,48 @@ def _save_overlap_settings(settings):
     with open(OVERLAP_SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2)
 
+def _load_tool_settings():
+    try:
+        with open(TOOL_SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        # Default tool settings
+        return {
+            "text_style": {
+                "white_only": True,
+                "white_black_outline": True,
+                "gradient": True,
+                "neon": True,
+                "rainbow": True,
+                "country_flag": True,
+                "3d": True
+            },
+            "overlay": {
+                "1024": True,
+                "2025": True,
+                "pet": True
+            },
+            "filter": {
+                "sepia": True,
+                "black_white": True,
+                "vintage": True,
+                "vignette": True,
+                "sketch": True,
+                "cartoon": True,
+                "anime": True
+            },
+            "advanced": {
+                "emoji": True,
+                "watermark": True,
+                "quote": True
+            }
+        }
+
+def _save_tool_settings(settings):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(TOOL_SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
 def _auth_ensure_files():
     os.makedirs(DATA_DIR, exist_ok=True)
     users = _auth_load_users()
@@ -134,11 +241,16 @@ def _auth_ensure_files():
     # Ensure overlap settings file exists
     overlap_settings = _load_overlap_settings()
     _save_overlap_settings(overlap_settings)
+    
+    # Ensure tool settings file exists
+    tool_settings = _load_tool_settings()
+    _save_tool_settings(tool_settings)
 
 _auth_ensure_files()
 _users_db = _auth_load_users()
 _settings = _auth_load_settings()
 _overlap_settings = _load_overlap_settings()
+_tool_settings = _load_tool_settings()
 
 def _auth_logout_and_rerun():
     for k in ("_auth_user","_auth_device","_auth_login_time","_auth_show_admin"):
@@ -229,7 +341,10 @@ if st.session_state.get("_auth_show_admin"):
     st.markdown("## ⚙️ ADMIN PANEL")
     
     st.markdown("### User Management")
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["User Accounts", "Access Control", "System Settings", "IP Management", "Tools & Features", "Overlap Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+        "User Accounts", "Access Control", "System Settings", "IP Management", 
+        "Tools & Features", "Overlap Settings", "Tool Toggles", "Usage Statistics", "Tool Visibility"
+    ])
     
     with tab1:
         st.markdown("#### Create / Manage Users")
@@ -308,15 +423,23 @@ if st.session_state.get("_auth_show_admin"):
         all_tools = ["V1.0", "V2.0", "V3.0", "V4.0", "V5.0", "Premium Tools"]
         visible_tools = _settings.get("visible_tools", ["V1.0"])
         
-        for tool in all_tools:
-            is_visible = st.checkbox(f"Show {tool}", value=tool in visible_tools, key=f"tool_{tool}")
-            if is_visible and tool not in visible_tools:
-                visible_tools.append(tool)
-            elif not is_visible and tool in visible_tools:
-                visible_tools.remove(tool)
+        # Create compact checkboxes for tool visibility
+        st.markdown("**Select which tools to display:**")
+        cols = st.columns(3)
+        tool_states = {}
+        
+        for i, tool in enumerate(all_tools):
+            with cols[i % 3]:
+                tool_states[tool] = st.checkbox(
+                    tool, 
+                    value=tool in visible_tools, 
+                    key=f"tool_{tool}",
+                    help=f"Show/Hide {tool} tool"
+                )
         
         if st.button("Save Tool Visibility"):
-            _settings["visible_tools"] = visible_tools
+            new_visible_tools = [tool for tool, visible in tool_states.items() if visible]
+            _settings["visible_tools"] = new_visible_tools
             _auth_save_settings(_settings)
             st.success("Tool visibility settings saved!")
         
@@ -399,12 +522,22 @@ if st.session_state.get("_auth_show_admin"):
             "high_res_output": True
         })
         
-        for feature, enabled in features.items():
-            features[feature] = st.checkbox(f"Enable {feature.replace('_', ' ').title()}", 
-                                           value=enabled, key=f"feature_{feature}")
+        # Create compact checkboxes for features
+        cols = st.columns(2)
+        feature_states = {}
+        
+        feature_list = list(features.items())
+        for i, (feature, enabled) in enumerate(feature_list):
+            with cols[i % 2]:
+                feature_states[feature] = st.checkbox(
+                    f"{feature.replace('_', ' ').title()}", 
+                    value=enabled, 
+                    key=f"feature_{feature}",
+                    help=f"Enable/disable {feature}"
+                )
         
         if st.button("Save Feature Settings"):
-            _settings["features"] = features
+            _settings["features"] = feature_states
             _auth_save_settings(_settings)
             st.success("Feature settings saved!")
         
@@ -415,11 +548,25 @@ if st.session_state.get("_auth_show_admin"):
             st.success("Cache cleared!")
             st.rerun()
         
-        if st.button("Export User Data"):
-            st.success("User data exported!")
+        # Export/Import Settings
+        st.markdown("#### Export/Import Settings")
+        export_data = export_settings()
         
-        if st.button("Import User Data"):
-            st.success("User data imported!")
+        st.download_button(
+            label="Export Settings",
+            data=export_data,
+            file_name="app_settings.json",
+            mime="application/json"
+        )
+        
+        imported_file = st.file_uploader("Import Settings", type=["json"])
+        if imported_file is not None:
+            if st.button("Import Settings"):
+                if import_settings(imported_file.getvalue().decode()):
+                    st.success("Settings imported successfully!")
+                    st.rerun()
+                else:
+                    st.error("Failed to import settings. Invalid file format.")
     
     with tab6:
         st.markdown("### Overlap Settings")
@@ -448,7 +595,7 @@ if st.session_state.get("_auth_show_admin"):
                 current_value = overlap_settings.get(key, 14)  # Default to 14
                 new_value = st.slider(
                     f"{theme} overlap percentage", 
-                    min_value=0, 
+                    min_value=-15, 
                     max_value=50, 
                     value=current_value,
                     key=f"overlap_{key}"
@@ -458,6 +605,151 @@ if st.session_state.get("_auth_show_admin"):
         if st.button("Save Overlap Settings"):
             _save_overlap_settings(overlap_settings)
             st.success("Overlap settings saved!")
+    
+    with tab7:
+        st.markdown("### Tool Toggles")
+        st.markdown("Enable/disable individual tools and features")
+        
+        tool_settings = _load_tool_settings()
+        
+        st.markdown("#### Text Style Options")
+        col1, col2 = st.columns(2)
+        with col1:
+            for style in ["white_only", "white_black_outline", "gradient", "neon"]:
+                tool_settings["text_style"][style] = st.checkbox(
+                    style.replace("_", " ").title(),
+                    value=tool_settings["text_style"].get(style, True),
+                    key=f"text_style_{style}"
+                )
+        with col2:
+            for style in ["rainbow", "country_flag", "3d"]:
+                tool_settings["text_style"][style] = st.checkbox(
+                    style.replace("_", " ").title(),
+                    value=tool_settings["text_style"].get(style, True),
+                    key=f"text_style_{style}"
+                )
+        
+        st.markdown("#### Overlay Options")
+        col1, col2 = st.columns(2)
+        with col1:
+            for overlay in ["1024", "2025", "pet"]:
+                tool_settings["overlay"][overlay] = st.checkbox(
+                    f"{overlay} Overlay",
+                    value=tool_settings["overlay"].get(overlay, True),
+                    key=f"overlay_{overlay}"
+                )
+        
+        st.markdown("#### Filter Options")
+        col1, col2 = st.columns(2)
+        with col1:
+            for filt in ["sepia", "black_white", "vintage", "vignette"]:
+                tool_settings["filter"][filt] = st.checkbox(
+                    filt.replace("_", " ").title(),
+                    value=tool_settings["filter"].get(filt, True),
+                    key=f"filter_{filt}"
+                )
+        with col2:
+            for filt in ["sketch", "cartoon", "anime"]:
+                tool_settings["filter"][filt] = st.checkbox(
+                    filt.replace("_", " ").title(),
+                    value=tool_settings["filter"].get(filt, True),
+                    key=f"filter_{filt}"
+                )
+        
+        st.markdown("#### Advanced Options")
+        col1, col2 = st.columns(2)
+        with col1:
+            for adv in ["emoji", "watermark", "quote"]:
+                tool_settings["advanced"][adv] = st.checkbox(
+                    adv.replace("_", " ").title(),
+                    value=tool_settings["advanced"].get(adv, True),
+                    key=f"advanced_{adv}"
+                )
+        
+        if st.button("Save Tool Settings"):
+            _save_tool_settings(tool_settings)
+            st.success("Tool settings saved!")
+    
+    with tab8:
+        st.markdown("### Usage Statistics")
+        st.markdown("#### Image Generation by User")
+        
+        usage_data = get_usage_data()
+        if not usage_data.empty:
+            st.dataframe(usage_data)
+            
+            # Show summary statistics
+            st.markdown("#### Summary")
+            summary = usage_data.groupby("username")["image_count"].sum().reset_index()
+            st.dataframe(summary)
+            
+            # Download usage data
+            csv = usage_data.to_csv(index=False)
+            st.download_button(
+                label="Download Usage Data as CSV",
+                data=csv,
+                file_name="usage_data.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No usage data available yet.")
+    
+    with tab9:
+        st.markdown("### Tool Visibility Control")
+        st.markdown("Turn tools on/off to show/hide them from the main interface")
+        
+        # Get current tool settings
+        tool_settings = _load_tool_settings()
+        
+        # Create a compact form for tool visibility
+        st.markdown("#### Main Tool Visibility")
+        cols = st.columns(3)
+        
+        # Text style options
+        with cols[0]:
+            st.markdown("**Text Styles**")
+            for style in tool_settings["text_style"]:
+                tool_settings["text_style"][style] = st.checkbox(
+                    style.replace("_", " ").title(),
+                    value=tool_settings["text_style"][style],
+                    key=f"vis_text_{style}"
+                )
+        
+        # Overlay options
+        with cols[1]:
+            st.markdown("**Overlays**")
+            for overlay in tool_settings["overlay"]:
+                tool_settings["overlay"][overlay] = st.checkbox(
+                    overlay,
+                    value=tool_settings["overlay"][overlay],
+                    key=f"vis_overlay_{overlay}"
+                )
+        
+        # Filter options
+        with cols[2]:
+            st.markdown("**Filters**")
+            for filt in tool_settings["filter"]:
+                tool_settings["filter"][filt] = st.checkbox(
+                    filt.replace("_", " ").title(),
+                    value=tool_settings["filter"][filt],
+                    key=f"vis_filter_{filt}"
+                )
+        
+        # Advanced options
+        st.markdown("**Advanced Features**")
+        adv_cols = st.columns(3)
+        for i, adv in enumerate(tool_settings["advanced"]):
+            with adv_cols[i % 3]:
+                tool_settings["advanced"][adv] = st.checkbox(
+                    adv.replace("_", " ").title(),
+                    value=tool_settings["advanced"][adv],
+                    key=f"vis_advanced_{adv}"
+                )
+        
+        if st.button("Save Tool Visibility Settings"):
+            _save_tool_settings(tool_settings)
+            st.success("Tool visibility settings saved!")
+            st.rerun()
     
     st.markdown("---")
     st.write("Contact developer: +91 9140588751")
@@ -552,6 +844,7 @@ def list_subfolders(folder: str) -> List[str]:
     return [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d))]
 
 def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
+    """Crop image to 3:4 ratio as soon as it's uploaded"""
     w, h = img.size
     if w/h > target_ratio:
         new_w = int(h * target_ratio)
@@ -794,7 +1087,7 @@ def apply_sepia(img: Image.Image) -> Image.Image:
     ])
     arr = arr @ sepia_filter.T
     arr = np.clip(arr, 0, 255)
-    return Image.fromarray(arr.astype('uint8'))
+    return Image.fromarray(arr.ast('uint8'))
 
 def apply_black_white(img: Image.Image) -> Image.Image:
     return img.convert('L').convert('RGB')
@@ -1016,11 +1309,12 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 return img
             
             # Handle ALL selection or specific year
-            if settings['overlay_year'] == "ALL":
+            overlay_year = settings.get('overlay_year', "2025")  # Default to 2025 if not set
+            if overlay_year == "ALL":
                 selected_years = years
             else:
-                selected_years = [settings['overlay_year']]
-                if settings['overlay_year'] not in years:
+                selected_years = [overlay_year]
+                if overlay_year not in years:
                     st.warning("Selected year not found.")
                     return img
             
@@ -1044,7 +1338,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             theme_name, base_path = random.choice(theme_paths)
             
             # Get the overlap percentage for this specific theme
-            overlap_percent = get_overlap_percentage(settings['overlay_year'], theme_name)
+            overlap_percent = get_overlap_percentage(settings.get('overlay_year', "2025"), theme_name)
             
             png_files = []
             if settings['greeting_type'] == "Good Morning":
@@ -1060,14 +1354,28 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             for f in png_files:
                 path = os.path.join(base_path, f)
                 if os.path.exists(path):
-                    pngs.append(Image.open(path).convert("RGBA"))
+                    png_img = Image.open(path).convert("RGBA")
+                    # Store the filename as an attribute for later reference
+                    png_img._filename = os.path.basename(path)
+                    pngs.append(png_img)
             
             if pngs:
+                # Ensure proper layering: 1.png and 2.png on top, 4.png and 5.png below
+                # Use the stored filename attribute instead of .filename
+                main_pngs = [p for p in pngs if hasattr(p, '_filename') and p._filename.endswith("1.png") or p._filename.endswith("2.png")]
+                wish_pngs = [p for p in pngs if hasattr(p, '_filename') and p._filename.endswith("4.png") or p._filename.endswith("5.png")]
+                
+                # Sort to ensure 1.png is always above 2.png
+                main_pngs.sort(key=lambda x: 0 if x._filename.endswith("1.png") else 1)
+                
+                # Recombine with main PNGs first
+                pngs = main_pngs + wish_pngs
+                
                 main_gap = -int(min(pngs[0].height, pngs[1].height) * overlap_percent / 100) if len(pngs) >= 2 else 0
                 wish_gap = 10
                 
                 gaps = [main_gap] * (len(pngs) - 1)
-                if settings['show_wish']:
+                if settings['show_wish'] and len(pngs) > 2:
                     gaps[-1] = wish_gap
                 
                 total_h = sum(p.height for p in pngs)
@@ -1348,6 +1656,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
     
     except Exception as e:
         st.error(f"Error creating variant: {str(e)}")
+        st.error(traceback.format_exc())
         return None
 
 # =================== MAIN APP ===================
@@ -1382,7 +1691,29 @@ elif user_type == "Pro Member":
 else:
     st.success("👑 You have Admin access with all features!")
 
+# Auto-crop images to 3:4 ratio immediately after upload
 uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
+# Process images immediately after upload to crop to 3:4 ratio
+if uploaded_images and 'cropped_images' not in st.session_state:
+    st.session_state.cropped_images = []
+    for uploaded_file in uploaded_images:
+        try:
+            img = Image.open(uploaded_file)
+            # Crop to 3:4 ratio as requested
+            cropped_img = smart_crop(img, 3/4)
+            st.session_state.cropped_images.append((uploaded_file.name, cropped_img))
+        except Exception as e:
+            st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+
+# Display cropped images if available
+if 'cropped_images' in st.session_state and st.session_state.cropped_images:
+    st.info(f"✅ {len(st.session_state.cropped_images)} images cropped to 3:4 ratio")
+    with st.expander("Preview Cropped Images"):
+        cols = st.columns(3)
+        for i, (name, img) in enumerate(st.session_state.cropped_images):
+            with cols[i % 3]:
+                st.image(img, caption=name, use_container_width=True)
 
 with st.sidebar:
     st.markdown("### ⚙️ SETTINGS")
@@ -1413,10 +1744,32 @@ with st.sidebar:
         overlay_year = st.selectbox("Overlay Year", overlay_year_options, index=1)
         png_size = st.slider("PNG Overlay Size", 0.1, 1.0, 0.5)
     
+    # Filter text effects based on tool settings
+    tool_settings = _load_tool_settings()
+    available_text_effects = []
+    
+    if tool_settings["text_style"]["white_only"]:
+        available_text_effects.append("White Only")
+    if tool_settings["text_style"]["white_black_outline"]:
+        available_text_effects.append("White + Black Outline + Shadow")
+    if tool_settings["text_style"]["gradient"]:
+        available_text_effects.append("Gradient")
+    if tool_settings["text_style"]["neon"]:
+        available_text_effects.append("NEON")
+    if tool_settings["text_style"]["rainbow"]:
+        available_text_effects.append("Rainbow")
+    if tool_settings["text_style"]["country_flag"]:
+        available_text_effects.append("Country Flag")
+    if tool_settings["text_style"]["3d"]:
+        available_text_effects.append("3D")
+    
+    # Always add RANDOM option
+    available_text_effects.append("RANDOM")
+    
     text_effect = st.selectbox(
         "Text Style",
-        ["White Only", "White + Black Outline + Shadow", "Gradient", "NEON", "Rainbow", "RANDOM", "Country Flag", "3D"],
-        index=2
+        available_text_effects,
+        index=0 if available_text_effects else 2
     )
     
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
@@ -1452,7 +1805,7 @@ with st.sidebar:
                                    index=0)
         show_day = st.checkbox("Show Day", value=False)
     
-    show_quote = st.checkbox("Add Quote", value=False)
+    show_quote = st.checkbox("Add Quote", value=False) if tool_settings["advanced"]["quote"] else False
     if show_quote:
         quote_size = st.slider("Quote Text Size", 10, 100, 40)
         st.markdown("### ✨ QUOTE DATABASE")
@@ -1460,7 +1813,7 @@ with st.sidebar:
         if st.button("Refresh Quote"):
             st.rerun()
     
-    use_watermark = st.checkbox("Add Watermark", value=True)
+    use_watermark = st.checkbox("Add Watermark", value=True) if tool_settings["advanced"]["watermark"] else False
     watermark_images = []
     
     if use_watermark:
@@ -1490,7 +1843,7 @@ with st.sidebar:
     
     if user_type in ["Pro Member", "Admin"]:
         st.markdown("###☕🐾 PRO OVERLAYS")
-        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False)
+        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False) if tool_settings["overlay"]["pet"] else False
         if use_coffee_pet:
             pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
             pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
@@ -1503,7 +1856,7 @@ with st.sidebar:
             pet_choice = None
                 
         st.markdown("### 😊 EMOJI STICKERS")
-        apply_emoji = st.checkbox("Add Emoji Stickers", value=False)
+        apply_emoji = st.checkbox("Add Emoji Stickers", value=False) if tool_settings["advanced"]["emoji"] else False
         if apply_emoji:
             emojis = st.multiselect("Select Emojis", ["😊", "👍", "❤️", "🌟", "🎉", "🔥", "🌈", "✨", "💯"], default=["😊", "❤️", "🌟"])
             num_emojis = st.slider("Number of Emojis", 1, 10, 5)
@@ -1531,15 +1884,15 @@ with st.sidebar:
             saturation = st.slider("Saturation", 0.5, 2.0, 1.1)
             
             st.markdown("### Filters")
-            apply_sepia = st.checkbox("Apply Sepia Filter", value=False)
-            apply_bw = st.checkbox("Apply Black & White Filter", value=False)
-            apply_vintage = st.checkbox("Apply Vintage Filter", value=False)
-            apply_vignette = st.checkbox("Apply Vignette Effect", value=False)
+            apply_sepia = st.checkbox("Apply Sepia Filter", value=False) if tool_settings["filter"]["sepia"] else False
+            apply_bw = st.checkbox("Apply Black & White Filter", value=False) if tool_settings["filter"]["black_white"] else False
+            apply_vintage = st.checkbox("Apply Vintage Filter", value=False) if tool_settings["filter"]["vintage"] else False
+            apply_vignette = st.checkbox("Apply Vignette Effect", value=False) if tool_settings["filter"]["vignette"] else False
             if apply_vignette:
                 vignette_intensity = st.slider("Vignette Intensity", 0.1, 1.0, 0.8)
-            apply_sketch = st.checkbox("Apply Sketch Effect", value=False)
-            apply_cartoon = st.checkbox("Apply Cartoon Effect", value=False)
-            apply_anime = st.checkbox("Apply Anime Effect", value=False)
+            apply_sketch = st.checkbox("Apply Sketch Effect", value=False) if tool_settings["filter"]["sketch"] else False
+            apply_cartoon = st.checkbox("Apply Cartoon Effect", value=False) if tool_settings["filter"]["cartoon"] else False
+            apply_anime = st.checkbox("Apply Anime Effect", value=False) if tool_settings["filter"]["anime"] else False
             
             st.markdown("### Text Customizations")
             font_folder = st.text_input("Font Folder Path", os.path.join(ASSETS_DIR, "fonts"))
@@ -1579,12 +1932,12 @@ with st.sidebar:
         compression_level = 95
 
 if st.button("✨ GENERATE", key="generate", use_container_width=True):
-    if uploaded_images:
+    if 'cropped_images' in st.session_state and st.session_state.cropped_images:
         with st.spinner("Processing images with ULTRA PRO quality..."):
             processed_images = []
             variant_images = []
             progress_bar = st.progress(0)
-            total_images = len(uploaded_images)
+            total_images = len(st.session_state.cropped_images)
             
             effect_mapping = {
                 "White Only": "white_only",
@@ -1601,23 +1954,23 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
             watermark_groups = {}
             if watermark_images:
                 if len(watermark_images) > 1:
-                    group_size = len(uploaded_images) // len(watermark_images)
+                    group_size = len(st.session_state.cropped_images) // len(watermark_images)
                     for i, watermark in enumerate(watermark_images):
                         start_idx = i * group_size
-                        end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(uploaded_images)
+                        end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(st.session_state.cropped_images)
                         watermark_groups[f"Group {i+1}"] = {
                             'watermark': watermark,
-                            'images': uploaded_images[start_idx:end_idx]
+                            'images': st.session_state.cropped_images[start_idx:end_idx]
                         }
                 else:
                     watermark_groups["All Images"] = {
                         'watermark': watermark_images[0],
-                        'images': uploaded_images
+                        'images': st.session_state.cropped_images
                     }
             else:
                 watermark_groups["All Images"] = {
                     'watermark': None,
-                    'images': uploaded_images
+                    'images': st.session_state.cropped_images
                 }
             
             st.session_state.watermark_groups = watermark_groups
@@ -1626,17 +1979,12 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                 watermark = group_data['watermark']
                 group_images = group_data['images']
                 
-                for img_idx, uploaded_file in enumerate(group_images):
+                for img_idx, (filename, img) in enumerate(group_images):
                     try:
-                        if uploaded_file is None:
+                        if img is None:
                             continue
                             
-                        img = Image.open(uploaded_file)
-                        if img is None:
-                            raise ValueError("Could not open image")
-                            
                         img = img.convert("RGBA")
-                        img = smart_crop(img)
                         
                         if generate_variants:
                             variants = []
@@ -1671,7 +2019,7 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                     'num_emojis': num_emojis,
                                     'style_mode': style_mode,
                                     'overlap_percent': overlap_percent,
-                                    'overlay_year': overlay_year,
+                                    'overlay_year': overlay_year if style_mode == 'PNG Overlay' else "2025",
                                     'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
                                     'brightness': brightness,
                                     'contrast': contrast,
@@ -1724,7 +2072,7 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                                 'num_emojis': num_emojis,
                                 'style_mode': style_mode,
                                 'overlap_percent': overlap_percent,
-                                'overlay_year': overlay_year,
+                                'overlay_year': overlay_year if style_mode == 'PNG Overlay' else "2025",
                                 'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
                                 'brightness': brightness,
                                 'contrast': contrast,
@@ -1750,13 +2098,15 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                         progress_bar.progress(min(progress, 1.0))
                     
                     except Exception as e:
-                        st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+                        st.error(f"Error processing {filename}: {str(e)}")
                         st.error(traceback.format_exc())
                         continue
 
             st.session_state.generated_images = processed_images + variant_images
             
+            # Log usage statistics
             if st.session_state.generated_images:
+                log_image_usage(CURRENT_USER, len(st.session_state.generated_images))
                 st.success(f"✅ Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
             else:
                 st.warning("No images were processed.")
