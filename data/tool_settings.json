@@ -1,0 +1,30 @@
+{
+  "text_style": {
+    "white_only": true,
+    "white_black_outline": true,
+    "gradient": true,
+    "neon": true,
+    "rainbow": true,
+    "country_flag": true,
+    "3d": true
+  },
+  "overlay": {
+    "1024": true,
+    "2025": true,
+    "pet": true
+  },
+  "filter": {
+    "sepia": false,
+    "black_white": false,
+    "vintage": false,
+    "vignette": false,
+    "sketch": false,
+    "cartoon": false,
+    "anime": false
+  },
+  "advanced": {
+    "emoji": false,
+    "watermark": true,
+    "quote": false
+  }
+}

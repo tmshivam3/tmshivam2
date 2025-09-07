@@ -1,0 +1,258 @@
+{
+  "notice": "WELCOME TO TM TOOL",
+  "active_tool": "V1.0",
+  "visible_tools": [
+    "V1.0"
+  ],
+  "primary_color": "#ffeb00",
+  "feature_access": {
+    "show_greeting": [
+      "pro",
+      "admin"
+    ],
+    "show_wish": [
+      "pro",
+      "admin"
+    ],
+    "show_date": [
+      "pro",
+      "admin"
+    ],
+    "show_quote": [
+      "pro",
+      "admin"
+    ],
+    "add_watermark": [
+      "pro",
+      "admin"
+    ],
+    "add_pet": [
+      "pro",
+      "admin"
+    ],
+    "add_emoji": [
+      "pro",
+      "admin"
+    ],
+    "png_overlay": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_white": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_gradient": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_neon": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_rainbow": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_random": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_flag": [
+      "pro",
+      "admin"
+    ],
+    "text_effect_3d": [
+      "pro",
+      "admin"
+    ],
+    "manual_position": [
+      "pro",
+      "admin"
+    ],
+    "overlap_settings": [
+      "pro",
+      "admin"
+    ],
+    "brightness_adjust": [
+      "pro",
+      "admin"
+    ],
+    "contrast_adjust": [
+      "pro",
+      "admin"
+    ],
+    "saturation_adjust": [
+      "pro",
+      "admin"
+    ],
+    "sharpness_adjust": [
+      "pro",
+      "admin"
+    ],
+    "filter_grayscale": [
+      "pro",
+      "admin"
+    ],
+    "filter_sepia": [
+      "pro",
+      "admin"
+    ],
+    "filter_invert": [
+      "pro",
+      "admin"
+    ],
+    "filter_vignette": [
+      "pro",
+      "admin"
+    ],
+    "filter_cartoon": [
+      "pro",
+      "admin"
+    ],
+    "filter_anime": [
+      "pro",
+      "admin"
+    ],
+    "filter_sketch": [
+      "pro",
+      "admin"
+    ],
+    "add_border": [
+      "pro",
+      "admin"
+    ],
+    "add_frame": [
+      "pro",
+      "admin"
+    ],
+    "add_stickers": [
+      "pro",
+      "admin"
+    ],
+    "add_qr": [
+      "pro",
+      "admin"
+    ],
+    "add_barcode": [
+      "pro",
+      "admin"
+    ],
+    "rotate_image": [
+      "pro",
+      "admin"
+    ],
+    "flip_image": [
+      "pro",
+      "admin"
+    ],
+    "resize_image": [
+      "pro",
+      "admin"
+    ],
+    "blur_filter": [
+      "pro",
+      "admin"
+    ],
+    "emboss_filter": [
+      "pro",
+      "admin"
+    ],
+    "contour_filter": [
+      "pro",
+      "admin"
+    ],
+    "hue_adjust": [
+      "pro",
+      "admin"
+    ],
+    "gamma_correction": [
+      "pro",
+      "admin"
+    ],
+    "histogram_equal": [
+      "pro",
+      "admin"
+    ],
+    "solarize_effect": [
+      "pro",
+      "admin"
+    ],
+    "posterize_effect": [
+      "pro",
+      "admin"
+    ],
+    "add_signature": [
+      "pro",
+      "admin"
+    ],
+    "weather_overlay": [
+      "pro",
+      "admin"
+    ],
+    "random_bg": [
+      "pro",
+      "admin"
+    ],
+    "curved_text": [
+      "pro",
+      "admin"
+    ],
+    "lens_flare": [
+      "pro",
+      "admin"
+    ],
+    "crop_ratio": [
+      "pro",
+      "admin"
+    ],
+    "color_balance": [
+      "pro",
+      "admin"
+    ],
+    "auto_enhance": [
+      "pro",
+      "admin"
+    ],
+    "collage_generator": [
+      "pro",
+      "admin"
+    ],
+    "meme_generator": [
+      "pro",
+      "admin"
+    ],
+    "text_glow": [
+      "pro",
+      "admin"
+    ],
+    "vignette_color": [
+      "pro",
+      "admin"
+    ],
+    "advanced_blend": [
+      "pro",
+      "admin"
+    ],
+    "batch_processing": [
+      "pro",
+      "admin"
+    ],
+    "custom_fonts": [
+      "pro",
+      "admin"
+    ],
+    "theme_selection": [
+      "pro",
+      "admin"
+    ]
+  },
+  "auto_logout": 10080,
+  "max_upload_size": 200,
+  "features": {
+    "watermark": true,
+    "premium_filters": false,
+    "batch_processing": true,
+    "high_res_output": true
+  }
+}

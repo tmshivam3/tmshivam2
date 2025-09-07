@@ -1,0 +1,34 @@
+{
+  "users": {
+    "admin": {
+      "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "is_admin": true,
+      "device_token": "a1c562ed-90cc-4bde-b94a-b0ac7d6836c6",
+      "last_login": "2025-09-07T10:31:19.584746",
+      "expires_at": "2025-09-14T10:31:19.584746",
+      "device_id": "d3cc6b76-a189-4918-ae36-f2e1a9d88f60_53671019692734",
+      "last_ip": "127.0.0.1",
+      "user_type": "Admin"
+    },
+    "1": {
+      "password_hash": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "last_login": "2025-09-07T09:12:51.538818",
+      "expires_at": "2025-09-14T09:12:51.538818",
+      "device_id": null,
+      "is_pro": true,
+      "is_admin": false,
+      "device_token": "bc19b16e-ad5e-464f-8467-7b1ea6d952a6",
+      "last_ip": "127.0.0.1",
+      "user_type": "Pro Member"
+    },
+    "3": {
+      "password_hash": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+      "is_admin": false,
+      "user_type": "Member",
+      "device_token": "b68131fa-1e6c-4ec6-849c-e61a1447385d",
+      "last_login": "2025-09-07T09:12:36.479218",
+      "last_ip": "127.0.0.1",
+      "expires_at": "2025-09-14T09:12:36.479218"
+    }
+  }
+}
