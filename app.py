@@ -21,6 +21,31 @@ import gdown
 import tempfile
 import sqlite3
 import pandas as pd
+import os
+import tempfile
+import zipfile
+import gdown
+import streamlit as st
+
+# 👇 Helper functions yaha paste karna hai
+def list_subfolders(folder):
+    """Return list of subfolders inside a folder"""
+    if not os.path.exists(folder):
+        return []
+    return [f for f in os.listdir(folder) if os.path.isdir(os.path.join(folder, f))]
+
+def list_files(folder, extensions=None):
+    """Return list of files inside a folder (filter by extension if given)"""
+    if not os.path.exists(folder):
+        return []
+    files = []
+    for f in os.listdir(folder):
+        full_path = os.path.join(folder, f)
+        if os.path.isfile(full_path):
+            if extensions is None or any(f.lower().endswith(ext) for ext in extensions):
+                files.append(full_path)
+    return files
+
 
 def list_subfolders(directory):
     """Return a list of subfolder names in the given directory"""
@@ -31,7 +56,7 @@ def list_subfolders(directory):
 @st.cache_resource
 def get_assets_dir():
     tmpdir = tempfile.mkdtemp()
-    file_id = "18qGAPUO3aCFKx7tfDxD2kOPzFXLUo66U"
+    file_id = "1fsS2e67m_Ved4Wm3utgY2DgX7XdNuKpU"
     url = f"https://drive.google.com/uc?id={file_id}"
     zip_path = os.path.join(tmpdir, "assets.zip")
     
@@ -193,7 +218,12 @@ def _load_tool_settings():
                 "neon": True,
                 "rainbow": True,
                 "country_flag": True,
-                "3d": True
+                "3d": True,
+                "white_color_outline": True,
+                "pure_color_white_outline": True,
+                "multicolor_gradient_outline": True,
+                "metallic": True,
+                "glowing": True
             },
             "overlay": {
                 "1024": True,
@@ -331,7 +361,8 @@ else:
     CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
     IS_ADMIN = False
 
-if IS_ADMIN:
+# Admin panel button - show for admins or when login is disabled
+if IS_ADMIN or not _settings.get("login_enabled", True):
     if "_auth_show_admin" not in st.session_state:
         st.session_state["_auth_show_admin"] = False
     if st.sidebar.button("🔧 Open Admin Panel"):
@@ -341,9 +372,10 @@ if st.session_state.get("_auth_show_admin"):
     st.markdown("## ⚙️ ADMIN PANEL")
     
     st.markdown("### User Management")
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "User Accounts", "Access Control", "System Settings", "IP Management", 
-        "Tools & Features", "Overlap Settings", "Tool Toggles", "Usage Statistics", "Tool Visibility"
+        "Tools & Features", "Overlap Settings", "Tool Toggles", "Usage Statistics", 
+        "Tool Visibility", "Theme Preview"
     ])
     
     with tab1:
@@ -601,6 +633,7 @@ if st.session_state.get("_auth_show_admin"):
                     key=f"overlap_{key}"
                 )
                 overlap_settings[key] = new_value
+                
         
         if st.button("Save Overlap Settings"):
             _save_overlap_settings(overlap_settings)
@@ -615,14 +648,14 @@ if st.session_state.get("_auth_show_admin"):
         st.markdown("#### Text Style Options")
         col1, col2 = st.columns(2)
         with col1:
-            for style in ["white_only", "white_black_outline", "gradient", "neon"]:
+            for style in ["white_only", "white_black_outline", "gradient", "neon", "white_color_outline", "pure_color_white_outline"]:
                 tool_settings["text_style"][style] = st.checkbox(
                     style.replace("_", " ").title(),
                     value=tool_settings["text_style"].get(style, True),
                     key=f"text_style_{style}"
                 )
         with col2:
-            for style in ["rainbow", "country_flag", "3d"]:
+            for style in ["rainbow", "country_flag", "3d", "multicolor_gradient_outline", "metallic", "glowing"]:
                 tool_settings["text_style"][style] = st.checkbox(
                     style.replace("_", " ").title(),
                     value=tool_settings["text_style"].get(style, True),
@@ -750,6 +783,114 @@ if st.session_state.get("_auth_show_admin"):
             _save_tool_settings(tool_settings)
             st.success("Tool visibility settings saved!")
             st.rerun()
+    
+    with tab10:
+        st.markdown("### Theme Preview")
+        st.markdown("Preview theme settings and test with your own images")
+        
+        # Get all available years and themes
+        overlay_years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
+        all_themes = {}
+        
+        for year in overlay_years:
+            year_path = os.path.join(ASSETS_DIR, "overlays", year)
+            themes = list_subfolders(year_path)
+            if not themes:
+                # If no subfolders, use the year folder itself as a theme
+                all_themes[year] = [year]
+            else:
+                all_themes[year] = themes
+        
+        # Create a compact form for theme selection
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            selected_year = st.selectbox("Select Year", list(all_themes.keys()), index=0)
+        
+        with col2:
+            if selected_year in all_themes:
+                selected_theme = st.selectbox("Select Theme", all_themes[selected_year], index=0)
+        
+        # Display theme preview
+        if selected_year and selected_theme:
+            theme_path = os.path.join(ASSETS_DIR, "overlays", selected_year, selected_theme)
+            
+            # Check if theme exists
+            if os.path.exists(theme_path):
+                st.markdown(f"### Preview for {selected_year} - {selected_theme}")
+                
+                # Display theme files
+                theme_files = list_files(theme_path, [".png", ".jpg", ".jpeg"])
+                
+                if theme_files:
+                    cols = st.columns(min(3, len(theme_files)))
+                    for i, file in enumerate(theme_files):
+                        with cols[i % 3]:
+                            try:
+                                img = Image.open(os.path.join(theme_path, file))
+                                st.image(img, caption=file, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"Error loading {file}: {str(e)}")
+                else:
+                    st.warning("No image files found in this theme folder.")
+                
+                # Test with custom image
+                st.markdown("### Test with Your Image")
+                test_image = st.file_uploader("Upload test image", type=["jpg", "jpeg", "png"], key="theme_test")
+                
+                if test_image:
+                    try:
+                        img = Image.open(test_image)
+                        # Crop to 3:4 ratio
+                        img = smart_crop(img, 3/4)
+                        
+                        # Apply theme overlay
+                        if theme_files:
+                            # For demo purposes, apply the first overlay found
+                            overlay_path = os.path.join(theme_path, theme_files[0])
+                            overlay_img = Image.open(overlay_path).convert("RGBA")
+                            
+                            # Resize overlay to fit image
+                            overlay_size = int(min(img.width, img.height) * 0.5)
+                            overlay_img = overlay_img.resize((overlay_size, overlay_size), Image.LANCZOS)
+                            
+                            # Apply overlay to center of image
+                            x = (img.width - overlay_img.width) // 2
+                            y = (img.height - overlay_img.height) // 2
+                            
+                            # Create a copy for preview
+                            preview_img = img.copy().convert("RGBA")
+                            preview_img.paste(overlay_img, (x, y), overlay_img)
+                            
+                            # Display preview
+                            st.image(preview_img, caption="Theme Preview", use_container_width=True)
+                            
+                            # Get overlap setting for this theme
+                            overlap_key = f"{selected_year}_{selected_theme}"
+                            overlap_value = _load_overlap_settings().get(overlap_key, 14)
+                            st.info(f"Current overlap setting for this theme: {overlap_value}%")
+                            
+                            # Adjust overlap setting
+                            new_overlap = st.slider(
+                                "Adjust Overlap Percentage", 
+                                min_value=-15, 
+                                max_value=50, 
+                                value=overlap_value,
+                                key=f"preview_overlap_{overlap_key}"
+                            )
+                            
+                            if st.button("Save Overlap Setting"):
+                                overlap_settings = _load_overlap_settings()
+                                overlap_settings[overlap_key] = new_overlap
+                                _save_overlap_settings(overlap_settings)
+                                st.success("Overlap setting saved!")
+                        else:
+                            st.warning("No overlay images found to apply.")
+                            
+                    except Exception as e:
+                        st.error(f"Error processing test image: {str(e)}")
+            else:
+                st.error(f"Theme path not found: {theme_path}")
     
     st.markdown("---")
     st.write("Contact developer: +91 9140588751")
@@ -879,53 +1020,32 @@ def get_random_font(font_folder=os.path.join(ASSETS_DIR, "fonts")) -> ImageFont.
 def get_random_wish(greeting_type: str) -> str:
     wishes = {
         "Good Morning": [
-            "Rise and shine! A new day awaits!",
-            "Good morning! Make today amazing!",
-            "Start your day with a smile!",
-            "Good morning! Seize the day!",
-            "Wake up and conquer today!"
+            "Have a nice day!",
+            "Have a great day!"
         ],
         "Good Afternoon": [
-            "Good afternoon! Keep shining!",
-            "Enjoy your afternoon vibes!",
-            "Make this afternoon awesome!",
-            "Good afternoon! Stay energized!",
-            "Afternoon brilliance awaits!"
+            "Have a nice day!",
+            "Have a great day!"
         ],
         "Good Evening": [
-            "Good evening! Relax and unwind!",
-            "Evening vibes, make it great!",
-            "Good evening! Enjoy the night!",
-            "Wind down with a smile!",
-            "Evening magic starts now!"
+            "Have a nice day!",
+            "Have a great day!"
         ],
         "Good Night": [
-            "Good night! Sweet dreams!",
-            "Sleep tight, dream big!",
-            "Good night! Rest well!",
-            "Wishing you a peaceful night!",
-            "Good night, see you in dreams!"
+            "Sweet dreams!",
+            "Sweet dreams!"
         ],
         "Happy Birthday": [
-            "Happy Birthday! Celebrate big!",
-            "Wishing you a fantastic birthday!",
-            "Another trip around the sun!",
-            "Happy Birthday! Make it epic!",
-            "Cheers to your special day!"
+            "Happy Birthday!",
+            "Wishing you a fantastic birthday!"
         ],
         "Merry Christmas": [
-            "Merry Christmas! Joy to you!",
-            "Warmest Christmas wishes!",
-            "Ho Ho Ho! Merry Christmas!",
-            "Celebrate the season with love!",
-            "Merry Christmas, spread cheer!"
+            "Merry Christmas!",
+            "Happy Holidays!"
         ],
         "Custom Greeting": [
-            "Have an awesome day!",
-            "Make today unforgettable!",
-            "Shine bright today!",
-            "Enjoy your special moment!",
-            "Keep rocking it!"
+            "Have a nice day!",
+            "Have a great day!"
         ]
     }
     return random.choice(wishes.get(greeting_type, ["Have a nice day!"]))
@@ -1003,13 +1123,8 @@ def format_date(date_format: str = "%d %B %Y", show_day: bool = False) -> str:
     formatted_date = today.strftime(date_format)
     
     if show_day:
-        if today.hour >= 19:
-            next_day = today + timedelta(days=1)
-            day_name = next_day.strftime("%A")
-            formatted_date += f" (Advance {day_name})"
-        else:
-            day_name = today.strftime("%A")
-            formatted_date += f" ({day_name})"
+        day_name = today.strftime("%A")
+        formatted_date += f" ({day_name})"
     
     return formatted_date
 
@@ -1058,7 +1173,7 @@ def enhance_image_quality(img: Image.Image, brightness=1.0, contrast=1.0, sharpn
     img = ImageEnhance.Color(img).enhance(saturation)
     
     return img
-
+   
 def upscale_text_elements(img: Image.Image, scale_factor: int = 4) -> Image.Image:
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
@@ -1187,7 +1302,9 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     if effect_type == 'random':
         available_effects = [
             'white_only', 'white_black_outline_shadow', 'gradient', 
-            'neon', 'rainbow', 'country_flag', '3d'
+            'neon', 'rainbow', 'country_flag', '3d',
+            'white_color_outline_shadow', 'pure_color_white_outline',
+            'multicolor_gradient_outline', 'metallic', 'glowing'
         ]
         effect_type = random.choice(available_effects)
         effect_settings['type'] = effect_type
@@ -1203,54 +1320,122 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     shadow_offset = (2, 2)
     shadow_draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=(0, 0, 0, 40))
     
+    # Get pure vibrant colors for new effects
+    pure_colors = [
+        (255, 0, 0), (255, 165, 0), (255, 255, 0), (0, 255, 0),
+        (0, 0, 255), (75, 0, 130), (238, 130, 238), (255, 192, 203)
+    ]
+    
     outline_range = 1 if effect_type == 'neon' else 2
-    for ox in range(-outline_range, outline_range + 1):
-        for oy in range(-outline_range, outline_range + 1):
-            if ox != 0 or oy != 0:
-                outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
     
-    mask = Image.new("L", (text_width, text_height), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.text((0, 0), text, font=font, fill=255)
+    # Apply different effects based on type
+    if effect_type == 'white_color_outline_shadow':
+        # White text with colored outline and shadow
+        outline_color = random.choice(pure_colors)
+        for ox in range(-outline_range, outline_range + 1):
+            for oy in range(-outline_range, outline_range + 1):
+                if ox != 0 or oy != 0:
+                    outline_draw.text((x + ox, y + oy), text, font=font, fill=outline_color)
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
-    if effect_type in ['gradient', 'rainbow']:
-        colors = effect_settings['colors']
+    elif effect_type == 'pure_color_white_outline':
+        # Pure color text with white outline
+        text_color = random.choice(pure_colors)
+        for ox in range(-outline_range, outline_range + 1):
+            for oy in range(-outline_range, outline_range + 1):
+                if ox != 0 or oy != 0:
+                    outline_draw.text((x + ox, y + oy), text, font=font, fill=(255, 255, 255, 255))
+        fill_draw.text((x, y), text, font=font, fill=text_color)
+    
+    elif effect_type == 'multicolor_gradient_outline':
+        # Multi-color gradient with outline
+        colors = [random.choice(pure_colors) for _ in range(random.randint(2, 4))]
         gradient = create_gradient_mask(text_width, text_height, colors)
         gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
         gradient_text.paste(gradient, (0, 0), mask)
+        
+        # Add outline
+        for ox in range(-outline_range, outline_range + 1):
+            for oy in range(-outline_range, outline_range + 1):
+                if ox != 0 or oy != 0:
+                    outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
+        
         fill_layer.paste(gradient_text, (x, y), gradient_text)
     
-    elif effect_type == 'neon':
-        glow_color = get_vibrant_color()
-        glow_size = 10
-        for i in range(glow_size, 0, -1):
-            alpha = int(80 * (i / glow_size))
-            for ox in range(-i, i + 1):
-                for oy in range(-i, i + 1):
+    elif effect_type == 'metallic':
+        # Metallic effect
+        metallic_colors = [(192, 192, 192), (169, 169, 169), (211, 211, 211), (105, 105, 105)]
+        base_color = random.choice(metallic_colors)
+        highlight_color = (255, 255, 255, 180)
+        
+        # Base metallic text
+        fill_draw.text((x, y), text, font=font, fill=base_color)
+        
+        # Add highlight (top-left)
+        highlight_draw = ImageDraw.Draw(fill_layer)
+        highlight_draw.text((x-1, y-1), text, font=font, fill=highlight_color)
+    
+    elif effect_type == 'glowing':
+        # Glowing text effect
+        glow_color = random.choice(pure_colors)
+        glow_size = 15
+        for i in range(glow_size, 0, -2):
+            alpha = int(100 * (i / glow_size))
+            for ox in range(-i, i + 1, 2):
+                for oy in range(-i, i + 1, 2):
                     if ox != 0 or oy != 0:
                         fill_draw.text((x + ox, y + oy), text, font=font, fill=(*glow_color, alpha))
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
-    elif effect_type == 'country_flag':
-        flags = list_files(os.path.join(ASSETS_DIR, "flags"), [".png", ".jpg"])
-        if flags:
-            flag_path = os.path.join(ASSETS_DIR, "flags", random.choice(flags))
-            flag_img = Image.open(flag_path).convert("RGB").resize((text_width, text_height), Image.LANCZOS)
-            flag_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
-            flag_text.paste(flag_img, (0, 0), mask)
-            fill_layer.paste(flag_text, (x, y), flag_text)
+    else:
+        # Existing effects (unchanged)
+        for ox in range(-outline_range, outline_range + 1):
+            for oy in range(-outline_range, outline_range + 1):
+                if ox != 0 or oy != 0:
+                    outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
+        
+        mask = Image.new("L", (text_width, text_height), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.text((0, 0), text, font=font, fill=255)
+        
+        if effect_type in ['gradient', 'rainbow']:
+            colors = effect_settings['colors']
+            gradient = create_gradient_mask(text_width, text_height, colors)
+            gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
+            gradient_text.paste(gradient, (0, 0), mask)
+            fill_layer.paste(gradient_text, (x, y), gradient_text)
+        
+        elif effect_type == 'neon':
+            glow_color = get_vibrant_color()
+            glow_size = 10
+            for i in range(glow_size, 0, -1):
+                alpha = int(80 * (i / glow_size))
+                for ox in range(-i, i + 1):
+                    for oy in range(-i, i + 1):
+                        if ox != 0 or oy != 0:
+                            fill_draw.text((x + ox, y + oy), text, font=font, fill=(*glow_color, alpha))
+            fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+        
+        elif effect_type == 'country_flag':
+            flags = list_files(os.path.join(ASSETS_DIR, "flags"), [".png", ".jpg"])
+            if flags:
+                flag_path = os.path.join(ASSETS_DIR, "flags", random.choice(flags))
+                flag_img = Image.open(flag_path).convert("RGB").resize((text_width, text_height), Image.LANCZOS)
+                flag_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
+                flag_text.paste(flag_img, (0, 0), mask)
+                fill_layer.paste(flag_text, (x, y), flag_text)
+            else:
+                fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+        
+        elif effect_type == '3d':
+            depth = 5
+            shadow_color = (100, 100, 100, 255)
+            for i in range(depth):
+                fill_draw.text((x + i, y + i), text, font=font, fill=shadow_color)
+            fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+        
         else:
             fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
-    
-    elif effect_type == '3d':
-        depth = 5
-        shadow_color = (100, 100, 100, 255)
-        for i in range(depth):
-            fill_draw.text((x + i, y + i), text, font=font, fill=shadow_color)
-        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
-    
-    else:
-        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
     base_img_rgba = base_img.convert('RGBA') if base_img.mode != 'RGBA' else base_img
     base_img_rgba = Image.alpha_composite(base_img_rgba, shadow_layer)
@@ -1371,6 +1556,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 # Recombine with main PNGs first
                 pngs = main_pngs + wish_pngs
                 
+                # Calculate gaps based on overlap percentage
                 main_gap = -int(min(pngs[0].height, pngs[1].height) * overlap_percent / 100) if len(pngs) >= 2 else 0
                 wish_gap = 10
                 
@@ -1404,12 +1590,21 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 else:
                     start_x = get_random_horizontal_position(img.width, max_w)
                 
+                # Ensure PNGs stay within frame boundaries
+                start_x = max(0, min(start_x, img.width - max_w))
+                start_y = max(0, min(start_y, img.height - total_h))
+                
                 current_y = start_y
                 for i, p in enumerate(pngs):
                     offset = random.randint(-20, 20)
                     x = start_x + (max_w - p.width) // 2 + offset
-                    img.paste(p, (x, current_y), p)
-                    occupied_boxes.append((x, current_y, p.width, p.height))
+                    
+                    # Ensure PNG doesn't go outside frame
+                    x = max(0, min(x, img.width - p.width))
+                    y = max(0, min(current_y, img.height - p.height))
+                    
+                    img.paste(p, (x, y), p)
+                    occupied_boxes.append((x, y, p.width, p.height))
                     if i < len(pngs) - 1:
                         current_y += p.height + gaps[i]
                 
@@ -1459,12 +1654,21 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 else:
                     text_x = get_random_horizontal_position(img.width, max_w)
                 
+                # Ensure text stays within frame boundaries
+                text_x = max(0, min(text_x, img.width - max_w))
+                text_y = max(0, min(text_y, img.height - total_h))
+                
                 current_y = text_y
                 for i, t in enumerate(main_texts):
                     offset = random.randint(-30, 50)
                     line_x = text_x + (max_w - line_widths[i]) // 2 + offset
-                    apply_text_effect(draw, (line_x, current_y), t, font_main, effect_settings, img)
-                    occupied_boxes.append((line_x, current_y, line_widths[i], line_heights[i]))
+                    
+                    # Ensure text doesn't go outside frame
+                    line_x = max(0, min(line_x, img.width - line_widths[i]))
+                    y_pos = max(0, min(current_y, img.height - line_heights[i]))
+                    
+                    apply_text_effect(draw, (line_x, y_pos), t, font_main, effect_settings, img)
+                    occupied_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
                     if i < len(main_texts) - 1:
                         current_y += line_heights[i] + main_gap
                 
@@ -1516,12 +1720,21 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                     if wish_y + total_h > img.height - 20:
                         wish_y = img.height - total_h - 20
                 
+                # Ensure wish text stays within frame boundaries
+                wish_x = max(0, min(wish_x, img.width - max_w))
+                wish_y = max(0, min(wish_y, img.height - total_h))
+                
                 current_y = wish_y
                 for i, line in enumerate(lines):
                     offset = random.randint(-20, 20)
                     line_x = wish_x + (max_w - line_widths[i]) // 2 + offset
-                    apply_text_effect(draw, (line_x, current_y), line, font_wish, effect_settings, img)
-                    occupied_boxes.append((line_x, current_y, line_widths[i], line_heights[i]))
+                    
+                    # Ensure text doesn't go outside frame
+                    line_x = max(0, min(line_x, img.width - line_widths[i]))
+                    y_pos = max(0, min(current_y, img.height - line_heights[i]))
+                    
+                    apply_text_effect(draw, (line_x, y_pos), line, font_wish, effect_settings, img)
+                    occupied_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
                     if i < len(lines) - 1:
                         current_y += line_heights[i] + wish_gap
         
@@ -1552,6 +1765,10 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 if date_x + day_width > img.width - 20:
                     date_x = img.width - day_width - 25
             
+            # Ensure date stays within frame boundaries
+            date_x = max(0, min(date_x, img.width - date_width))
+            date_y = max(0, min(date_y, img.height - date_height))
+            
             apply_text_effect(draw, (date_x, date_y), date_text, font_date, effect_settings, img)
             occupied_boxes.append((date_x, date_y, date_width, date_height))
         
@@ -1577,10 +1794,18 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 if abs(quote_y - oy) < total_height + oh:
                     quote_y += oh + 20
             
+            # Ensure quote stays within frame boundaries
+            quote_y = max(0, min(quote_y, img.height - total_height))
+            
             for i, line in enumerate(lines):
                 line_x = (img.width - line_widths[i]) // 2
-                apply_text_effect(draw, (line_x, quote_y), line, font_quote, effect_settings, img)
-                occupied_boxes.append((line_x, quote_y, line_widths[i], line_heights[i]))
+                
+                # Ensure text doesn't go outside frame
+                line_x = max(0, min(line_x, img.width - line_widths[i]))
+                y_pos = max(0, min(quote_y, img.height - line_heights[i]))
+                
+                apply_text_effect(draw, (line_x, y_pos), line, font_quote, effect_settings, img)
+                occupied_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
                 quote_y += line_heights[i] + 10
         
         if settings['use_watermark'] and settings['watermark_image']:
@@ -1593,6 +1818,11 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             watermark.thumbnail((img.width//4, img.height//4))
             pos = get_watermark_position(img, watermark, occupied_boxes)
+            
+            # Ensure watermark stays within frame boundaries
+            pos = (max(0, min(pos[0], img.width - watermark.width)), 
+                   max(0, min(pos[1], img.height - watermark.height)))
+            
             img.paste(watermark, pos, watermark)
             occupied_boxes.append((pos[0], pos[1], watermark.width, watermark.height))
         
@@ -1615,6 +1845,11 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                     for ox, oy, ow, oh in occupied_boxes:
                         if abs(pet_pos[0] - ox) < ow + pet_img.width and abs(pet_pos[1] - oy) < oh + pet_img.height:
                             pet_pos = ((img.width - pet_pos[0] - pet_img.width, pet_pos[1]) if pet_pos[0] == 20 else (20, pet_pos[1]))
+                    
+                    # Ensure pet stays within frame boundaries
+                    pet_pos = (max(0, min(pet_pos[0], img.width - pet_img.width)), 
+                               max(0, min(pet_pos[1], img.height - pet_img.height)))
+                    
                     img.paste(pet_img, pet_pos, pet_img)
                     occupied_boxes.append((pet_pos[0], pet_pos[1], pet_img.width, pet_img.height))
         
@@ -1795,7 +2030,7 @@ with st.sidebar:
             wish_text = None
     
     st.markdown("### Overlap Settings")
-    overlap_percent = st.slider("Main Text Overlap (%)", -15, 50, 0)
+    overlap_percent = st.slider("Main Text Overlap (%)", -15, 50, 14)
     
     show_date = st.checkbox("Show Date", value=False)
     if show_date:
