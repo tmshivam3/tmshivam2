@@ -26,6 +26,7 @@ import tempfile
 import zipfile
 import gdown
 import streamlit as st
+from utils import smart_crop
 
 # 👇 Helper functions yaha paste karna hai
 def list_subfolders(folder):
@@ -52,18 +53,30 @@ def list_subfolders(directory):
     return [name for name in os.listdir(directory) 
             if os.path.isdir(os.path.join(directory, name))]
 
+def apply_emoji_stickers(img: Image.Image, emojis: List[str], num_stickers=5, occupied_boxes: Optional[List[Tuple[int, int, int, int]]] = None) -> Image.Image:
+    if occupied_boxes is None:
+        occupied_boxes = []
+    # rest of the code
+
 # Download and extract assets from Google Drive
 @st.cache_resource
 def get_assets_dir():
+    local_assets = os.path.join(os.getcwd(), "assets")  # check local "assets" folder
+    
+    if os.path.exists(local_assets):
+        st.info("Using local assets folder ✅")
+        return local_assets
+
+    # Agar local assets nahi hai to download kare
     tmpdir = tempfile.mkdtemp()
     file_id = "1fsS2e67m_Ved4Wm3utgY2DgX7XdNuKpU"
     url = f"https://drive.google.com/uc?id={file_id}"
     zip_path = os.path.join(tmpdir, "assets.zip")
-    
+
     try:
-        # Download using gdown
+        st.info("Downloading assets from Google Drive ⏳")
         gdown.download(url, zip_path, quiet=False)
-        
+
         # Verify the file is a valid ZIP
         try:
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
@@ -74,17 +87,16 @@ def get_assets_dir():
         finally:
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-        
+
         # Check for 'assets' folder or return tmpdir if structure differs
         assets_path = os.path.join(tmpdir, "assets")
         if os.path.exists(assets_path):
             return assets_path
         return tmpdir
-    
+
     except Exception as e:
         st.error(f"Failed to download or extract assets: {str(e)}")
         st.error("Please ensure the Google Drive link is public and points to a valid ZIP file.")
-        st.error("Contact developer at +91 9140588751 for assistance.")
         raise
 
 ASSETS_DIR = get_assets_dir()
@@ -624,7 +636,7 @@ if st.session_state.get("_auth_show_admin"):
             st.markdown(f"#### {year}")
             for theme in themes:
                 key = f"{year}_{theme}"
-                current_value = overlap_settings.get(key, 14)  # Default to 14
+                current_value = overlap_settings.get(key, 7)  # Default to 14
                 new_value = st.slider(
                     f"{theme} overlap percentage", 
                     min_value=-15, 
@@ -796,7 +808,6 @@ if st.session_state.get("_auth_show_admin"):
             year_path = os.path.join(ASSETS_DIR, "overlays", year)
             themes = list_subfolders(year_path)
             if not themes:
-                # If no subfolders, use the year folder itself as a theme
                 all_themes[year] = [year]
             else:
                 all_themes[year] = themes
@@ -811,86 +822,125 @@ if st.session_state.get("_auth_show_admin"):
             if selected_year in all_themes:
                 selected_theme = st.selectbox("Select Theme", all_themes[selected_year], index=0)
         
+        # Add greeting type for preview
+        preview_greeting = st.selectbox("Preview Greeting Type", ["Good Morning", "Good Night"])
+        preview_show_wish = st.checkbox("Show Wish in Preview", value=True)
+        preview_png_size = st.slider("PNG Size in Preview", 0.01, 0.75, 0.18)
+        
         # Display theme preview
         if selected_year and selected_theme:
             theme_path = os.path.join(ASSETS_DIR, "overlays", selected_year, selected_theme)
             
-            # Check if theme exists
             if os.path.exists(theme_path):
                 st.markdown(f"### Preview for {selected_year} - {selected_theme}")
                 
-                # Display theme files
+                # Display individual theme files
                 theme_files = list_files(theme_path, [".png", ".jpg", ".jpeg"])
                 
                 if theme_files:
                     cols = st.columns(min(3, len(theme_files)))
-                    for i, file in enumerate(theme_files):
+                    for i, file in enumerate(sorted(theme_files)):
                         with cols[i % 3]:
                             try:
-                                img = Image.open(os.path.join(theme_path, file))
-                                st.image(img, caption=file, use_container_width=True)
+                                img = Image.open(file)
+                                st.image(img, caption=os.path.basename(file), use_container_width=True)
                             except Exception as e:
-                                st.error(f"Error loading {file}: {str(e)}")
+                                st.error(f"Error loading {os.path.basename(file)}: {str(e)}")
                 else:
                     st.warning("No image files found in this theme folder.")
                 
                 # Test with custom image
                 st.markdown("### Test with Your Image")
-                test_image = st.file_uploader("Upload test image", type=["jpg", "jpeg", "png"], key="theme_test")
+                test_image = st.file_uploader("Upload test image (or leave blank for dummy)", type=["jpg", "jpeg", "png"], key="theme_test")
                 
-                if test_image:
-                    try:
+                try:
+                    if test_image:
                         img = Image.open(test_image)
-                        # Crop to 3:4 ratio
-                        img = smart_crop(img, 3/4)
+                        img = smart_crop(img, 3/4).convert("RGBA")
+                    else:
+                        # Dummy image
+                        img = Image.new("RGBA", (750, 1000), (200, 200, 200, 255))
+                    
+                    # Get overlap
+                    overlap_key = f"{selected_year}_{selected_theme}"
+                    overlap_percent = _load_overlap_settings().get(overlap_key, 14)
+                    
+                    # Load PNGs based on greeting
+                    png_files = []
+                    if preview_greeting == "Good Morning":
+                        png_files = ["1.png", "2.png"]
+                        if preview_show_wish:
+                            png_files.append("4.png")
+                    elif preview_greeting == "Good Night":
+                        png_files = ["1.png", "3.png"]
+                        if preview_show_wish:
+                            png_files.append("5.png")
+                    
+                    pngs = []
+                    for f in png_files:
+                        path = os.path.join(theme_path, f)
+                        if os.path.exists(path):
+                            png_img = Image.open(path).convert("RGBA")
+                            png_img._filename = f
+                            pngs.append(png_img)
+                    
+                    if pngs:
+                        # Layering
+                        main_pngs = [p for p in pngs if p._filename in ["1.png", "2.png", "3.png"]]
+                        wish_pngs = [p for p in pngs if p._filename in ["4.png", "5.png"]]
                         
-                        # Apply theme overlay
-                        if theme_files:
-                            # For demo purposes, apply the first overlay found
-                            overlay_path = os.path.join(theme_path, theme_files[0])
-                            overlay_img = Image.open(overlay_path).convert("RGBA")
-                            
-                            # Resize overlay to fit image
-                            overlay_size = int(min(img.width, img.height) * 0.5)
-                            overlay_img = overlay_img.resize((overlay_size, overlay_size), Image.LANCZOS)
-                            
-                            # Apply overlay to center of image
-                            x = (img.width - overlay_img.width) // 2
-                            y = (img.height - overlay_img.height) // 2
-                            
-                            # Create a copy for preview
-                            preview_img = img.copy().convert("RGBA")
-                            preview_img.paste(overlay_img, (x, y), overlay_img)
-                            
-                            # Display preview
-                            st.image(preview_img, caption="Theme Preview", use_container_width=True)
-                            
-                            # Get overlap setting for this theme
-                            overlap_key = f"{selected_year}_{selected_theme}"
-                            overlap_value = _load_overlap_settings().get(overlap_key, 14)
-                            st.info(f"Current overlap setting for this theme: {overlap_value}%")
-                            
-                            # Adjust overlap setting
-                            new_overlap = st.slider(
-                                "Adjust Overlap Percentage", 
-                                min_value=-15, 
-                                max_value=50, 
-                                value=overlap_value,
-                                key=f"preview_overlap_{overlap_key}"
-                            )
-                            
-                            if st.button("Save Overlap Setting"):
-                                overlap_settings = _load_overlap_settings()
-                                overlap_settings[overlap_key] = new_overlap
-                                _save_overlap_settings(overlap_settings)
-                                st.success("Overlap setting saved!")
-                        else:
-                            st.warning("No overlay images found to apply.")
-                            
-                    except Exception as e:
-                        st.error(f"Error processing test image: {str(e)}")
-            else:
-                st.error(f"Theme path not found: {theme_path}")
+                        main_pngs.sort(key=lambda x: 0 if x._filename == "1.png" else 1)
+                        
+                        pngs = main_pngs + wish_pngs
+                        
+                        # Gaps
+                        main_gap = -int(min([p.height for p in main_pngs]) * overlap_percent / 100) if len(main_pngs) >= 2 else 0
+                        wish_gap = 10
+                        
+                        gaps = [main_gap] * (len(pngs) - 1)
+                        if preview_show_wish and len(pngs) > len(main_pngs):
+                            gaps[-1] = wish_gap
+                        
+                        total_h = sum(p.height for p in pngs) + sum(gaps)
+                        max_w = max(p.width for p in pngs)
+                        
+                        scale = min(preview_png_size, min((img.width * 0.9) / max_w, (img.height * 0.9) / total_h))
+                        pngs = [p.resize((int(p.width * scale), int(p.height * scale)), Image.LANCZOS) for p in pngs]
+                        
+                        total_h = sum(p.height for p in pngs) + sum(gaps)
+                        max_w = max(p.width for p in pngs)
+                        
+                        start_y = (img.height - total_h) // 2
+                        start_x = (img.width - max_w) // 2
+                        
+                        current_y = start_y
+                        for i, p in enumerate(pngs):
+                            x = start_x + (max_w - p.width) // 2
+                            x = max(0, min(x, img.width - p.width))
+                            y = max(0, min(current_y, img.height - p.height))
+                            img.paste(p, (x, y), p)
+                            if i < len(pngs) - 1:
+                                current_y += p.height + gaps[i]
+                        
+                        st.image(img, caption="Full Theme Preview with Overlap", use_container_width=True)
+                        
+                        new_overlap = st.slider(
+                            "Adjust Overlap Percentage", 
+                            min_value=-15, 
+                            max_value=50, 
+                            value=overlap_percent,
+                            key=f"preview_overlap_{overlap_key}"
+                        )
+                        
+                        if st.button("Save Overlap Setting"):
+                            overlap_settings = _load_overlap_settings()
+                            overlap_settings[overlap_key] = new_overlap
+                            _save_overlap_settings(overlap_settings)
+                            st.success("Overlap setting saved!")
+                    else:
+                        st.warning("Missing PNG files for selected greeting.")
+                except Exception as e:
+                    st.error(f"Error in preview: {str(e)}")
     
     st.markdown("---")
     st.write("Contact developer: +91 9140588751")
@@ -983,18 +1033,6 @@ def list_subfolders(folder: str) -> List[str]:
         os.makedirs(folder, exist_ok=True)
         return []
     return [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d))]
-
-def smart_crop(img: Image.Image, target_ratio: float = 3/4) -> Image.Image:
-    """Crop image to 3:4 ratio as soon as it's uploaded"""
-    w, h = img.size
-    if w/h > target_ratio:
-        new_w = int(h * target_ratio)
-        left = (w - new_w) // 2
-        return img.crop((left, 0, left + new_w, h))
-    else:
-        new_h = int(w / target_ratio)
-        top = (h - new_h) // 2
-        return img.crop((0, top, w, top + new_h))
 
 def get_text_size(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
     if text is None:
@@ -1091,16 +1129,21 @@ def create_gradient_mask(width: int, height: int, colors: List[Tuple[int, int, i
     gradient = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(gradient)
     
-    if len(colors) == 2:
-        start_color, end_color = colors
-        for x in range(width):
-            ratio = x / width
-            r = int(start_color[0] * (1 - ratio) + end_color[0] * ratio)
-            g = int(start_color[1] * (1 - ratio) + end_color[1] * ratio)
-            b = int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
-            draw.line([(x, 0), (x, height)], fill=(r, g, b))
-        if random.choice([True, False]):
-            gradient = gradient.transpose(Image.FLIP_LEFT_RIGHT)
+    if direction == 'vertical':
+        # For vertical gradient
+        num_segments = len(colors) - 1
+        segment_height = height // num_segments
+        for seg in range(num_segments):
+            start_color = colors[seg]
+            end_color = colors[seg + 1]
+            start_y = seg * segment_height
+            end_y = start_y + segment_height
+            for y in range(start_y, min(end_y, height)):
+                ratio = (y - start_y) / segment_height
+                r = int(start_color[0] * (1 - ratio) + end_color[0] * ratio)
+                g = int(start_color[1] * (1 - ratio) + end_color[1] * ratio)
+                b = int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
+                draw.line([(0, y), (width, y)], fill=(r, g, b))
     else:
         num_segments = len(colors) - 1
         segment_width = width // num_segments
@@ -1153,15 +1196,18 @@ def generate_filename(base_name="Picsart") -> str:
     future_time = now + timedelta(minutes=future_minutes)
     return f"{base_name}_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
-def get_watermark_position(img: Image.Image, watermark: Image.Image, avoid_positions: List[Tuple[int, int, int, int]] = None) -> Tuple[int, int]:
-    possible_positions = [20, img.width - watermark.width - 20]
-    x = random.choice(possible_positions)
-    y = img.height - watermark.height - 20
-    if avoid_positions:
-        for ax, ay, aw, ah in avoid_positions:
-            if abs(x - ax) < aw or abs(y - ay) < ah:
-                x = possible_positions[1 - possible_positions.index(x)]
-    return (x, y)
+def get_watermark_position(img: Image.Image, watermark: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]]) -> Tuple[int, int]:
+    ew, eh = watermark.size
+    iw, ih = img.size
+    possible_x = [20, iw - ew - 20]
+    possible_y = [ih - eh - 20, 20]
+    for _ in range(10):
+        x = random.choice(possible_x)
+        y = random.choice(possible_y)
+        new_box = (x, y, ew, eh)
+        if not any_overlap(new_box, occupied_boxes):
+            return (x, y)
+    return (iw - ew - 20, ih - eh - 20)
 
 def enhance_image_quality(img: Image.Image, brightness=1.0, contrast=1.0, sharpness=1.0, saturation=1.0) -> Image.Image:
     if img.mode != 'RGB':
@@ -1173,7 +1219,7 @@ def enhance_image_quality(img: Image.Image, brightness=1.0, contrast=1.0, sharpn
     img = ImageEnhance.Color(img).enhance(saturation)
     
     return img
-   
+
 def upscale_text_elements(img: Image.Image, scale_factor: int = 4) -> Image.Image:
     if scale_factor > 1:
         new_size = (img.width * scale_factor, img.height * scale_factor)
@@ -1202,7 +1248,7 @@ def apply_sepia(img: Image.Image) -> Image.Image:
     ])
     arr = arr @ sepia_filter.T
     arr = np.clip(arr, 0, 255)
-    return Image.fromarray(arr.ast('uint8'))
+    return Image.fromarray(arr.astype('uint8'))
 
 def apply_black_white(img: Image.Image) -> Image.Image:
     return img.convert('L').convert('RGB')
@@ -1240,16 +1286,22 @@ def apply_anime_effect(img: Image.Image) -> Image.Image:
     result.paste((0, 0, 0), (0, 0), edges)
     return result
 
-def apply_emoji_stickers(img: Image.Image, emojis: List[str], num_stickers=5) -> Image.Image:
+def apply_emoji_stickers(img: Image.Image, emojis: List[str], occupied_boxes: List[Tuple[int, int, int, int]], num_stickers=5) -> Image.Image:
     if not emojis:
         return img
     draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype("arial.ttf", 40)
+    es = 40  # emoji size approx
     for _ in range(num_stickers):
-        x = random.randint(20, img.width-40)
-        y = random.randint(20, img.height-40)
-        emoji = random.choice(emojis)
-        font = ImageFont.truetype("arial.ttf", 40)
-        draw.text((x, y), emoji, font=font, fill=(255, 255, 0))
+        for try_ in range(10):
+            x = random.randint(20, img.width - es - 20)
+            y = random.randint(20, img.height - es - 20)
+            new_box = (x, y, es, es)
+            if not any_overlap(new_box, occupied_boxes):
+                emoji = random.choice(emojis)
+                draw.text((x, y), emoji, font=font, fill=(255, 255, 0))
+                occupied_boxes.append(new_box)
+                break
     return img
 
 def get_dominant_color(img: Image.Image) -> Tuple[int, int, int]:
@@ -1320,7 +1372,6 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     shadow_offset = (2, 2)
     shadow_draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=(0, 0, 0, 40))
     
-    # Get pure vibrant colors for new effects
     pure_colors = [
         (255, 0, 0), (255, 165, 0), (255, 255, 0), (0, 255, 0),
         (0, 0, 255), (75, 0, 130), (238, 130, 238), (255, 192, 203)
@@ -1328,9 +1379,7 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     
     outline_range = 1 if effect_type == 'neon' else 2
     
-    # Apply different effects based on type
     if effect_type == 'white_color_outline_shadow':
-        # White text with colored outline and shadow
         outline_color = random.choice(pure_colors)
         for ox in range(-outline_range, outline_range + 1):
             for oy in range(-outline_range, outline_range + 1):
@@ -1339,7 +1388,6 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
     elif effect_type == 'pure_color_white_outline':
-        # Pure color text with white outline
         text_color = random.choice(pure_colors)
         for ox in range(-outline_range, outline_range + 1):
             for oy in range(-outline_range, outline_range + 1):
@@ -1348,13 +1396,14 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         fill_draw.text((x, y), text, font=font, fill=text_color)
     
     elif effect_type == 'multicolor_gradient_outline':
-        # Multi-color gradient with outline
         colors = [random.choice(pure_colors) for _ in range(random.randint(2, 4))]
         gradient = create_gradient_mask(text_width, text_height, colors)
+        mask = Image.new("L", (text_width, text_height), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.text((0, 0), text, font=font, fill=255)
         gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
         gradient_text.paste(gradient, (0, 0), mask)
         
-        # Add outline
         for ox in range(-outline_range, outline_range + 1):
             for oy in range(-outline_range, outline_range + 1):
                 if ox != 0 or oy != 0:
@@ -1363,20 +1412,15 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         fill_layer.paste(gradient_text, (x, y), gradient_text)
     
     elif effect_type == 'metallic':
-        # Metallic effect
         metallic_colors = [(192, 192, 192), (169, 169, 169), (211, 211, 211), (105, 105, 105)]
         base_color = random.choice(metallic_colors)
         highlight_color = (255, 255, 255, 180)
         
-        # Base metallic text
         fill_draw.text((x, y), text, font=font, fill=base_color)
         
-        # Add highlight (top-left)
-        highlight_draw = ImageDraw.Draw(fill_layer)
-        highlight_draw.text((x-1, y-1), text, font=font, fill=highlight_color)
+        fill_draw.text((x-1, y-1), text, font=font, fill=highlight_color)
     
     elif effect_type == 'glowing':
-        # Glowing text effect
         glow_color = random.choice(pure_colors)
         glow_size = 15
         for i in range(glow_size, 0, -2):
@@ -1388,7 +1432,6 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
     else:
-        # Existing effects (unchanged)
         for ox in range(-outline_range, outline_range + 1):
             for oy in range(-outline_range, outline_range + 1):
                 if ox != 0 or oy != 0:
@@ -1446,26 +1489,96 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     
     return effect_settings
 
-def get_pet_position(img: Image.Image, pet_img: Image.Image) -> Tuple[int, int]:
-    prob = random.random()
-    if prob < 0.4:
-        x = 20
-    elif prob < 0.8:
-        x = img.width - pet_img.width - 20
-    else:
-        x = (img.width - pet_img.width) // 2
-    y = img.height - pet_img.height - 20
+def get_pet_position(img: Image.Image, pet_img: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]]) -> Tuple[int, int]:
+    ew, eh = pet_img.size
+    iw, ih = img.size
+    possible_x = [20, iw - ew - 20, (iw - ew) // 2]
+    y = ih - eh - 20
+    for _ in range(10):
+        x = random.choice(possible_x)
+        new_box = (x, y, ew, eh)
+        if not any_overlap(new_box, occupied_boxes):
+            return (x, y)
+    return (iw - ew - 20, ih - eh - 20)
+
+def is_overlap(box1: Tuple[int, int, int, int], box2: Tuple[int, int, int, int]) -> bool:
+    x1, y1, w1, h1 = box1
+    x2, y2, w2, h2 = box2
+    return max(x1, x2) < min(x1 + w1, x2 + w2) and max(y1, y2) < min(y1 + h1, y2 + h2)
+
+def any_overlap(new_box: Tuple[int, int, int, int], occupied: List[Tuple[int, int, int, int]]) -> bool:
+    for box in occupied:
+        if is_overlap(new_box, box):
+            return True
+    return False
+
+def find_non_overlapping_position(img_size: Tuple[int, int], elem_size: Tuple[int, int], occupied: List[Tuple[int, int, int, int]], 
+                                  preferred_pos: Optional[Tuple[int, int]] = None, tries: int = 20) -> Tuple[int, int]:
+    iw, ih = img_size
+    ew, eh = elem_size
+    if preferred_pos:
+        x, y = preferred_pos
+        x = max(0, min(x, iw - ew))
+        y = max(0, min(y, ih - eh))
+        if not any_overlap((x, y, ew, eh), occupied):
+            return x, y
+    for _ in range(tries):
+        x = random.randint(0, iw - ew)
+        y = random.randint(0, ih - eh)
+        if not any_overlap((x, y, ew, eh), occupied):
+            return x, y
+    # Fallback
+    x = iw - ew
+    y = ih - eh
     return x, y
 
 def get_overlap_percentage(year, theme):
-    """Get the overlap percentage for a specific year and theme from saved settings"""
     overlap_settings = _load_overlap_settings()
     key = f"{year}_{theme}"
-    return overlap_settings.get(key, 14)  # Default to 14 if not set
+    return overlap_settings.get(key, 14)
 
-def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.Image]:
+def generate_background(background_type: str) -> Image.Image:
+    width, height = 750, 1000  # 3:4 ratio
+    if background_type == "Random Color":
+        if random.random() < 0.4:
+            color = (255, 255, 255)
+            return Image.new("RGB", (width, height), color)
+        else:
+            solid_colors = [
+                (255, 0, 0),  # red
+                (255, 192, 203),  # pink
+                (199, 21, 133),  # dark pink
+                (255, 182, 193),  # light pink
+            ]
+            gradient_options = [
+                [(255, 192, 203), (255, 255, 255)],  # pink white
+                [(255, 255, 0), (255, 0, 0)],  # yellow red
+                get_multi_gradient_colors(),  # rainbow
+            ]
+            if random.random() < 0.5:
+                color = random.choice(solid_colors)
+                return Image.new("RGB", (width, height), color)
+            else:
+                colors = random.choice(gradient_options)
+                return create_gradient_mask(width, height, colors, random.choice(['horizontal', 'vertical']))
+    elif background_type == "Pre-made Image":
+        bg_folder = os.path.join(ASSETS_DIR, "backgrounds")
+        bg_files = list_files(bg_folder, [".jpg", ".png", ".jpeg", ".JPG", ".PNG", ".JPEG"])
+        if bg_files:
+            path = random.choice(bg_files)
+            full_path = os.path.join(bg_folder, path)
+            bg = Image.open(full_path).convert("RGB")
+            return smart_crop(bg, 3/4).resize((width, height), Image.LANCZOS)
+        else:
+            return Image.new("RGB", (width, height), (255, 255, 255))
+    return Image.new("RGB", (width, height), (255, 255, 255))
+
+def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optional[Image.Image]:
     try:
-        img = original_img.copy()
+        img = original_img
+        if img is None:
+            img = generate_background(settings['background_type'])
+        img = img.convert("RGBA")
         draw = ImageDraw.Draw(img)
         
         font = get_random_font(settings.get('font_folder', os.path.join(ASSETS_DIR, "fonts")))
@@ -1482,33 +1595,32 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
         
         style_mode = settings.get('style_mode', 'Text')
         
-        # Get overlap percentage from settings or use default
         overlap_percent = settings.get('overlap_percent', 14)
         
         occupied_boxes = []
+        
+        min_distance = 20
         
         if style_mode == 'PNG Overlay' and settings['greeting_type'] in ["Good Morning", "Good Night"]:
             years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
             if not years:
                 st.warning("No overlay years found.")
-                return img
+                return img.convert("RGB")
             
-            # Handle ALL selection or specific year
-            overlay_year = settings.get('overlay_year', "2025")  # Default to 2025 if not set
+            overlay_year = settings.get('overlay_year', "2025")
             if overlay_year == "ALL":
                 selected_years = years
             else:
                 selected_years = [overlay_year]
                 if overlay_year not in years:
                     st.warning("Selected year not found.")
-                    return img
+                    return img.convert("RGB")
             
             theme_paths = []
             for y in selected_years:
                 year_path = os.path.join(ASSETS_DIR, "overlays", y)
                 sub_themes = list_subfolders(year_path)
                 if not sub_themes:
-                    # If no subfolders, use the year folder itself as a theme
                     if list_files(year_path, [".png"]):
                         theme_paths.append((y, year_path))
                 else:
@@ -1517,13 +1629,11 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             if not theme_paths:
                 st.warning("No overlay themes found.")
-                return img
+                return img.convert("RGB")
             
-            # Randomly select a theme
             theme_name, base_path = random.choice(theme_paths)
             
-            # Get the overlap percentage for this specific theme
-            overlap_percent = get_overlap_percentage(settings.get('overlay_year', "2025"), theme_name)
+            overlap_percent = get_overlap_percentage(overlay_year, theme_name)
             
             png_files = []
             if settings['greeting_type'] == "Good Morning":
@@ -1540,42 +1650,32 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 path = os.path.join(base_path, f)
                 if os.path.exists(path):
                     png_img = Image.open(path).convert("RGBA")
-                    # Store the filename as an attribute for later reference
                     png_img._filename = os.path.basename(path)
                     pngs.append(png_img)
             
             if pngs:
-                # Ensure proper layering: 1.png and 2.png on top, 4.png and 5.png below
-                # Use the stored filename attribute instead of .filename
-                main_pngs = [p for p in pngs if hasattr(p, '_filename') and p._filename.endswith("1.png") or p._filename.endswith("2.png")]
-                wish_pngs = [p for p in pngs if hasattr(p, '_filename') and p._filename.endswith("4.png") or p._filename.endswith("5.png")]
+                main_pngs = [p for p in pngs if p._filename in ["1.png", "2.png", "3.png"]]
+                wish_pngs = [p for p in pngs if p._filename in ["4.png", "5.png"]]
                 
-                # Sort to ensure 1.png is always above 2.png
-                main_pngs.sort(key=lambda x: 0 if x._filename.endswith("1.png") else 1)
+                main_pngs.sort(key=lambda x: 0 if x._filename == "1.png" else 1)
                 
-                # Recombine with main PNGs first
                 pngs = main_pngs + wish_pngs
                 
-                # Calculate gaps based on overlap percentage
-                main_gap = -int(min(pngs[0].height, pngs[1].height) * overlap_percent / 100) if len(pngs) >= 2 else 0
+                main_gap = -int(min([p.height for p in main_pngs]) * overlap_percent / 100) if len(main_pngs) >= 2 else 0
                 wish_gap = 10
                 
                 gaps = [main_gap] * (len(pngs) - 1)
-                if settings['show_wish'] and len(pngs) > 2:
+                if settings['show_wish'] and len(wish_pngs) > 0:
                     gaps[-1] = wish_gap
                 
-                total_h = sum(p.height for p in pngs)
-                for g in gaps:
-                    total_h += g
+                total_h = sum(p.height for p in pngs) + sum(gaps)
                 max_w = max(p.width for p in pngs)
                 
                 png_size = settings.get('png_size', 0.5)
                 scale = min(png_size, min((img.width * 0.9) / max_w, (img.height * 0.9) / total_h))
                 pngs = [p.resize((int(p.width * scale), int(p.height * scale)), Image.LANCZOS) for p in pngs]
                 
-                total_h = sum(p.height for p in pngs)
-                for g in gaps:
-                    total_h += g
+                total_h = sum(p.height for p in pngs) + sum(gaps)
                 max_w = max(p.width for p in pngs)
                 
                 main_position = random.choice(["top", "bottom"])
@@ -1590,23 +1690,32 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 else:
                     start_x = get_random_horizontal_position(img.width, max_w)
                 
-                # Ensure PNGs stay within frame boundaries
                 start_x = max(0, min(start_x, img.width - max_w))
                 start_y = max(0, min(start_y, img.height - total_h))
                 
+                # Check for overlap with other elements (though first, may be empty)
+                block_box = (start_x, start_y, max_w, total_h)
+                if any_overlap(block_box, occupied_boxes):
+                    start_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (start_x, start_y))[1]
+                
                 current_y = start_y
+                group_boxes = []
                 for i, p in enumerate(pngs):
                     offset = random.randint(-20, 20)
                     x = start_x + (max_w - p.width) // 2 + offset
-                    
-                    # Ensure PNG doesn't go outside frame
                     x = max(0, min(x, img.width - p.width))
                     y = max(0, min(current_y, img.height - p.height))
-                    
                     img.paste(p, (x, y), p)
-                    occupied_boxes.append((x, y, p.width, p.height))
+                    group_boxes.append((x, y, p.width, p.height))
                     if i < len(pngs) - 1:
                         current_y += p.height + gaps[i]
+                
+                # Add group bounding box
+                gx = min(b[0] for b in group_boxes)
+                gy = min(b[1] for b in group_boxes)
+                gw = max(b[0] + b[2] for b in group_boxes) - gx
+                gh = max(b[1] + b[3] for b in group_boxes) - gy
+                occupied_boxes.append((gx, gy, gw, gh))
                 
                 main_end_y = current_y
             else:
@@ -1654,25 +1763,32 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                 else:
                     text_x = get_random_horizontal_position(img.width, max_w)
                 
-                # Ensure text stays within frame boundaries
                 text_x = max(0, min(text_x, img.width - max_w))
                 text_y = max(0, min(text_y, img.height - total_h))
                 
+                block_box = (text_x, text_y, max_w, total_h)
+                if any_overlap(block_box, occupied_boxes):
+                    text_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (text_x, text_y))[1]
+                
                 current_y = text_y
+                group_boxes = []
                 for i, t in enumerate(main_texts):
                     offset = random.randint(-30, 50)
                     line_x = text_x + (max_w - line_widths[i]) // 2 + offset
-                    
-                    # Ensure text doesn't go outside frame
                     line_x = max(0, min(line_x, img.width - line_widths[i]))
                     y_pos = max(0, min(current_y, img.height - line_heights[i]))
-                    
                     apply_text_effect(draw, (line_x, y_pos), t, font_main, effect_settings, img)
-                    occupied_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
+                    group_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
                     if i < len(main_texts) - 1:
                         current_y += line_heights[i] + main_gap
                 
-                main_end_y = current_y
+                gx = min(b[0] for b in group_boxes)
+                gy = min(b[1] for b in group_boxes)
+                gw = max(b[0] + b[2] for b in group_boxes) - gx
+                gh = max(b[1] + b[3] for b in group_boxes) - gy
+                occupied_boxes.append((gx, gy, gw, gh))
+                
+                main_end_y = gy + gh
             
             if settings['show_wish']:
                 font_size = settings['wish_size']
@@ -1715,28 +1831,33 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                     wish_x = get_random_horizontal_position(img.width, max_w)
                 
                 if settings['show_text']:
-                    if wish_y < main_end_y + 20:
-                        wish_y = main_end_y + 20
-                    if wish_y + total_h > img.height - 20:
-                        wish_y = img.height - total_h - 20
+                    wish_y = max(wish_y, main_end_y + min_distance)
                 
-                # Ensure wish text stays within frame boundaries
                 wish_x = max(0, min(wish_x, img.width - max_w))
                 wish_y = max(0, min(wish_y, img.height - total_h))
                 
+                block_box = (wish_x, wish_y, max_w, total_h)
+                while any_overlap(block_box, occupied_boxes) and wish_y + total_h + min_distance < img.height:
+                    wish_y += min_distance
+                    block_box = (wish_x, wish_y, max_w, total_h)
+                
                 current_y = wish_y
+                group_boxes = []
                 for i, line in enumerate(lines):
                     offset = random.randint(-20, 20)
                     line_x = wish_x + (max_w - line_widths[i]) // 2 + offset
-                    
-                    # Ensure text doesn't go outside frame
                     line_x = max(0, min(line_x, img.width - line_widths[i]))
                     y_pos = max(0, min(current_y, img.height - line_heights[i]))
-                    
                     apply_text_effect(draw, (line_x, y_pos), line, font_wish, effect_settings, img)
-                    occupied_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
+                    group_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
                     if i < len(lines) - 1:
                         current_y += line_heights[i] + wish_gap
+                
+                gx = min(b[0] for b in group_boxes)
+                gy = min(b[1] for b in group_boxes)
+                gw = max(b[0] + b[2] for b in group_boxes) - gx
+                gh = max(b[1] + b[3] for b in group_boxes) - gy
+                occupied_boxes.append((gx, gy, gw, gh))
         
         if settings['show_date']:
             font_date = font.font_variant(size=settings['date_size'])
@@ -1755,19 +1876,8 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             date_x = get_random_horizontal_position(img.width, date_width)
             date_y = img.height - date_height - 20
             
-            for ox, oy, ow, oh in occupied_boxes:
-                if abs(date_y - oy) < oh + date_height:
-                    date_x = (date_x + img.width // 2) % img.width
-                    
-            if settings['show_day'] and "(" in date_text:
-                day_part = date_text[date_text.index("("):]
-                day_width, _ = get_text_size(draw, day_part, font_date)
-                if date_x + day_width > img.width - 20:
-                    date_x = img.width - day_width - 25
-            
-            # Ensure date stays within frame boundaries
-            date_x = max(0, min(date_x, img.width - date_width))
-            date_y = max(0, min(date_y, img.height - date_height))
+            preferred = (date_x, date_y)
+            date_x, date_y = find_non_overlapping_position(img.size, (date_width, date_height), occupied_boxes, preferred)
             
             apply_text_effect(draw, (date_x, date_y), date_text, font_date, effect_settings, img)
             occupied_boxes.append((date_x, date_y, date_width, date_height))
@@ -1778,35 +1888,43 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             lines = [line.strip() for line in quote_text.split('\n') if line.strip()]
             
-            total_height = 0
             line_heights = []
             line_widths = []
-            
             for line in lines:
                 w, h = get_text_size(draw, line, font_quote)
-                line_heights.append(h)
                 line_widths.append(w)
-                total_height += h + 10
+                line_heights.append(h)
             
-            quote_y = (img.height - total_height) // 2
+            quote_gap = 10
+            total_h = sum(line_heights) + (len(lines) - 1) * quote_gap
+            max_w = max(line_widths)
             
-            for ox, oy, ow, oh in occupied_boxes:
-                if abs(quote_y - oy) < total_height + oh:
-                    quote_y += oh + 20
+            quote_x = (img.width - max_w) // 2
+            quote_y = (img.height - total_h) // 2
             
-            # Ensure quote stays within frame boundaries
-            quote_y = max(0, min(quote_y, img.height - total_height))
+            block_box = (quote_x, quote_y, max_w, total_h)
+            while any_overlap(block_box, occupied_boxes) and quote_y + total_h + min_distance < img.height:
+                quote_y += min_distance
+                block_box = (quote_x, quote_y, max_w, total_h)
             
+            quote_y = max(0, min(quote_y, img.height - total_h))
+            
+            current_y = quote_y
+            group_boxes = []
             for i, line in enumerate(lines):
-                line_x = (img.width - line_widths[i]) // 2
-                
-                # Ensure text doesn't go outside frame
+                line_x = quote_x + (max_w - line_widths[i]) // 2
                 line_x = max(0, min(line_x, img.width - line_widths[i]))
-                y_pos = max(0, min(quote_y, img.height - line_heights[i]))
-                
+                y_pos = max(0, min(current_y, img.height - line_heights[i]))
                 apply_text_effect(draw, (line_x, y_pos), line, font_quote, effect_settings, img)
-                occupied_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
-                quote_y += line_heights[i] + 10
+                group_boxes.append((line_x, y_pos, line_widths[i], line_heights[i]))
+                if i < len(lines) - 1:
+                    current_y += line_heights[i] + quote_gap
+            
+            gx = min(b[0] for b in group_boxes)
+            gy = min(b[1] for b in group_boxes)
+            gw = max(b[0] + b[2] for b in group_boxes) - gx
+            gh = max(b[1] + b[3] for b in group_boxes) - gy
+            occupied_boxes.append((gx, gy, gw, gh))
         
         if settings['use_watermark'] and settings['watermark_image']:
             watermark = settings['watermark_image'].copy()
@@ -1818,8 +1936,6 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
             
             watermark.thumbnail((img.width//4, img.height//4))
             pos = get_watermark_position(img, watermark, occupied_boxes)
-            
-            # Ensure watermark stays within frame boundaries
             pos = (max(0, min(pos[0], img.width - watermark.width)), 
                    max(0, min(pos[1], img.height - watermark.height)))
             
@@ -1841,12 +1957,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                          int((img.width * settings['pet_size']) * (pet_img.height / pet_img.width))),
                         Image.LANCZOS
                     )
-                    pet_pos = get_pet_position(img, pet_img)
-                    for ox, oy, ow, oh in occupied_boxes:
-                        if abs(pet_pos[0] - ox) < ow + pet_img.width and abs(pet_pos[1] - oy) < oh + pet_img.height:
-                            pet_pos = ((img.width - pet_pos[0] - pet_img.width, pet_pos[1]) if pet_pos[0] == 20 else (20, pet_pos[1]))
-                    
-                    # Ensure pet stays within frame boundaries
+                    pet_pos = get_pet_position(img, pet_img, occupied_boxes)
                     pet_pos = (max(0, min(pet_pos[0], img.width - pet_img.width)), 
                                max(0, min(pet_pos[1], img.height - pet_img.height)))
                     
@@ -1854,7 +1965,7 @@ def create_variant(original_img: Image.Image, settings: dict) -> Optional[Image.
                     occupied_boxes.append((pet_pos[0], pet_pos[1], pet_img.width, pet_img.height))
         
         if settings.get('apply_emoji', False) and settings.get('emojis'):
-            img = apply_emoji_stickers(img, settings['emojis'], settings.get('num_emojis', 5))
+            img = apply_emoji_stickers(img, settings['emojis'], settings.get('num_emojis', 5), occupied_boxes)
         
         img = enhance_image_quality(
             img,
@@ -1926,33 +2037,35 @@ elif user_type == "Pro Member":
 else:
     st.success("👑 You have Admin access with all features!")
 
-# Auto-crop images to 3:4 ratio immediately after upload
-uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-# Process images immediately after upload to crop to 3:4 ratio
-if uploaded_images and 'cropped_images' not in st.session_state:
-    st.session_state.cropped_images = []
-    for uploaded_file in uploaded_images:
-        try:
-            img = Image.open(uploaded_file)
-            # Crop to 3:4 ratio as requested
-            cropped_img = smart_crop(img, 3/4)
-            st.session_state.cropped_images.append((uploaded_file.name, cropped_img))
-        except Exception as e:
-            st.error(f"Error processing {uploaded_file.name}: {str(e)}")
-
-# Display cropped images if available
-if 'cropped_images' in st.session_state and st.session_state.cropped_images:
-    st.info(f"✅ {len(st.session_state.cropped_images)} images cropped to 3:4 ratio")
-    with st.expander("Preview Cropped Images"):
-        cols = st.columns(3)
-        for i, (name, img) in enumerate(st.session_state.cropped_images):
-            with cols[i % 3]:
-                st.image(img, caption=name, use_container_width=True)
-
 with st.sidebar:
     st.markdown("### ⚙️ SETTINGS")
     
+    background_type = st.selectbox("Background Type", ["Uploaded Image", "Random Color", "Pre-made Image"])
+
+if background_type == "Uploaded Image":
+    uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    
+    if uploaded_images and 'cropped_images' not in st.session_state:
+        st.session_state.cropped_images = []
+        for uploaded_file in uploaded_images:
+            try:
+                img = Image.open(uploaded_file)
+                cropped_img = smart_crop(img, 3/4)
+                st.session_state.cropped_images.append((uploaded_file.name, cropped_img))
+            except Exception as e:
+                st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+    
+    if 'cropped_images' in st.session_state and st.session_state.cropped_images:
+        st.info(f"✅ {len(st.session_state.cropped_images)} images cropped to 3:4 ratio")
+        with st.expander("Preview Cropped Images"):
+            cols = st.columns(3)
+            for i, (name, img) in enumerate(st.session_state.cropped_images):
+                with cols[i % 3]:
+                    st.image(img, caption=name, use_container_width=True)
+else:
+    num_images = st.sidebar.number_input("Number of Images to Generate", min_value=1, max_value=100, value=10)
+
+with st.sidebar:
     greeting_type = st.selectbox("Greeting Type", 
                                  ["Good Morning", "Good Afternoon", "Good Evening", "Good Night", 
                                   "Happy Birthday", "Merry Christmas", "Custom Greeting"])
@@ -1967,19 +2080,16 @@ with st.sidebar:
     
     style_mode = st.selectbox("Style Mode", ["Text", "PNG Overlay"], index=0)
     
-    # Get available years from overlays folder
     overlay_years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
     if not overlay_years:
-        overlay_years = ["2024", "2025"]  # Default values if folder doesn't exist
+        overlay_years = ["2024", "2025"]
     
-    # Add ALL option and any new years found
     overlay_year_options = ["ALL"] + overlay_years
     
     if style_mode == 'PNG Overlay':
         overlay_year = st.selectbox("Overlay Year", overlay_year_options, index=1)
-        png_size = st.slider("PNG Overlay Size", 0.1, 1.0, 0.5)
+        png_size = st.slider("PNG Overlay Size", 0.01, 0.75, 0.18)
     
-    # Filter text effects based on tool settings
     tool_settings = _load_tool_settings()
     available_text_effects = []
     
@@ -1998,13 +2108,12 @@ with st.sidebar:
     if tool_settings["text_style"]["3d"]:
         available_text_effects.append("3D")
     
-    # Always add RANDOM option
     available_text_effects.append("RANDOM")
     
     text_effect = st.selectbox(
         "Text Style",
         available_text_effects,
-        index=0 if available_text_effects else 2
+        index=len(available_text_effects) - 1
     )
     
     text_position = st.radio("Main Text Position", ["Top Center", "Bottom Center", "Random"], index=1)
@@ -2078,7 +2187,7 @@ with st.sidebar:
     
     if user_type in ["Pro Member", "Admin"]:
         st.markdown("###☕🐾 PRO OVERLAYS")
-        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=False) if tool_settings["overlay"]["pet"] else False
+        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=True) if tool_settings["overlay"]["pet"] else False
         if use_coffee_pet:
             pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
             pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
@@ -2167,186 +2276,185 @@ with st.sidebar:
         compression_level = 95
 
 if st.button("✨ GENERATE", key="generate", use_container_width=True):
-    if 'cropped_images' in st.session_state and st.session_state.cropped_images:
-        with st.spinner("Processing images with ULTRA PRO quality..."):
-            processed_images = []
-            variant_images = []
-            progress_bar = st.progress(0)
-            total_images = len(st.session_state.cropped_images)
-            
-            effect_mapping = {
-                "White Only": "white_only",
-                "White + Black Outline + Shadow": "white_black_outline_shadow",
-                "Gradient": "gradient",
-                "NEON": "neon",
-                "Rainbow": "rainbow",
-                "RANDOM": "random",
-                "Country Flag": "country_flag",
-                "3D": "3d"
-            }
-            selected_effect = effect_mapping[text_effect]
-            
-            watermark_groups = {}
-            if watermark_images:
-                if len(watermark_images) > 1:
-                    group_size = len(st.session_state.cropped_images) // len(watermark_images)
-                    for i, watermark in enumerate(watermark_images):
-                        start_idx = i * group_size
-                        end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(st.session_state.cropped_images)
-                        watermark_groups[f"Group {i+1}"] = {
-                            'watermark': watermark,
-                            'images': st.session_state.cropped_images[start_idx:end_idx]
-                        }
-                else:
-                    watermark_groups["All Images"] = {
-                        'watermark': watermark_images[0],
-                        'images': st.session_state.cropped_images
+    images = []
+    if background_type == "Uploaded Image":
+        if 'cropped_images' in st.session_state and st.session_state.cropped_images:
+            images = st.session_state.cropped_images
+        else:
+            st.warning("Please upload images for Uploaded Image mode.")
+            st.stop()
+    else:
+        if 'num_images' in locals():
+            images = [("bg_{}.jpg".format(i+1), None) for i in range(num_images)]
+        else:
+            st.warning("Please set number of images.")
+            st.stop()
+    
+    with st.spinner("Processing images with ULTRA PRO quality..."):
+        processed_images = []
+        variant_images = []
+        progress_bar = st.progress(0)
+        total_images = len(images) * (num_variants if generate_variants else 1)
+        
+        effect_mapping = {
+            "White Only": "white_only",
+            "White + Black Outline + Shadow": "white_black_outline_shadow",
+            "Gradient": "gradient",
+            "NEON": "neon",
+            "Rainbow": "rainbow",
+            "RANDOM": "random",
+            "Country Flag": "country_flag",
+            "3D": "3d"
+        }
+        selected_effect = effect_mapping.get(text_effect, "random")
+        
+        watermark_groups = {}
+        if watermark_images:
+            if len(watermark_images) > 1:
+                group_size = len(images) // len(watermark_images)
+                for i, watermark in enumerate(watermark_images):
+                    start_idx = i * group_size
+                    end_idx = (i + 1) * group_size if i < len(watermark_images) - 1 else len(images)
+                    watermark_groups[f"Group {i+1}"] = {
+                        'watermark': watermark,
+                        'images': images[start_idx:end_idx]
                     }
             else:
                 watermark_groups["All Images"] = {
-                    'watermark': None,
-                    'images': st.session_state.cropped_images
+                    'watermark': watermark_images[0],
+                    'images': images
                 }
+        else:
+            watermark_groups["All Images"] = {
+                'watermark': None,
+                'images': images
+            }
+        
+        st.session_state.watermark_groups = watermark_groups
+        
+        prog_idx = 0
+        for group_name, group_data in watermark_groups.items():
+            watermark = group_data['watermark']
+            group_images = group_data['images']
             
-            st.session_state.watermark_groups = watermark_groups
-            
-            for idx, (group_name, group_data) in enumerate(watermark_groups.items()):
-                watermark = group_data['watermark']
-                group_images = group_data['images']
-                
-                for img_idx, (filename, img) in enumerate(group_images):
-                    try:
-                        if img is None:
-                            continue
-                            
-                        img = img.convert("RGBA")
-                        
-                        if generate_variants:
-                            variants = []
-                            for i in range(num_variants):
-                                settings = {
-                                    'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
-                                    'show_text': show_text,
-                                    'main_size': main_size if show_text else 90,
-                                    'text_position': text_position,
-                                    'show_wish': show_wish,
-                                    'wish_size': wish_size if show_wish else 60,
-                                    'custom_wish': wish_text,
-                                    'show_date': show_date,
-                                    'show_day': show_day if show_date else False,
-                                    'date_size': date_size if show_date else 30,
-                                    'date_format': date_format if show_date else "8 July 2025",
-                                    'show_quote': show_quote,
-                                    'quote_text': get_random_quote() if show_quote else "",
-                                    'quote_size': quote_size if show_quote else 40,
-                                    'use_watermark': use_watermark,
-                                    'watermark_image': watermark,
-                                    'watermark_opacity': watermark_opacity if use_watermark else 1.0,
-                                    'use_coffee_pet': use_coffee_pet,
-                                    'pet_size': pet_size if use_coffee_pet else 0.3,
-                                    'pet_choice': pet_choice,
-                                    'text_effect': selected_effect,
-                                    'custom_position': custom_position,
-                                    'text_x': text_x if custom_position else 100,
-                                    'text_y': text_y if custom_position else 100,
-                                    'apply_emoji': apply_emoji,
-                                    'emojis': emojis,
-                                    'num_emojis': num_emojis,
-                                    'style_mode': style_mode,
-                                    'overlap_percent': overlap_percent,
-                                    'overlay_year': overlay_year if style_mode == 'PNG Overlay' else "2025",
-                                    'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
-                                    'brightness': brightness,
-                                    'contrast': contrast,
-                                    'sharpness': sharpness,
-                                    'saturation': saturation,
-                                    'apply_sepia': apply_sepia,
-                                    'apply_bw': apply_bw,
-                                    'apply_vintage': apply_vintage,
-                                    'apply_vignette': apply_vignette,
-                                    'vignette_intensity': vignette_intensity if 'vignette_intensity' in locals() else 0.8,
-                                    'apply_sketch': apply_sketch,
-                                    'apply_cartoon': apply_cartoon,
-                                    'apply_anime': apply_anime,
-                                    'font_folder': font_folder,
-                                    'upscale_factor': upscale_factor
-                                }
-                                
-                                variant = create_variant(img, settings)
-                                if variant is not None:
-                                    variants.append((generate_filename(), variant))
-                            variant_images.extend(variants)
-                        else:
-                            settings = {
-                                'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
-                                'show_text': show_text,
-                                'main_size': main_size if show_text else 90,
-                                'text_position': text_position,
-                                'show_wish': show_wish,
-                                'wish_size': wish_size if show_wish else 60,
-                                'custom_wish': wish_text,
-                                'show_date': show_date,
-                                'show_day': show_day if show_date else False,
-                                'date_size': date_size if show_date else 30,
-                                'date_format': date_format if show_date else "8 July 2025",
-                                'show_quote': show_quote,
-                                'quote_text': get_random_quote() if show_quote else "",
-                                'quote_size': quote_size if show_quote else 40,
-                                'use_watermark': use_watermark,
-                                'watermark_image': watermark,
-                                'watermark_opacity': watermark_opacity if use_watermark else 1.0,
-                                'use_coffee_pet': use_coffee_pet,
-                                'pet_size': pet_size if use_coffee_pet else 0.3,
-                                'pet_choice': pet_choice,
-                                'text_effect': selected_effect,
-                                'custom_position': custom_position,
-                                'text_x': text_x if custom_position else 100,
-                                'text_y': text_y if custom_position else 100,
-                                'apply_emoji': apply_emoji,
-                                'emojis': emojis,
-                                'num_emojis': num_emojis,
-                                'style_mode': style_mode,
-                                'overlap_percent': overlap_percent,
-                                'overlay_year': overlay_year if style_mode == 'PNG Overlay' else "2025",
-                                'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
-                                'brightness': brightness,
-                                'contrast': contrast,
-                                'sharpness': sharpness,
-                                'saturation': saturation,
-                                'apply_sepia': apply_sepia,
-                                'apply_bw': apply_bw,
-                                'apply_vintage': apply_vintage,
-                                'apply_vignette': apply_vignette,
-                                'vignette_intensity': vignette_intensity if 'vignette_intensity' in locals() else 0.8,
-                                'apply_sketch': apply_sketch,
-                                'apply_cartoon': apply_cartoon,
-                                'apply_anime': apply_anime,
-                                'font_folder': font_folder,
-                                'upscale_factor': upscale_factor
-                            }
-                            
-                            processed_img = create_variant(img, settings)
-                            if processed_img is not None:
-                                processed_images.append((generate_filename(), processed_img))
-                    
-                        progress = (idx * len(group_images) + img_idx + 1) / total_images
-                        progress_bar.progress(min(progress, 1.0))
-                    
-                    except Exception as e:
-                        st.error(f"Error processing {filename}: {str(e)}")
-                        st.error(traceback.format_exc())
-                        continue
-
-            st.session_state.generated_images = processed_images + variant_images
-            
-            # Log usage statistics
-            if st.session_state.generated_images:
-                log_image_usage(CURRENT_USER, len(st.session_state.generated_images))
-                st.success(f"✅ Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
-            else:
-                st.warning("No images were processed.")
-    else:
-        st.warning("Please upload at least one image")
+            for filename, img in group_images:
+                if generate_variants:
+                    for v in range(num_variants):
+                        settings = {
+                            'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
+                            'show_text': show_text,
+                            'main_size': main_size if show_text else 90,
+                            'text_position': text_position,
+                            'show_wish': show_wish,
+                            'wish_size': wish_size if show_wish else 60,
+                            'custom_wish': wish_text,
+                            'show_date': show_date,
+                            'show_day': show_day if show_date else False,
+                            'date_size': date_size if show_date else 30,
+                            'date_format': date_format if show_date else "8 July 2025",
+                            'show_quote': show_quote,
+                            'quote_text': get_random_quote() if show_quote else "",
+                            'quote_size': quote_size if show_quote else 40,
+                            'use_watermark': use_watermark,
+                            'watermark_image': watermark,
+                            'watermark_opacity': watermark_opacity if use_watermark else 1.0,
+                            'use_coffee_pet': use_coffee_pet,
+                            'pet_size': pet_size if use_coffee_pet else 0.3,
+                            'pet_choice': pet_choice,
+                            'text_effect': selected_effect,
+                            'custom_position': custom_position,
+                            'text_x': text_x if custom_position else 100,
+                            'text_y': text_y if custom_position else 100,
+                            'apply_emoji': apply_emoji,
+                            'emojis': emojis,
+                            'num_emojis': num_emojis,
+                            'style_mode': style_mode,
+                            'overlap_percent': overlap_percent,
+                            'overlay_year': overlay_year if style_mode == 'PNG Overlay' else "2025",
+                            'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
+                            'brightness': brightness,
+                            'contrast': contrast,
+                            'sharpness': sharpness,
+                            'saturation': saturation,
+                            'apply_sepia': apply_sepia,
+                            'apply_bw': apply_bw,
+                            'apply_vintage': apply_vintage,
+                            'apply_vignette': apply_vignette,
+                            'vignette_intensity': vignette_intensity if apply_vignette else 0.8,
+                            'apply_sketch': apply_sketch,
+                            'apply_cartoon': apply_cartoon,
+                            'apply_anime': apply_anime,
+                            'font_folder': font_folder,
+                            'upscale_factor': upscale_factor,
+                            'background_type': background_type
+                        }
+                        variant = create_variant(img, settings)
+                        if variant is not None:
+                            variant_images.append((generate_filename(), variant))
+                        prog_idx += 1
+                        progress_bar.progress(min(prog_idx / total_images, 1.0))
+                else:
+                    settings = {
+                        'greeting_type': custom_greeting if greeting_type == "Custom Greeting" else greeting_type,
+                        'show_text': show_text,
+                        'main_size': main_size if show_text else 90,
+                        'text_position': text_position,
+                        'show_wish': show_wish,
+                        'wish_size': wish_size if show_wish else 60,
+                        'custom_wish': wish_text,
+                        'show_date': show_date,
+                        'show_day': show_day if show_date else False,
+                        'date_size': date_size if show_date else 30,
+                        'date_format': date_format if show_date else "8 July 2025",
+                        'show_quote': show_quote,
+                        'quote_text': get_random_quote() if show_quote else "",
+                        'quote_size': quote_size if show_quote else 40,
+                        'use_watermark': use_watermark,
+                        'watermark_image': watermark,
+                        'watermark_opacity': watermark_opacity if use_watermark else 1.0,
+                        'use_coffee_pet': use_coffee_pet,
+                        'pet_size': pet_size if use_coffee_pet else 0.3,
+                        'pet_choice': pet_choice,
+                        'text_effect': selected_effect,
+                        'custom_position': custom_position,
+                        'text_x': text_x if custom_position else 100,
+                        'text_y': text_y if custom_position else 100,
+                        'apply_emoji': apply_emoji,
+                        'emojis': emojis,
+                        'num_emojis': num_emojis,
+                        'style_mode': style_mode,
+                        'overlap_percent': overlap_percent,
+                        'overlay_year': overlay_year if style_mode == 'PNG Overlay' else "2025",
+                        'png_size': png_size if style_mode == 'PNG Overlay' else 0.5,
+                        'brightness': brightness,
+                        'contrast': contrast,
+                        'sharpness': sharpness,
+                        'saturation': saturation,
+                        'apply_sepia': apply_sepia,
+                        'apply_bw': apply_bw,
+                        'apply_vintage': apply_vintage,
+                        'apply_vignette': apply_vignette,
+                        'vignette_intensity': vignette_intensity if apply_vignette else 0.8,
+                        'apply_sketch': apply_sketch,
+                        'apply_cartoon': apply_cartoon,
+                        'apply_anime': apply_anime,
+                        'font_folder': font_folder,
+                        'upscale_factor': upscale_factor,
+                        'background_type': background_type
+                    }
+                    processed_img = create_variant(img, settings)
+                    if processed_img is not None:
+                        processed_images.append((generate_filename(), processed_img))
+                    prog_idx += 1
+                    progress_bar.progress(min(prog_idx / total_images, 1.0))
+        
+        st.session_state.generated_images = processed_images + variant_images
+        
+        if st.session_state.generated_images:
+            log_image_usage(CURRENT_USER, len(st.session_state.generated_images))
+            st.success(f"✅ Successfully processed {len(st.session_state.generated_images)} images with ULTRA PRO quality!")
+        else:
+            st.warning("No images were processed.")
 
 if st.session_state.generated_images:
     if len(st.session_state.watermark_groups) > 1:
