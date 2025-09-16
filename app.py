@@ -69,7 +69,7 @@ def get_assets_dir():
 
     # Agar local assets nahi hai to download kare
     tmpdir = tempfile.mkdtemp()
-    file_id = "1fsS2e67m_Ved4Wm3utgY2DgX7XdNuKpU"
+    file_id = "17i5_V45rTM0SqSmhbgPrl4PTcqJNvVhS"
     url = f"https://drive.google.com/uc?id={file_id}"
     zip_path = os.path.join(tmpdir, "assets.zip")
 
@@ -2538,3 +2538,4 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
