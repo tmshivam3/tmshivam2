@@ -74,7 +74,7 @@ def get_assets_dir():
     zip_path = os.path.join(tmpdir, "assets.zip")
 
     try:
-        st.info("Downloading assets from Google Drive ⏳")
+        st.info("assets Download ✅ ")
         gdown.download(url, zip_path, quiet=False)
 
         # Verify the file is a valid ZIP
@@ -2463,3 +2463,4 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
+
