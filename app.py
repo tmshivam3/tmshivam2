@@ -69,12 +69,12 @@ def get_assets_dir():
 
     # Agar local assets nahi hai to download kare
     tmpdir = tempfile.mkdtemp()
-    file_id = "17i5_V45rTM0SqSmhbgPrl4PTcqJNvVhS"
+    file_id = "1fsS2e67m_Ved4Wm3utgY2DgX7XdNuKpU"
     url = f"https://drive.google.com/uc?id={file_id}"
     zip_path = os.path.join(tmpdir, "assets.zip")
 
     try:
-        st.info("assets Download Done ✅")
+        st.info("Downloading assets from Google Drive ⏳")
         gdown.download(url, zip_path, quiet=False)
 
         # Verify the file is a valid ZIP
@@ -1313,172 +1313,92 @@ def get_dominant_color(img: Image.Image) -> Tuple[int, int, int]:
     if len(dominant) > 3:
         dominant = dominant[:3]
     h, l, s = colorsys.rgb_to_hls(dominant[0] / 255, dominant[1] / 255, dominant[2] / 255)
-    if l < 0.5:
-        l = 0.7
-    r, g, b = colorsys.hls_to_rgb(h, l, s)
-    return (int(r * 255), int(g * 255), int(b * 255))
-
-def find_text_position(img: Image.Image, required_width: int, required_height: int, prefer_top: bool = True) -> Tuple[int, int]:
-    arr = np.array(img.convert('L'))
-    step = 20
-    min_var = float('inf')
-    best_pos = (20, 20 if prefer_top else img.height - required_height - 20)
-    start_y = 0 if prefer_top else img.height // 2
-    for y in range(start_y, img.height - required_height, step):
-        for x in range(0, img.width - required_width, step):
-            region = arr[y:y + required_height, x:x + required_width]
-            var = np.var(region)
-            if var < min_var:
-                min_var = var
-                best_pos = (x, y)
-    return best_pos
-
-def get_random_horizontal_position(img_width: int, text_width: int) -> int:
-    positions = [
-        20,
-        (img_width - text_width) // 2,
-        img_width - text_width - 20
-    ]
-    return random.choice(positions)
+    return dominant
 
 def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str, font: ImageFont.FreeTypeFont, 
                       effect_settings: dict, base_img: Image.Image) -> dict:
     x, y = position
-    effect_type = effect_settings['type']
+    effect_type = effect_settings.get('type', 'white_only')
+    outline_size = effect_settings.get('outline_size', 2)
     
-    if text is None or text.strip() == "":
-        return effect_settings
-    
+    # Create layers for better composition
     text_width, text_height = get_text_size(draw, text, font)
-    
-    if effect_type == 'random':
-        available_effects = [
-            'white_only', 'white_black_outline_shadow', 'gradient', 
-            'neon', 'rainbow', 'country_flag', '3d',
-            'white_color_outline_shadow', 'pure_color_white_outline',
-            'multicolor_gradient_outline', 'metallic', 'glowing'
-        ]
-        effect_type = random.choice(available_effects)
-        effect_settings['type'] = effect_type
-    
-    shadow_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
-    outline_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
-    fill_layer = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
+    shadow_layer = Image.new("RGBA", base_img.size, (0, 0, 0, 0))
+    outline_layer = Image.new("RGBA", base_img.size, (0, 0, 0, 0))
+    fill_layer = Image.new("RGBA", base_img.size, (0, 0, 0, 0))
     
     shadow_draw = ImageDraw.Draw(shadow_layer)
     outline_draw = ImageDraw.Draw(outline_layer)
     fill_draw = ImageDraw.Draw(fill_layer)
     
-    shadow_offset = (2, 2)
-    shadow_draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=(0, 0, 0, 40))
+    # Create text mask
+    mask = Image.new("L", (text_width + outline_size*4, text_height + outline_size*4), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.text((outline_size*2, outline_size*2), text, font=font, fill=255)
     
-    pure_colors = [
-        (255, 0, 0), (255, 165, 0), (255, 255, 0), (0, 255, 0),
-        (0, 0, 255), (75, 0, 130), (238, 130, 238), (255, 192, 203)
-    ]
-    
-    outline_range = 1 if effect_type == 'neon' else 2
-    
-    if effect_type == 'white_color_outline_shadow':
-        outline_color = random.choice(pure_colors)
-        for ox in range(-outline_range, outline_range + 1):
-            for oy in range(-outline_range, outline_range + 1):
-                if ox != 0 or oy != 0:
-                    outline_draw.text((x + ox, y + oy), text, font=font, fill=outline_color)
+    if effect_type == 'white_only':
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
-    elif effect_type == 'pure_color_white_outline':
-        text_color = random.choice(pure_colors)
-        for ox in range(-outline_range, outline_range + 1):
-            for oy in range(-outline_range, outline_range + 1):
-                if ox != 0 or oy != 0:
-                    outline_draw.text((x + ox, y + oy), text, font=font, fill=(255, 255, 255, 255))
-        fill_draw.text((x, y), text, font=font, fill=text_color)
+    elif effect_type == 'white_black_outline_shadow':
+        # Shadow
+        shadow_color = (0, 0, 0, 128)
+        shadow_offset = 4
+        shadow_draw.text((x + shadow_offset, y + shadow_offset), text, font=font, fill=shadow_color)
+        
+        # Outline
+        for dx in range(-outline_size, outline_size + 1):
+            for dy in range(-outline_size, outline_size + 1):
+                if dx != 0 or dy != 0:
+                    outline_draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0, 255))
+        
+        # Fill
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
-    elif effect_type == 'multicolor_gradient_outline':
-        colors = [random.choice(pure_colors) for _ in range(random.randint(2, 4))]
-        gradient = create_gradient_mask(text_width, text_height, colors)
-        mask = Image.new("L", (text_width, text_height), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text((0, 0), text, font=font, fill=255)
+    elif effect_type == 'gradient':
+        colors = effect_settings.get('colors', [(255, 255, 255), (255, 0, 0)])
+        gradient = create_gradient_mask(text_width, text_height, colors, 'vertical')
         gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
-        gradient_text.paste(gradient, (0, 0), mask)
-        
-        for ox in range(-outline_range, outline_range + 1):
-            for oy in range(-outline_range, outline_range + 1):
-                if ox != 0 or oy != 0:
-                    outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
-        
+        gradient_text.paste(gradient, (0, 0), mask=mask.crop((outline_size*2, outline_size*2, outline_size*2 + text_width, outline_size*2 + text_height)))
         fill_layer.paste(gradient_text, (x, y), gradient_text)
     
-    elif effect_type == 'metallic':
-        metallic_colors = [(192, 192, 192), (169, 169, 169), (211, 211, 211), (105, 105, 105)]
-        base_color = random.choice(metallic_colors)
-        highlight_color = (255, 255, 255, 180)
-        
-        fill_draw.text((x, y), text, font=font, fill=base_color)
-        
-        fill_draw.text((x-1, y-1), text, font=font, fill=highlight_color)
+    elif effect_type == 'rainbow':
+        colors = get_multi_gradient_colors()
+        gradient = create_gradient_mask(text_width, text_height, colors, random.choice(['horizontal', 'vertical']))
+        gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
+        gradient_text.paste(gradient, (0, 0), mask=mask.crop((outline_size*2, outline_size*2, outline_size*2 + text_width, outline_size*2 + text_height)))
+        fill_layer.paste(gradient_text, (x, y), gradient_text)
     
-    elif effect_type == 'glowing':
-        glow_color = random.choice(pure_colors)
-        glow_size = 15
-        for i in range(glow_size, 0, -2):
-            alpha = int(100 * (i / glow_size))
-            for ox in range(-i, i + 1, 2):
-                for oy in range(-i, i + 1, 2):
+    elif effect_type == 'neon':
+        glow_color = get_vibrant_color()
+        glow_size = 10
+        for i in range(glow_size, 0, -1):
+            alpha = int(80 * (i / glow_size))
+            for ox in range(-i, i + 1):
+                for oy in range(-i, i + 1):
                     if ox != 0 or oy != 0:
                         fill_draw.text((x + ox, y + oy), text, font=font, fill=(*glow_color, alpha))
         fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
-    else:
-        for ox in range(-outline_range, outline_range + 1):
-            for oy in range(-outline_range, outline_range + 1):
-                if ox != 0 or oy != 0:
-                    outline_draw.text((x + ox, y + oy), text, font=font, fill=(0, 0, 0, 255))
-        
-        mask = Image.new("L", (text_width, text_height), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text((0, 0), text, font=font, fill=255)
-        
-        if effect_type in ['gradient', 'rainbow']:
-            colors = effect_settings['colors']
-            gradient = create_gradient_mask(text_width, text_height, colors)
-            gradient_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
-            gradient_text.paste(gradient, (0, 0), mask)
-            fill_layer.paste(gradient_text, (x, y), gradient_text)
-        
-        elif effect_type == 'neon':
-            glow_color = get_vibrant_color()
-            glow_size = 10
-            for i in range(glow_size, 0, -1):
-                alpha = int(80 * (i / glow_size))
-                for ox in range(-i, i + 1):
-                    for oy in range(-i, i + 1):
-                        if ox != 0 or oy != 0:
-                            fill_draw.text((x + ox, y + oy), text, font=font, fill=(*glow_color, alpha))
-            fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
-        
-        elif effect_type == 'country_flag':
-            flags = list_files(os.path.join(ASSETS_DIR, "flags"), [".png", ".jpg"])
-            if flags:
-                flag_path = os.path.join(ASSETS_DIR, "flags", random.choice(flags))
-                flag_img = Image.open(flag_path).convert("RGB").resize((text_width, text_height), Image.LANCZOS)
-                flag_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
-                flag_text.paste(flag_img, (0, 0), mask)
-                fill_layer.paste(flag_text, (x, y), flag_text)
-            else:
-                fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
-        
-        elif effect_type == '3d':
-            depth = 5
-            shadow_color = (100, 100, 100, 255)
-            for i in range(depth):
-                fill_draw.text((x + i, y + i), text, font=font, fill=shadow_color)
-            fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
-        
+    elif effect_type == 'country_flag':
+        flags = list_files(os.path.join(ASSETS_DIR, "flags"), [".png", ".jpg"])
+        if flags:
+            flag_path = os.path.join(ASSETS_DIR, "flags", random.choice(flags))
+            flag_img = Image.open(flag_path).convert("RGB").resize((text_width, text_height), Image.LANCZOS)
+            flag_text = Image.new("RGBA", (text_width, text_height), (0, 0, 0, 0))
+            flag_text.paste(flag_img, (0, 0), mask)
+            fill_layer.paste(flag_text, (x, y), flag_text)
         else:
             fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+    
+    elif effect_type == '3d':
+        depth = 5
+        shadow_color = (100, 100, 100, 255)
+        for i in range(depth):
+            fill_draw.text((x + i, y + i), text, font=font, fill=shadow_color)
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+    
+    else:
+        fill_draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
     
     base_img_rgba = base_img.convert('RGBA') if base_img.mode != 'RGBA' else base_img
     base_img_rgba = Image.alpha_composite(base_img_rgba, shadow_layer)
@@ -2020,7 +1940,12 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-user_type = CURRENT_RECORD.get("user_type", "Member")
+# Determine user_type - Unlock Pro features if login is disabled
+if not _settings.get("login_enabled", True):
+    user_type = "Pro Member"  # Unlock Pro features for guest when login is off
+else:
+    user_type = CURRENT_RECORD.get("user_type", "Member")
+
 visible_tools = _settings.get("visible_tools", ["V1.0"])
 
 if user_type == "Member":
@@ -2538,6 +2463,3 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
-
-
-
