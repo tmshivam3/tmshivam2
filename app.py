@@ -1,4 +1,3 @@
-
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps, ImageChops
 import os
@@ -1197,18 +1196,22 @@ def generate_filename(base_name="Picsart") -> str:
     future_time = now + timedelta(minutes=future_minutes)
     return f"{base_name}_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
-def get_watermark_position(img: Image.Image, watermark: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]]) -> Tuple[int, int]:
+def get_watermark_position(img: Image.Image, watermark: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]], padding: int = 10) -> Tuple[int, int]:
     ew, eh = watermark.size
     iw, ih = img.size
-    possible_x = [20, iw - ew - 20]
-    possible_y = [ih - eh - 20, 20]
-    for _ in range(10):
-        x = random.choice(possible_x)
-        y = random.choice(possible_y)
-        new_box = (x, y, ew, eh)
-        if not any_overlap(new_box, occupied_boxes):
-            return (x, y)
-    return (iw - ew - 20, ih - eh - 20)
+    possible_positions = [
+        (20, ih - eh - 20),
+        (iw - ew - 20, ih - eh - 20),
+        (20, 20),
+        (iw - ew - 20, 20),
+        ((iw - ew) // 2, ih - eh - 20)
+    ]
+    for pos in possible_positions:
+        new_box = (pos[0], pos[1], ew, eh)
+        if not any_overlap(new_box, occupied_boxes, padding):
+            return pos
+    # Fallback with more tries
+    return find_non_overlapping_position((iw, ih), (ew, eh), occupied_boxes, None, 100, padding)
 
 def enhance_image_quality(img: Image.Image, brightness=1.0, contrast=1.0, sharpness=1.0, saturation=1.0) -> Image.Image:
     if img.mode != 'RGB':
@@ -1287,22 +1290,17 @@ def apply_anime_effect(img: Image.Image) -> Image.Image:
     result.paste((0, 0, 0), (0, 0), edges)
     return result
 
-def apply_emoji_stickers(img: Image.Image, emojis: List[str], occupied_boxes: List[Tuple[int, int, int, int]], num_stickers=5) -> Image.Image:
+def apply_emoji_stickers(img: Image.Image, emojis: List[str], occupied_boxes: List[Tuple[int, int, int, int]], num_stickers=5, padding: int = 10) -> Image.Image:
     if not emojis:
         return img
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("arial.ttf", 40)
     es = 40  # emoji size approx
     for _ in range(num_stickers):
-        for try_ in range(10):
-            x = random.randint(20, img.width - es - 20)
-            y = random.randint(20, img.height - es - 20)
-            new_box = (x, y, es, es)
-            if not any_overlap(new_box, occupied_boxes):
-                emoji = random.choice(emojis)
-                draw.text((x, y), emoji, font=font, fill=(255, 255, 0))
-                occupied_boxes.append(new_box)
-                break
+        pos = find_non_overlapping_position(img.size, (es, es), occupied_boxes, None, 100, padding)
+        emoji = random.choice(emojis)
+        draw.text(pos, emoji, font=font, fill=(255, 255, 0))
+        occupied_boxes.append((pos[0], pos[1], es, es))
     return img
 
 def get_dominant_color(img: Image.Image) -> Tuple[int, int, int]:
@@ -1490,48 +1488,62 @@ def apply_text_effect(draw: ImageDraw.Draw, position: Tuple[int, int], text: str
     
     return effect_settings
 
-def get_pet_position(img: Image.Image, pet_img: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]]) -> Tuple[int, int]:
+def get_pet_position(img: Image.Image, pet_img: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]], padding: int = 10) -> Tuple[int, int]:
     ew, eh = pet_img.size
     iw, ih = img.size
-    possible_x = [20, iw - ew - 20, (iw - ew) // 2]
-    y = ih - eh - 20
-    for _ in range(10):
-        x = random.choice(possible_x)
-        new_box = (x, y, ew, eh)
-        if not any_overlap(new_box, occupied_boxes):
-            return (x, y)
-    return (iw - ew - 20, ih - eh - 20)
+    possible_positions = [
+        (20, ih - eh - 20),
+        (iw - ew - 20, ih - eh - 20),
+        ((iw - ew) // 2, ih - eh - 20)
+    ]
+    for pos in possible_positions:
+        new_box = (pos[0], pos[1], ew, eh)
+        if not any_overlap(new_box, occupied_boxes, padding):
+            return pos
+    # Fallback
+    return find_non_overlapping_position((iw, ih), (ew, eh), occupied_boxes, None, 100, padding)
 
 def is_overlap(box1: Tuple[int, int, int, int], box2: Tuple[int, int, int, int]) -> bool:
     x1, y1, w1, h1 = box1
     x2, y2, w2, h2 = box2
     return max(x1, x2) < min(x1 + w1, x2 + w2) and max(y1, y2) < min(y1 + h1, y2 + h2)
 
-def any_overlap(new_box: Tuple[int, int, int, int], occupied: List[Tuple[int, int, int, int]]) -> bool:
+def any_overlap(new_box: Tuple[int, int, int, int], occupied: List[Tuple[int, int, int, int]], padding: int = 0) -> bool:
+    inflated_new = (new_box[0] - padding, new_box[1] - padding, new_box[2] + 2 * padding, new_box[3] + 2 * padding)
     for box in occupied:
-        if is_overlap(new_box, box):
+        inflated_box = (box[0] - padding, box[1] - padding, box[2] + 2 * padding, box[3] + 2 * padding)
+        if is_overlap(inflated_new, inflated_box):
             return True
     return False
 
 def find_non_overlapping_position(img_size: Tuple[int, int], elem_size: Tuple[int, int], occupied: List[Tuple[int, int, int, int]], 
-                                  preferred_pos: Optional[Tuple[int, int]] = None, tries: int = 20) -> Tuple[int, int]:
+                                  preferred_pos: Optional[Tuple[int, int]] = None, tries: int = 100, padding: int = 10) -> Tuple[int, int]:
     iw, ih = img_size
     ew, eh = elem_size
     if preferred_pos:
         x, y = preferred_pos
         x = max(0, min(x, iw - ew))
         y = max(0, min(y, ih - eh))
-        if not any_overlap((x, y, ew, eh), occupied):
+        if not any_overlap((x, y, ew, eh), occupied, padding):
             return x, y
     for _ in range(tries):
         x = random.randint(0, iw - ew)
         y = random.randint(0, ih - eh)
-        if not any_overlap((x, y, ew, eh), occupied):
+        if not any_overlap((x, y, ew, eh), occupied, padding):
             return x, y
-    # Fallback
-    x = iw - ew
-    y = ih - eh
-    return x, y
+    # Fallback to candidate positions
+    candidates = [
+        (0, 0),
+        (iw - ew, 0),
+        (0, ih - eh),
+        (iw - ew, ih - eh),
+        ((iw - ew) // 2, (ih - eh) // 2)
+    ]
+    for cx, cy in candidates:
+        if not any_overlap((cx, cy, ew, eh), occupied, padding):
+            return cx, cy
+    # Ultimate fallback
+    return (iw - ew, ih - eh)
 
 def get_overlap_percentage(year, theme):
     overlap_settings = _load_overlap_settings()
@@ -1601,6 +1613,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
         occupied_boxes = []
         
         min_distance = 20
+        padding = min_distance // 2
         
         if style_mode == 'PNG Overlay' and settings['greeting_type'] in ["Good Morning", "Good Night"]:
             years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
@@ -1663,7 +1676,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                 pngs = main_pngs + wish_pngs
                 
                 main_gap = -int(min([p.height for p in main_pngs]) * overlap_percent / 100) if len(main_pngs) >= 2 else 0
-                wish_gap = 10
+                wish_gap = min_distance
                 
                 gaps = [main_gap] * (len(pngs) - 1)
                 if settings['show_wish'] and len(wish_pngs) > 0:
@@ -1694,10 +1707,8 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                 start_x = max(0, min(start_x, img.width - max_w))
                 start_y = max(0, min(start_y, img.height - total_h))
                 
-                # Check for overlap with other elements (though first, may be empty)
-                block_box = (start_x, start_y, max_w, total_h)
-                if any_overlap(block_box, occupied_boxes):
-                    start_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (start_x, start_y))[1]
+                # Find non-overlapping position for the group
+                start_x, start_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (start_x, start_y), 100, padding)
                 
                 current_y = start_y
                 group_boxes = []
@@ -1767,9 +1778,8 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                 text_x = max(0, min(text_x, img.width - max_w))
                 text_y = max(0, min(text_y, img.height - total_h))
                 
-                block_box = (text_x, text_y, max_w, total_h)
-                if any_overlap(block_box, occupied_boxes):
-                    text_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (text_x, text_y))[1]
+                # Find non-overlapping position for the group
+                text_x, text_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (text_x, text_y), 100, padding)
                 
                 current_y = text_y
                 group_boxes = []
@@ -1816,7 +1826,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                     line_widths.append(w)
                     line_heights.append(h)
                 
-                wish_gap = 5
+                wish_gap = min_distance
                 total_h = sum(line_heights) + (len(lines) - 1) * wish_gap
                 max_w = max(line_widths)
                 
@@ -1837,10 +1847,8 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                 wish_x = max(0, min(wish_x, img.width - max_w))
                 wish_y = max(0, min(wish_y, img.height - total_h))
                 
-                block_box = (wish_x, wish_y, max_w, total_h)
-                while any_overlap(block_box, occupied_boxes) and wish_y + total_h + min_distance < img.height:
-                    wish_y += min_distance
-                    block_box = (wish_x, wish_y, max_w, total_h)
+                # Find non-overlapping position
+                wish_x, wish_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (wish_x, wish_y), 100, padding)
                 
                 current_y = wish_y
                 group_boxes = []
@@ -1878,7 +1886,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
             date_y = img.height - date_height - 20
             
             preferred = (date_x, date_y)
-            date_x, date_y = find_non_overlapping_position(img.size, (date_width, date_height), occupied_boxes, preferred)
+            date_x, date_y = find_non_overlapping_position(img.size, (date_width, date_height), occupied_boxes, preferred, 100, padding)
             
             apply_text_effect(draw, (date_x, date_y), date_text, font_date, effect_settings, img)
             occupied_boxes.append((date_x, date_y, date_width, date_height))
@@ -1896,19 +1904,14 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                 line_widths.append(w)
                 line_heights.append(h)
             
-            quote_gap = 10
+            quote_gap = min_distance
             total_h = sum(line_heights) + (len(lines) - 1) * quote_gap
             max_w = max(line_widths)
             
             quote_x = (img.width - max_w) // 2
             quote_y = (img.height - total_h) // 2
             
-            block_box = (quote_x, quote_y, max_w, total_h)
-            while any_overlap(block_box, occupied_boxes) and quote_y + total_h + min_distance < img.height:
-                quote_y += min_distance
-                block_box = (quote_x, quote_y, max_w, total_h)
-            
-            quote_y = max(0, min(quote_y, img.height - total_h))
+            quote_x, quote_y = find_non_overlapping_position(img.size, (max_w, total_h), occupied_boxes, (quote_x, quote_y), 100, padding)
             
             current_y = quote_y
             group_boxes = []
@@ -1936,7 +1939,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                 watermark.putalpha(alpha)
             
             watermark.thumbnail((img.width//4, img.height//4))
-            pos = get_watermark_position(img, watermark, occupied_boxes)
+            pos = get_watermark_position(img, watermark, occupied_boxes, padding)
             pos = (max(0, min(pos[0], img.width - watermark.width)), 
                    max(0, min(pos[1], img.height - watermark.height)))
             
@@ -1958,7 +1961,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                          int((img.width * settings['pet_size']) * (pet_img.height / pet_img.width))),
                         Image.LANCZOS
                     )
-                    pet_pos = get_pet_position(img, pet_img, occupied_boxes)
+                    pet_pos = get_pet_position(img, pet_img, occupied_boxes, padding)
                     pet_pos = (max(0, min(pet_pos[0], img.width - pet_img.width)), 
                                max(0, min(pet_pos[1], img.height - pet_img.height)))
                     
@@ -1966,7 +1969,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
                     occupied_boxes.append((pet_pos[0], pet_pos[1], pet_img.width, pet_img.height))
         
         if settings.get('apply_emoji', False) and settings.get('emojis'):
-            img = apply_emoji_stickers(img, settings['emojis'], settings.get('num_emojis', 5), occupied_boxes)
+            img = apply_emoji_stickers(img, settings['emojis'], occupied_boxes, settings.get('num_emojis', 5), padding)
         
         img = enhance_image_quality(
             img,
@@ -2539,6 +2542,3 @@ if st.session_state.generated_images:
                         )
                     except Exception as e:
                         st.error(f"Error displaying {filename}: {str(e)}")
-
-
-
