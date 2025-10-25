@@ -2251,7 +2251,7 @@ with st.sidebar:
         if watermark_option == "Pre-made":
             watermark_files = list_files(os.path.join(ASSETS_DIR, "logos"), [".png", ".jpg", ".jpeg"])
             if watermark_files:
-                default_wm = ["Creative Canvas.png", "Nature Vibes.png", "TM SHIVAM.png"]
+                default_wm = ["Good Vibes.png"]
                 default = [f for f in default_wm if f in watermark_files]
                 if not default and len(watermark_files) >= 3:
                     default = watermark_files[:3]
