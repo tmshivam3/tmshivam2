@@ -2125,7 +2125,7 @@ st.success("⭐ Welcome! You have full access to all Pro features including Coff
 with st.sidebar:
     st.markdown("### ⚙️ SETTINGS")
     
-    background_type = st.selectbox("Background Type", ["Uploaded Image", "Random Color", "Pre-made Image"])
+    background_type = st.selectbox("Background Type", ["Pre-made Image", "Random Color", "Uploaded Image"])
 
 if background_type == "Uploaded Image":
     uploaded_images = st.file_uploader("📁 Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
@@ -2163,7 +2163,7 @@ with st.sidebar:
     if generate_variants:
         num_variants = st.slider("Variants per Image", 1, 5, 3)
     
-    style_mode = st.selectbox("Style Mode", ["Text", "PNG Overlay"], index=0)
+    style_mode = st.selectbox("Style Mode", ["PNG Overlay", "Text"], index=0)
     
     overlay_years = list_subfolders(os.path.join(ASSETS_DIR, "overlays"))
     if not overlay_years:
