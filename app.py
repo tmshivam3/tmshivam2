@@ -27,6 +27,7 @@ import zipfile
 import gdown
 import streamlit as st
 from utils import smart_crop
+import pytz  # Add this import for timezone support
 
 # 👇 Helper functions yaha paste karna hai
 def list_subfolders(folder):
@@ -197,7 +198,7 @@ def _auth_load_settings():
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00", "login_enabled": True}
+        return {"notice":"", "active_tool":"V1.0", "visible_tools":["V1.0"], "primary_color":"#ffcc00", "login_enabled": False}  # Login disabled by default
 
 def _auth_save_settings(s):
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -326,8 +327,35 @@ def _auth_check_session():
         st.warning("You were logged in from another device. This session is logged out.")
         _auth_logout_and_rerun()
 
-# Check if login is enabled
-if _settings.get("login_enabled", True):
+# ========== ADMIN PANEL AUTHENTICATION ==========
+def admin_panel_auth():
+    """Admin panel authentication function"""
+    st.markdown("### 🔐 Admin Authentication Required")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        admin_username = st.text_input("Admin Username", key="admin_username")
+        admin_password = st.text_input("Admin Password", type="password", key="admin_password")
+    
+    with col2:
+        st.write("")  # Spacing
+        if st.button("Login to Admin Panel", use_container_width=True):
+            users_db = _auth_load_users()
+            user_data = users_db.get("users", {}).get(admin_username)
+            
+            if user_data and user_data.get("password_hash") == _auth_hash(admin_password) and user_data.get("is_admin", False):
+                st.session_state["_auth_admin_authenticated"] = True
+                st.session_state["_auth_admin_user"] = admin_username
+                st.success("Admin authentication successful!")
+                st.rerun()
+            else:
+                st.error("Invalid admin credentials!")
+    
+    return False
+
+# Check if login is enabled - DISABLED BY DEFAULT
+if _settings.get("login_enabled", False):  # Changed to False by default
     if "_auth_user" not in st.session_state:
         st.markdown("<h2 style='color:#ffcc00'>🔐 Login First</h2>", unsafe_allow_html=True)
         st.info("For ID and Password, contact WhatsApp: 9140588751")
@@ -363,7 +391,7 @@ if _settings.get("login_enabled", True):
     CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
     IS_ADMIN = CURRENT_RECORD.get("is_admin", False)
 else:
-    # Bypass login if disabled
+    # Bypass login if disabled - ALL USERS GET PRO FEATURES
     if "_auth_user" not in st.session_state:
         st.session_state["_auth_user"] = "guest"
         st.session_state["_auth_device"] = str(uuid.uuid4())
@@ -371,16 +399,28 @@ else:
     CURRENT_USER = "guest"
     USERS_DB = _auth_load_users()
     CURRENT_RECORD = USERS_DB.get("users", {}).get(CURRENT_USER, {})
+    # ALL USERS GET PRO FEATURES WHEN LOGIN IS DISABLED
     IS_ADMIN = False
+    # Force all users to have Pro Member access when login is disabled
+    CURRENT_RECORD["user_type"] = "Pro Member"
 
-# Admin panel button - show for admins or when login is disabled
-if IS_ADMIN or not _settings.get("login_enabled", True):
-    if "_auth_show_admin" not in st.session_state:
-        st.session_state["_auth_show_admin"] = False
-    if st.sidebar.button("🔧 Open Admin Panel"):
+# Admin panel button - ALWAYS SHOW IN SIDEBAR AT TOP
+if "_auth_show_admin" not in st.session_state:
+    st.session_state["_auth_show_admin"] = False
+
+# Always show admin panel button at top of sidebar
+with st.sidebar:
+    if st.button("🔧 Admin Panel", key="admin_panel_btn", use_container_width=True):
         st.session_state["_auth_show_admin"] = not st.session_state["_auth_show_admin"]
 
+# Admin panel with authentication
 if st.session_state.get("_auth_show_admin"):
+    # Check if admin is already authenticated for this session
+    if not st.session_state.get("_auth_admin_authenticated", False):
+        if not admin_panel_auth():
+            st.stop()
+    
+    # If authenticated, show admin panel
     st.markdown("## ⚙️ ADMIN PANEL")
     
     st.markdown("### User Management")
@@ -498,7 +538,7 @@ if st.session_state.get("_auth_show_admin"):
         primary_color = st.color_picker("Primary Color", value=_settings.get("primary_color", "#ffcc00"))
         
         # Login enable/disable toggle
-        login_enabled = st.checkbox("Enable Login Page", value=_settings.get("login_enabled", True))
+        login_enabled = st.checkbox("Enable Login Page", value=_settings.get("login_enabled", False))
         
         if st.button("Save Settings"):
             _settings["notice"] = new_notice
@@ -944,6 +984,15 @@ if st.session_state.get("_auth_show_admin"):
     
     st.markdown("---")
     st.write("Contact developer: +91 9140588751")
+    
+    # Add logout button for admin panel
+    if st.button("Logout from Admin Panel"):
+        st.session_state["_auth_admin_authenticated"] = False
+        st.session_state["_auth_admin_user"] = None
+        st.session_state["_auth_show_admin"] = False
+        st.success("Logged out from Admin Panel!")
+        st.rerun()
+    
     st.stop()
 
 if _settings.get("notice"):
@@ -1190,11 +1239,45 @@ def apply_overlay(image: Image.Image, overlay_path: str, size: float = 0.5, posi
         st.error(f"Error applying overlay: {str(e)}")
     return image
 
-def generate_filename(base_name="Picsart") -> str:
-    future_minutes = random.randint(1, 10)
-    now = datetime.now()
-    future_time = now + timedelta(minutes=future_minutes)
-    return f"{base_name}_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
+# ========== UPDATED FILENAME GENERATION WITH TIMESTAMP FEATURE ==========
+def generate_filename(base_name="Picsart", time_option="current", custom_time=None) -> str:
+    """
+    Generate filename with timestamp options
+    
+    Args:
+        base_name: Base name for the file
+        time_option: "current", "past", "future", or "custom"
+        custom_time: Custom datetime object (for custom option)
+    """
+    try:
+        # Try to get device timezone, fallback to Kolkata/IST
+        try:
+            device_tz = pytz.timezone('Asia/Kolkata')  # Default to IST
+            # You can add logic here to detect device timezone if needed
+        except:
+            device_tz = pytz.timezone('Asia/Kolkata')  # Fallback to IST
+        
+        now = datetime.now(device_tz)
+        
+        if time_option == "past":
+            target_time = now - timedelta(minutes=10)
+        elif time_option == "future":
+            target_time = now + timedelta(minutes=10)
+        elif time_option == "custom" and custom_time:
+            target_time = custom_time
+        else:  # current
+            target_time = now
+        
+        # Format: Picsart_25-01-15_14-30-45.jpg
+        timestamp = target_time.strftime('%y-%m-%d_%H-%M-%S')
+        return f"{base_name}_{timestamp}.jpg"
+    
+    except Exception as e:
+        # Fallback to original method if any error
+        future_minutes = random.randint(1, 10)
+        now = datetime.now()
+        future_time = now + timedelta(minutes=future_minutes)
+        return f"{base_name}_{future_time.strftime('%y-%m-%d_%H-%M-%S')}.jpg"
 
 def get_watermark_position(img: Image.Image, watermark: Image.Image, occupied_boxes: List[Tuple[int, int, int, int]], padding: int = 10) -> Tuple[int, int]:
     ew, eh = watermark.size
@@ -1946,6 +2029,7 @@ def create_variant(original_img: Optional[Image.Image], settings: dict) -> Optio
             img.paste(watermark, pos, watermark)
             occupied_boxes.append((pos[0], pos[1], watermark.width, watermark.height))
         
+        # ALL USERS GET PRO FEATURES WHEN LOGIN IS DISABLED
         if settings['use_coffee_pet'] and settings['pet_choice']:
             pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
             if settings['pet_choice'] == "Random":
@@ -2024,7 +2108,8 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-user_type = CURRENT_RECORD.get("user_type", "Member")
+# ALL USERS GET PRO FEATURES WHEN LOGIN IS DISABLED
+user_type = "Pro Member"  # Force all users to have Pro features
 visible_tools = _settings.get("visible_tools", ["V1.0"])
 
 if user_type == "Member":
@@ -2034,12 +2119,8 @@ elif user_type == "Pro Member":
 else:
     available_tools = visible_tools
 
-if user_type == "Member":
-    st.warning("🔒 You have Member access. Upgrade to Pro for more features!")
-elif user_type == "Pro Member":
-    st.success("⭐ You have Pro Member access with premium features!")
-else:
-    st.success("👑 You have Admin access with all features!")
+# Show status message
+st.success("⭐ Welcome! You have full access to all Pro features including Coffee & Pet PNG overlays and Emoji Stickers!")
 
 with st.sidebar:
     st.markdown("### ⚙️ SETTINGS")
@@ -2189,95 +2270,93 @@ with st.sidebar:
     
     st.markdown("---")
     
-    if user_type in ["Pro Member", "Admin"]:
-        st.markdown("###☕🐾 PRO OVERLAYS")
-        use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=True) if tool_settings["overlay"]["pet"] else False
-        if use_coffee_pet:
-            pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
-            pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
-            if pet_files:
-                pet_choice = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
-            else:
-                pet_choice = None
-                st.warning("No pet PNGs found in assets/pets")
+    # ALL USERS GET PRO FEATURES - NO RESTRICTIONS
+    st.markdown("###☕🐾 PRO OVERLAYS")
+    use_coffee_pet = st.checkbox("Enable Coffee & Pet PNG", value=True) if tool_settings["overlay"]["pet"] else False
+    if use_coffee_pet:
+        pet_size = st.slider("PNG Size", 0.1, 1.0, 0.3)
+        pet_files = list_files(os.path.join(ASSETS_DIR, "pets"), [".png", ".jpg", ".jpeg"])
+        if pet_files:
+            pet_choice = st.selectbox("Select Pet PNG", ["Random"] + pet_files)
         else:
             pet_choice = None
-                
-        st.markdown("### 😊 EMOJI STICKERS")
-        apply_emoji = st.checkbox("Add Emoji Stickers", value=False) if tool_settings["advanced"]["emoji"] else False
-        if apply_emoji:
-            emojis = st.multiselect("Select Emojis", ["😊", "👍", "❤️", "🌟", "🎉", "🔥", "🌈", "✨", "💯"], default=["😊", "❤️", "🌟"])
-            num_emojis = st.slider("Number of Emojis", 1, 10, 5)
-        else:
-            emojis = []
-            num_emojis = 5
+            st.warning("No pet PNGs found in assets/pets")
     else:
-        st.markdown("### 🔒 PRO FEATURES")
-        st.info("Upgrade to Pro Member to access Coffee & Pet PNG overlays and Emoji Stickers!")
-        use_coffee_pet = False
         pet_choice = None
-        apply_emoji = False
+            
+    st.markdown("### 😊 EMOJI STICKERS")
+    apply_emoji = st.checkbox("Add Emoji Stickers", value=False) if tool_settings["advanced"]["emoji"] else False
+    if apply_emoji:
+        emojis = st.multiselect("Select Emojis", ["😊", "👍", "❤️", "🌟", "🎉", "🔥", "🌈", "✨", "💯"], default=["😊", "❤️", "🌟"])
+        num_emojis = st.slider("Number of Emojis", 1, 10, 5)
+    else:
         emojis = []
         num_emojis = 5
     
     st.markdown("### ⚡ BULK PROCESSING")
     bulk_quality = st.selectbox("Output Quality", ["High (90%)", "Medium (80%)", "Low (70%)"], index=0)
     
-    if user_type in ["Pro Member", "Admin"]:
-        with st.expander("🔥 Advanced Features"):
-            st.markdown("### Image Adjustments")
-            brightness = st.slider("Brightness", 0.5, 1.5, 1.0)
-            contrast = st.slider("Contrast", 0.5, 1.5, 1.0)
-            sharpness = st.slider("Sharpness", 0.5, 2.0, 1.2)
-            saturation = st.slider("Saturation", 0.5, 2.0, 1.1)
-            
-            st.markdown("### Filters")
-            apply_sepia = st.checkbox("Apply Sepia Filter", value=False) if tool_settings["filter"]["sepia"] else False
-            apply_bw = st.checkbox("Apply Black & White Filter", value=False) if tool_settings["filter"]["black_white"] else False
-            apply_vintage = st.checkbox("Apply Vintage Filter", value=False) if tool_settings["filter"]["vintage"] else False
-            apply_vignette = st.checkbox("Apply Vignette Effect", value=False) if tool_settings["filter"]["vignette"] else False
-            if apply_vignette:
-                vignette_intensity = st.slider("Vignette Intensity", 0.1, 1.0, 0.8)
-            apply_sketch = st.checkbox("Apply Sketch Effect", value=False) if tool_settings["filter"]["sketch"] else False
-            apply_cartoon = st.checkbox("Apply Cartoon Effect", value=False) if tool_settings["filter"]["cartoon"] else False
-            apply_anime = st.checkbox("Apply Anime Effect", value=False) if tool_settings["filter"]["anime"] else False
-            
-            st.markdown("### Text Customizations")
-            font_folder = st.text_input("Font Folder Path", os.path.join(ASSETS_DIR, "fonts"))
-            upscale_factor = st.slider("Text Upscale Factor", 1, 8, 4)
-            
-            st.markdown("### Additional Overlays")
-            use_frame = st.checkbox("Add Frame Overlay", value=False)
-            if use_frame:
-                frame_files = list_files(os.path.join(ASSETS_DIR, "frames"), [".png", ".jpg"])
-                if frame_files:
-                    frame_choice = st.selectbox("Select Frame", frame_files)
-                    frame_path = os.path.join(ASSETS_DIR, "frames", frame_choice)
-                    frame_size = st.slider("Frame Size", 0.1, 1.0, 1.0)
-            
-            st.markdown("### Export Options")
-            export_format = st.selectbox("Export Format", ["JPEG", "PNG"], index=0)
-            compression_level = st.slider("Compression Level (for JPEG)", 50, 100, 95)
-    else:
-        st.markdown("### 🔒 ADVANCED FEATURES")
-        st.info("Upgrade to Pro Member to access advanced image editing features!")
-        brightness = 1.0
-        contrast = 1.0
-        sharpness = 1.2
-        saturation = 1.1
-        apply_sepia = False
-        apply_bw = False
-        apply_vintage = False
-        apply_vignette = False
-        vignette_intensity = 0.8
-        apply_sketch = False
-        apply_cartoon = False
-        apply_anime = False
-        font_folder = os.path.join(ASSETS_DIR, "fonts")
-        upscale_factor = 4
-        use_frame = False
-        export_format = "JPEG"
-        compression_level = 95
+    # ALL USERS GET ADVANCED FEATURES
+    with st.expander("🔥 Advanced Features"):
+        st.markdown("### Image Adjustments")
+        brightness = st.slider("Brightness", 0.5, 1.5, 1.0)
+        contrast = st.slider("Contrast", 0.5, 1.5, 1.0)
+        sharpness = st.slider("Sharpness", 0.5, 2.0, 1.2)
+        saturation = st.slider("Saturation", 0.5, 2.0, 1.1)
+        
+        st.markdown("### Filters")
+        apply_sepia = st.checkbox("Apply Sepia Filter", value=False) if tool_settings["filter"]["sepia"] else False
+        apply_bw = st.checkbox("Apply Black & White Filter", value=False) if tool_settings["filter"]["black_white"] else False
+        apply_vintage = st.checkbox("Apply Vintage Filter", value=False) if tool_settings["filter"]["vintage"] else False
+        apply_vignette = st.checkbox("Apply Vignette Effect", value=False) if tool_settings["filter"]["vignette"] else False
+        if apply_vignette:
+            vignette_intensity = st.slider("Vignette Intensity", 0.1, 1.0, 0.8)
+        apply_sketch = st.checkbox("Apply Sketch Effect", value=False) if tool_settings["filter"]["sketch"] else False
+        apply_cartoon = st.checkbox("Apply Cartoon Effect", value=False) if tool_settings["filter"]["cartoon"] else False
+        apply_anime = st.checkbox("Apply Anime Effect", value=False) if tool_settings["filter"]["anime"] else False
+        
+        st.markdown("### Text Customizations")
+        font_folder = st.text_input("Font Folder Path", os.path.join(ASSETS_DIR, "fonts"))
+        upscale_factor = st.slider("Text Upscale Factor", 1, 8, 4)
+        
+        st.markdown("### Additional Overlays")
+        use_frame = st.checkbox("Add Frame Overlay", value=False)
+        if use_frame:
+            frame_files = list_files(os.path.join(ASSETS_DIR, "frames"), [".png", ".jpg"])
+            if frame_files:
+                frame_choice = st.selectbox("Select Frame", frame_files)
+                frame_path = os.path.join(ASSETS_DIR, "frames", frame_choice)
+                frame_size = st.slider("Frame Size", 0.1, 1.0, 1.0)
+        
+        st.markdown("### 📅 FILENAME TIMESTAMP SETTINGS")
+        time_option = st.selectbox(
+            "Timestamp for Filename",
+            ["Current Time", "Past (10 mins ago)", "Future (10 mins later)", "Custom Time"],
+            index=0
+        )
+        
+        custom_time = None
+        if time_option == "Custom Time":
+            custom_date = st.date_input("Select Date")
+            custom_time_input = st.time_input("Select Time")
+            custom_time = datetime.combine(custom_date, custom_time_input)
+            # Convert to timezone aware
+            try:
+                custom_time = pytz.timezone('Asia/Kolkata').localize(custom_time)
+            except:
+                pass
+        
+        st.markdown("### Export Options")
+        export_format = st.selectbox("Export Format", ["JPEG", "PNG"], index=0)
+        compression_level = st.slider("Compression Level (for JPEG)", 50, 100, 95)
+
+# Map time options for filename generation
+time_option_map = {
+    "Current Time": "current",
+    "Past (10 mins ago)": "past", 
+    "Future (10 mins later)": "future",
+    "Custom Time": "custom"
+}
 
 if st.button("✨ GENERATE", key="generate", use_container_width=True):
     images = []
@@ -2394,7 +2473,13 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                         }
                         variant = create_variant(img, settings)
                         if variant is not None:
-                            variant_images.append((generate_filename(), variant))
+                            # Use new filename generation with timestamp options
+                            filename = generate_filename(
+                                base_name="Picsart",
+                                time_option=time_option_map.get(time_option, "current"),
+                                custom_time=custom_time
+                            )
+                            variant_images.append((filename, variant))
                         prog_idx += 1
                         progress_bar.progress(min(prog_idx / total_images, 1.0))
                 else:
@@ -2448,7 +2533,13 @@ if st.button("✨ GENERATE", key="generate", use_container_width=True):
                     }
                     processed_img = create_variant(img, settings)
                     if processed_img is not None:
-                        processed_images.append((generate_filename(), processed_img))
+                        # Use new filename generation with timestamp options
+                        filename = generate_filename(
+                            base_name="Picsart", 
+                            time_option=time_option_map.get(time_option, "current"),
+                            custom_time=custom_time
+                        )
+                        processed_images.append((filename, processed_img))
                     prog_idx += 1
                     progress_bar.progress(min(prog_idx / total_images, 1.0))
         
